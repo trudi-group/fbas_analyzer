@@ -1,0 +1,12 @@
+[package]
+name = "fba_quorum_analyzer"
+version = "0.1.0"
+authors = ["Martin Florian <martin.florian@hu-berlin.de>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bit-set = "0.5.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
