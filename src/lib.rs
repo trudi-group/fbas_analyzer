@@ -16,6 +16,8 @@ struct QuorumSet {
     inner_quorum_sets: Vec<QuorumSet>
 }
 
+mod io;
+
 #[cfg(test)]
 mod tests {
     #[test]
