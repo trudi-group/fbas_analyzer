@@ -12,7 +12,7 @@ struct Node {
     public_key: PublicKey,
     quorum_set: QuorumSet,
 }
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 struct QuorumSet {
     threshold: usize,
     validators: BitSet<NodeID>,

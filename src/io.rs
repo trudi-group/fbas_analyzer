@@ -12,7 +12,6 @@ impl RawNetwork {
         serde_json::from_str(json).expect("Error parsing JSON")
     }
 }
-
 #[derive(Deserialize)]
 struct RawNode {
     #[serde(rename = "publicKey")]
@@ -24,7 +23,7 @@ struct RawNode {
 struct RawQuorumSet {
     threshold: usize,
     validators: Vec<PublicKey>,
-    #[serde(rename = "innerQuorumSets")]
+    #[serde(rename = "innerQuorumSets", default)]
     inner_quorum_sets: Vec<RawQuorumSet>,
 }
 
@@ -65,7 +64,8 @@ impl QuorumSet {
             validators: raw_quorum_set
                 .validators
                 .into_iter()
-                .map(|x| pk_to_id[&x])
+                .filter_map(|x| pk_to_id.get(&x))
+                .copied()
                 .collect(),
             inner_quorum_sets: raw_quorum_set
                 .inner_quorum_sets
@@ -80,7 +80,7 @@ impl QuorumSet {
 mod tests {
     use super::*;
     #[test]
-    fn from_json_to_network_quorum_sets_match() {
+    fn from_json_to_network() {
         let input = r#"[
             {
                 "publicKey": "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
@@ -103,28 +103,24 @@ mod tests {
             {
                 "publicKey": "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
                 "quorumSet": {
-                    "threshold": 2,
-                    "validators": [
-                        "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
-                        "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
-                        "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
-                    ],
-                    "innerQuorumSets": []
-                }
-            },
-            {
-                "publicKey": "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK",
-                "quorumSet": {
                     "threshold": 3,
                     "validators": [
                         "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
                         "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
                         "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
-                    ],
-                    "innerQuorumSets": []
-                }
+                    ]
+                },
+                "aFieldWeIgnore": 42
+            },
+            {
+                "publicKey": "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
             }]"#;
 
+        let expected_public_keys = vec![
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK",
+        ];
         let expected_quorum_sets = vec![
             QuorumSet {
                 threshold: 1,
@@ -136,23 +132,54 @@ mod tests {
                 }],
             },
             QuorumSet {
-                threshold: 2,
-                validators: vec![0, 1, 2].into_iter().collect(),
-                inner_quorum_sets: vec![],
-            },
-            QuorumSet {
                 threshold: 3,
                 validators: vec![0, 1, 2].into_iter().collect(),
                 inner_quorum_sets: vec![],
             },
+            Default::default(),
         ];
-        let actual_quorum_sets: Vec<QuorumSet> = Network::from_json_str(&input)
-            .nodes
-            .into_iter()
-            .map(|x| x.quorum_set)
-            .collect();
 
+        let actual = Network::from_json_str(&input);
+        let actual_public_keys: Vec<PublicKey> =
+            actual.nodes.iter().map(|x| x.public_key.clone()).collect();
+        let actual_quorum_sets: Vec<QuorumSet> =
+            actual.nodes.into_iter().map(|x| x.quorum_set).collect();
+
+        assert_eq!(expected_public_keys, actual_public_keys);
         assert_eq!(expected_quorum_sets, actual_quorum_sets);
     }
 
+    #[test]
+    fn from_json_ignores_unknown_public_keys() {
+        let input = r#"[
+            {
+                "publicKey": "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+                "quorumSet": {
+                    "threshold": 2,
+                    "validators": [
+                        "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+                        "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+                        "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+                    ]
+                }
+            },
+            {
+                "publicKey": "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ"
+            }]"#;
+
+        let expected_quorum_sets = vec![
+            QuorumSet {
+                threshold: 2,
+                validators: vec![0, 1].into_iter().collect(),
+                inner_quorum_sets: Default::default(),
+            },
+            Default::default(),
+        ];
+
+        let actual = Network::from_json_str(&input);
+        let actual_quorum_sets: Vec<QuorumSet> =
+            actual.nodes.into_iter().map(|x| x.quorum_set).collect();
+
+        assert_eq!(expected_quorum_sets, actual_quorum_sets);
+    }
 }
