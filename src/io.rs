@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde_json;
 
 use std::collections::HashMap;
+use std::fs;
 
 use crate::*;
 
@@ -10,6 +11,11 @@ struct RawNetwork(Vec<RawNode>);
 impl RawNetwork {
     fn from_json_str(json: &str) -> Self {
         serde_json::from_str(json).expect("Error parsing JSON")
+    }
+    fn from_json_file(path: &str) -> Self {
+        let json =
+            fs::read_to_string(path).unwrap_or_else(|_| format!("Error reading file {:?}", path));
+        Self::from_json_str(&json)
     }
 }
 #[derive(Deserialize)]
@@ -29,7 +35,10 @@ struct RawQuorumSet {
 
 impl Network {
     fn from_json_str(json: &str) -> Self {
-        Network::from_raw(RawNetwork::from_json_str(json))
+        Self::from_raw(RawNetwork::from_json_str(json))
+    }
+    fn from_json_file(path: &str) -> Self {
+        Self::from_raw(RawNetwork::from_json_file(path))
     }
 
     fn from_raw(raw_network: RawNetwork) -> Self {
@@ -181,5 +190,14 @@ mod tests {
             actual.nodes.into_iter().map(|x| x.quorum_set).collect();
 
         assert_eq!(expected_quorum_sets, actual_quorum_sets);
+    }
+
+    #[test]
+    fn from_json_doesnt_panic_for_test_files() {
+        use std::fs;
+        for item in fs::read_dir("test_data").unwrap() {
+            let path = item.unwrap().path();
+            Network::from_json_file(path.to_str().unwrap());
+        }
     }
 }

@@ -1,0 +1,95 @@
+[
+    {
+        "publicKey": "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+        "name": "SDF validator 1",
+        "city": "Ashburn",
+        "country": "United States",
+        "latitude": "39.0853",
+        "longitude": "-77.6452",
+        "host": "core-live-a.stellar.org",
+        "ip": "54.160.111.199",
+        "port": "11625",
+        "version": "v9.2.0",
+        "verified": 1,
+        "activeRating": 5,
+        "active": 1,
+        "dateDiscovered": "2018-04-28 14:39:01",
+        "dateUpdated": "2018-05-10 14:00:04",
+        "quorumSet": {
+            "hashKey": "aeRARPRhjl8HNOlSKi3rT1jb7T+okrFnTxnpbQVmGJs=",
+            "threshold": 2,
+            "validators": [
+                "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+                "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+                "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+            ],
+            "innerQuorumSets": [],
+            "dateDiscovered": "2018-04-28T14:39:25.923Z",
+            "dateLastSeen": "2018-04-28T14:39:25.923Z"
+        },
+        "created_at": "2018-05-10 14:05:10",
+        "updated_at": "2018-05-10 14:05:10"
+    },
+	{
+        "publicKey": "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK",
+        "name": "SDF validator 2",
+        "city": "Ashburn",
+        "country": "United States",
+        "latitude": "39.0853",
+        "longitude": "-77.6452",
+        "host": "core-live-b.stellar.org",
+        "ip": "54.221.140.73",
+        "port": "11625",
+        "version": "v9.2.0",
+        "verified": 1,
+        "activeRating": 5,
+        "active": 1,
+        "dateDiscovered": "2018-04-28 14:39:01",
+        "dateUpdated": "2018-05-10 14:00:04",
+        "quorumSet": {
+            "hashKey": "dbROBZB26KK3PELCVO/i5CDds2zSvTK5GOPTqVXBMw8=",
+            "threshold": 2,
+            "validators": [
+                "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+                "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+                "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+            ],
+            "innerQuorumSets": [],
+            "dateDiscovered": "2018-04-28T14:39:25.923Z",
+            "dateLastSeen": "2018-04-28T14:39:25.923Z"
+        },
+        "created_at": "2018-05-10 14:05:10",
+        "updated_at": "2018-05-10 14:05:10"
+    },
+	{
+        "publicKey": "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+        "name": "SDF validator 3",
+        "city": "Ashburn",
+        "country": "United States",
+        "latitude": "39.0853",
+        "longitude": "-77.6452",
+        "host": "core-live-c.stellar.org",
+        "ip": "54.204.238.171",
+        "port": "11625",
+        "version": "v9.2.0",
+        "verified": 1,
+        "activeRating": 5,
+        "active": 1,
+        "dateDiscovered": "2018-04-28 14:39:01",
+        "dateUpdated": "2018-05-10 14:00:04",
+        "quorumSet": {
+            "hashKey": "dbROBZB26KK3PELCVO/i5CDds2zSvTK5GOPTqVXBMw8=",
+            "threshold": 2,
+            "validators": [
+                "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+                "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+                "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+            ],
+            "innerQuorumSets": [],
+            "dateDiscovered": "2018-04-28T14:39:25.923Z",
+            "dateLastSeen": "2018-04-28T14:39:25.923Z"
+        },
+        "created_at": "2018-05-10 14:05:10",
+        "updated_at": "2018-05-10 14:05:10"
+    }
+]
