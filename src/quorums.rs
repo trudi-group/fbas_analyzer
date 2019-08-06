@@ -8,31 +8,20 @@ impl Node {
 }
 impl QuorumSet {
     pub fn is_quorum(&self, node_set: &BitSet) -> bool {
-        let mut remaining_threshold = self.threshold;
-        let mut remaining_chances = self.validators.len() + self.inner_quorum_sets.len();
+        let found_validator_matches = self
+            .validators
+            .iter()
+            .filter(|x| node_set.contains(**x))
+            .take(self.threshold)
+            .count();
+        let found_inner_quorum_set_matches = self
+            .inner_quorum_sets
+            .iter()
+            .filter(|x| x.is_quorum(node_set))
+            .take(self.threshold - found_validator_matches)
+            .count();
 
-        for validator in self.validators.iter() {
-            if node_set.contains(*validator) {
-                remaining_threshold -= 1;
-            }
-            remaining_chances -= 1;
-            if remaining_threshold == 0 {
-                return true;
-            } else if remaining_chances < remaining_threshold {
-                return false;
-            }
-        }
-        for inner_quorum_set in self.inner_quorum_sets.iter() {
-            if remaining_threshold == 0 {
-                return true;
-            } else if remaining_chances < remaining_threshold {
-                return false;
-            } else if inner_quorum_set.is_quorum(node_set) {
-                remaining_threshold -= 1;
-            }
-            remaining_chances -= 1;
-        }
-        return false;
+        found_validator_matches + found_inner_quorum_set_matches == self.threshold
     }
 }
 
