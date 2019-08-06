@@ -34,10 +34,10 @@ struct RawQuorumSet {
 }
 
 impl Network {
-    fn from_json_str(json: &str) -> Self {
+    pub fn from_json_str(json: &str) -> Self {
         Self::from_raw(RawNetwork::from_json_str(json))
     }
-    fn from_json_file(path: &str) -> Self {
+    pub fn from_json_file(path: &str) -> Self {
         Self::from_raw(RawNetwork::from_json_file(path))
     }
 

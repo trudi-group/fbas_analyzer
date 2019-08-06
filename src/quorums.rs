@@ -1,6 +1,16 @@
 use super::*;
 use bit_set::BitSet;
 
+impl Network {
+    fn is_quorum(&self, node_list: Vec<NodeID>) -> bool {
+        let node_set: BitSet = node_list.iter().copied().collect();
+
+        node_list
+            .into_iter()
+            .find(|x| !self.nodes[*x].is_quorum(&node_set))
+            == None
+    }
+}
 impl Node {
     pub fn is_quorum(&self, node_set: &BitSet) -> bool {
         self.quorum_set.is_quorum(node_set)
@@ -73,5 +83,13 @@ mod tests {
         let quorum = &[0, 3, 4, 5].iter().copied().collect();
         assert!(!node.is_quorum(&not_quorum));
         assert!(node.is_quorum(&quorum));
+    }
+
+    #[test]
+    fn is_quorum_for_network() {
+        let network = Network::from_json_file("test_data/correct_trivial.json");
+
+        assert!(network.is_quorum(vec![0, 1]));
+        assert!(!network.is_quorum(vec![0]));
     }
 }
