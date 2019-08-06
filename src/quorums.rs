@@ -53,4 +53,25 @@ mod tests {
         let node_set = &[1, 2, 3].iter().copied().collect();
         assert!(node.is_quorum(&node_set));
     }
+
+    #[test]
+    fn is_quorum_with_inner_quorum_sets() {
+        let mut node = test_node(&[0, 1], 3);
+        node.quorum_set.inner_quorum_sets = vec![
+            QuorumSet {
+                threshold: 2,
+                validators: vec![2, 3, 4],
+                inner_quorum_sets: vec![],
+            },
+            QuorumSet {
+                threshold: 2,
+                validators: vec![4, 5, 6],
+                inner_quorum_sets: vec![],
+            },
+        ];
+        let not_quorum = &[1, 2, 3].iter().copied().collect();
+        let quorum = &[0, 3, 4, 5].iter().copied().collect();
+        assert!(!node.is_quorum(&not_quorum));
+        assert!(node.is_quorum(&quorum));
+    }
 }
