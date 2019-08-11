@@ -2,13 +2,12 @@ use super::*;
 use bit_set::BitSet;
 
 impl Network {
-    fn is_quorum(&self, node_list: Vec<NodeID>) -> bool {
-        let node_set: BitSet = node_list.iter().copied().collect();
-
-        node_list
-            .into_iter()
-            .find(|x| !self.nodes[*x].is_quorum(&node_set))
-            == None
+    fn is_quorum(&self, node_set: &BitSet) -> bool {
+        !node_set.is_empty()
+            && node_set
+                .into_iter()
+                .find(|x| !self.nodes[*x].is_quorum(&node_set))
+                == None
     }
 }
 impl Node {
@@ -35,6 +34,38 @@ impl QuorumSet {
     }
 }
 
+fn get_minimal_quorums(network: &Network) -> Vec<Vec<NodeID>> {
+    fn get_minimal_quorums_step(
+        unprocessed: &mut Vec<NodeID>,
+        selection: &mut BitSet,
+        network: &Network,
+    ) -> Vec<Vec<NodeID>> {
+        let mut result: Vec<Vec<NodeID>> = vec![];
+
+        if network.is_quorum(selection) {
+            result.push(selection.iter().collect());
+        } else if let Some(current_candidate) = unprocessed.pop() {
+            selection.insert(current_candidate);
+            result.extend(get_minimal_quorums_step(unprocessed, selection, network));
+
+            // TODO non-trivial non-minimal quorums
+            // TODO pruning / knowing when to stop
+
+            selection.remove(current_candidate);
+            result.extend(get_minimal_quorums_step(unprocessed, selection, network));
+
+            unprocessed.push(current_candidate);
+        }
+        result
+    }
+    let n = network.nodes.len();
+    let mut unprocessed: Vec<NodeID> = (0..n).collect();
+    unprocessed.reverse(); // will be used as LIFO queue
+
+    let mut selection = BitSet::with_capacity(n);
+    get_minimal_quorums_step(&mut unprocessed, &mut selection, network)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -43,7 +74,7 @@ mod tests {
         Node {
             public_key: Default::default(),
             quorum_set: QuorumSet {
-                threshold: threshold,
+                threshold,
                 validators: validators.iter().copied().collect(),
                 inner_quorum_sets: vec![],
             },
@@ -89,7 +120,26 @@ mod tests {
     fn is_quorum_for_network() {
         let network = Network::from_json_file("test_data/correct_trivial.json");
 
-        assert!(network.is_quorum(vec![0, 1]));
-        assert!(!network.is_quorum(vec![0]));
+        assert!(network.is_quorum(&vec![0, 1].into_iter().collect()));
+        assert!(!network.is_quorum(&vec![0].into_iter().collect()));
+    }
+
+    #[test]
+    fn empty_set_is_not_quorum() {
+        let node = test_node(&[0, 1, 2], 2);
+        assert!(!node.is_quorum(&BitSet::new()));
+
+        let network = Network::from_json_file("test_data/correct_trivial.json");
+        assert!(!network.is_quorum(&BitSet::new()));
+    }
+
+    #[test]
+    fn get_minimal_quorums_correct_trivial() {
+        let network = Network::from_json_file("test_data/correct_trivial.json");
+
+        let expected = vec![vec![0, 1], vec![0, 2], vec![1, 2]];
+        let actual = get_minimal_quorums(&network);
+
+        assert_eq!(expected, actual);
     }
 }
