@@ -69,6 +69,13 @@ pub fn has_quorum_intersection(network: &Network) -> bool {
 }
 
 pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
+    let n = network.nodes.len();
+    let mut unprocessed: Vec<NodeID> = (0..n).collect();
+    unprocessed.reverse(); // will be used as LIFO queue
+
+    let mut selection = BitSet::with_capacity(n);
+    let mut available = unprocessed.iter().cloned().collect();
+
     fn step(
         unprocessed: &mut Vec<NodeID>,
         selection: &mut BitSet,
@@ -87,10 +94,7 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
             selection.remove(current_candidate);
             available.remove(current_candidate);
 
-            if selection
-                .iter()
-                .all(|x| network.nodes[x].is_quorum(available))
-            {
+            if quorums_possible(selection, available, network) {
                 result.extend(step(unprocessed, selection, available, network));
             }
 
@@ -99,12 +103,11 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
         }
         result
     }
-    let n = network.nodes.len();
-    let mut unprocessed: Vec<NodeID> = (0..n).collect();
-    unprocessed.reverse(); // will be used as LIFO queue
-
-    let mut selection = BitSet::with_capacity(n);
-    let mut available = unprocessed.iter().cloned().collect();
+    fn quorums_possible(selection: &BitSet, available: &BitSet, network: &Network) -> bool {
+        selection
+            .iter()
+            .all(|x| network.nodes[x].is_quorum(available))
+    }
 
     let quorums = step(&mut unprocessed, &mut selection, &mut available, network);
     remove_non_minimal_node_sets(quorums)
