@@ -1,6 +1,36 @@
 use super::*;
 use bit_set::BitSet;
 
+/// Create a **BitSet** from a list of elements.
+///
+/// ## Example
+///
+/// ```
+/// #[macro_use] extern crate fba_quorum_analyzer;
+///
+/// let set = bitset!{23, 42};
+/// assert!(set.contains(23));
+/// assert!(set.contains(42));
+/// assert!(!set.contains(100));
+/// ```
+#[macro_export]
+macro_rules! bitset {
+    (@single $($x:tt)*) => (());
+    (@count $($rest:expr),*) => (<[()]>::len(&[$(bitset!(@single $rest)),*]));
+
+    ($($key:expr,)+) => { bitset!($($key),+) };
+    ($($key:expr),*) => {
+        {
+            let _cap = bitset!(@count $($key),*);
+            let mut _set = ::bit_set::BitSet::with_capacity(_cap);
+            $(
+                let _ = _set.insert($key);
+            )*
+            _set
+        }
+    };
+}
+
 impl Network {
     fn is_quorum(&self, node_set: &BitSet) -> bool {
         !node_set.is_empty()
@@ -34,7 +64,11 @@ impl QuorumSet {
     }
 }
 
-fn get_minimal_quorums(network: &Network) -> Vec<Vec<NodeID>> {
+fn has_quorum_intersection(network: &Network) -> bool {
+    all_node_sets_interesect(&get_minimal_quorums(network))
+}
+
+fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     fn get_minimal_quorums_step(
         unprocessed: &mut Vec<NodeID>,
         selection: &mut BitSet,
@@ -63,11 +97,14 @@ fn get_minimal_quorums(network: &Network) -> Vec<Vec<NodeID>> {
     let mut selection = BitSet::with_capacity(n);
 
     let quorums = get_minimal_quorums_step(&mut unprocessed, &mut selection, network);
-    let minimal_quorums = remove_non_minimal_node_sets(quorums);
-    minimal_quorums
-        .into_iter()
-        .map(|x| x.into_iter().collect())
-        .collect()
+    remove_non_minimal_node_sets(quorums)
+}
+
+fn all_node_sets_interesect(node_sets: &[BitSet]) -> bool {
+    node_sets
+        .iter()
+        .enumerate()
+        .all(|(i, x)| node_sets.iter().skip(i + 1).all(|y| !x.is_disjoint(y)))
 }
 
 fn remove_non_minimal_node_sets(node_sets: Vec<BitSet>) -> Vec<BitSet> {
@@ -159,7 +196,7 @@ mod tests {
     fn get_minimal_quorums_correct_trivial() {
         let network = Network::from_json_file("test_data/correct_trivial.json");
 
-        let expected = vec![vec![0, 1], vec![0, 2], vec![1, 2]];
+        let expected = vec![bitset! {0, 1}, bitset! {0, 2}, bitset! {1, 2}];
         let actual = get_minimal_quorums(&network);
 
         assert_eq!(expected, actual);
@@ -169,7 +206,7 @@ mod tests {
     fn get_minimal_quorums_broken_trivial() {
         let network = Network::from_json_file("test_data/broken_trivial.json");
 
-        let expected = vec![vec![0], vec![1, 2]];
+        let expected = vec![bitset! {0}, bitset! {1, 2}];
         let actual = get_minimal_quorums(&network);
 
         assert_eq!(expected, actual);
@@ -180,9 +217,28 @@ mod tests {
         let mut network = Network::from_json_file("test_data/broken_trivial.json");
         network.nodes.reverse();
 
-        let expected = vec![vec![2], vec![0, 1]];
+        let expected = vec![bitset! {2}, bitset! {0, 1}];
         let actual = get_minimal_quorums(&network);
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn node_set_interesections() {
+        assert!(all_node_sets_interesect(&vec![
+            bitset! {0,1},
+            bitset! {0,2},
+            bitset! {1,2}
+        ]));
+        assert!(!all_node_sets_interesect(&vec![bitset! {0}, bitset! {1,2}]));
+    }
+
+    #[test]
+    fn has_quorum_intersection_trivial() {
+        let correct = Network::from_json_file("test_data/correct_trivial.json");
+        let broken = Network::from_json_file("test_data/broken_trivial.json");
+
+        assert!(has_quorum_intersection(&correct));
+        assert!(!has_quorum_intersection(&broken));
     }
 }
