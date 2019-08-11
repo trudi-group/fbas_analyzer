@@ -64,11 +64,11 @@ impl QuorumSet {
     }
 }
 
-fn has_quorum_intersection(network: &Network) -> bool {
+pub fn has_quorum_intersection(network: &Network) -> bool {
     all_node_sets_interesect(&get_minimal_quorums(network))
 }
 
-fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
+pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     fn get_minimal_quorums_step(
         unprocessed: &mut Vec<NodeID>,
         selection: &mut BitSet,
@@ -100,7 +100,7 @@ fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     remove_non_minimal_node_sets(quorums)
 }
 
-fn all_node_sets_interesect(node_sets: &[BitSet]) -> bool {
+pub fn all_node_sets_interesect(node_sets: &[BitSet]) -> bool {
     node_sets
         .iter()
         .enumerate()

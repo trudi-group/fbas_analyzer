@@ -2,7 +2,7 @@ type NodeID = usize; // internal and possibly different between runs
 type PublicKey = String;
 
 #[derive(Debug, PartialEq)]
-struct Network {
+pub struct Network {
     nodes: Vec<Node>,
 }
 #[derive(Debug, PartialEq)]
@@ -18,6 +18,8 @@ struct QuorumSet {
 }
 mod io;
 mod quorums;
+
+pub use quorums::{all_node_sets_interesect, get_minimal_quorums, has_quorum_intersection};
 
 #[cfg(test)]
 mod tests {
