@@ -39,23 +39,21 @@ fn get_minimal_quorums(network: &Network) -> Vec<Vec<NodeID>> {
         unprocessed: &mut Vec<NodeID>,
         selection: &mut BitSet,
         network: &Network,
-    ) -> Vec<Vec<NodeID>> {
-        let mut result: Vec<Vec<NodeID>> = vec![];
+    ) -> Vec<BitSet> {
+        let mut result: Vec<BitSet> = vec![];
 
         if network.is_quorum(selection) {
-            result.push(selection.iter().collect());
+            result.push(selection.clone());
         } else if let Some(current_candidate) = unprocessed.pop() {
             selection.insert(current_candidate);
             result.extend(get_minimal_quorums_step(unprocessed, selection, network));
-
-            // TODO non-trivial non-minimal quorums
-            // TODO pruning / knowing when to stop
 
             selection.remove(current_candidate);
             result.extend(get_minimal_quorums_step(unprocessed, selection, network));
 
             unprocessed.push(current_candidate);
         }
+        // TODO pruning / knowing when to stop
         result
     }
     let n = network.nodes.len();
@@ -63,7 +61,31 @@ fn get_minimal_quorums(network: &Network) -> Vec<Vec<NodeID>> {
     unprocessed.reverse(); // will be used as LIFO queue
 
     let mut selection = BitSet::with_capacity(n);
-    get_minimal_quorums_step(&mut unprocessed, &mut selection, network)
+
+    let quorums = get_minimal_quorums_step(&mut unprocessed, &mut selection, network);
+    let minimal_quorums = remove_non_minimal_node_sets(quorums);
+    minimal_quorums
+        .into_iter()
+        .map(|x| x.into_iter().collect())
+        .collect()
+}
+
+fn remove_non_minimal_node_sets(node_sets: Vec<BitSet>) -> Vec<BitSet> {
+    let mut node_sets = node_sets;
+    let mut minimal_node_sets: Vec<BitSet> = vec![];
+
+    node_sets.sort_by(|x, y| x.len().cmp(&y.len()));
+
+    for node_set in node_sets.into_iter() {
+        if minimal_node_sets
+            .iter()
+            .find(|x| x.is_subset(&node_set))
+            .is_none()
+        {
+            minimal_node_sets.push(node_set);
+        }
+    }
+    minimal_node_sets
 }
 
 #[cfg(test)]
@@ -138,6 +160,27 @@ mod tests {
         let network = Network::from_json_file("test_data/correct_trivial.json");
 
         let expected = vec![vec![0, 1], vec![0, 2], vec![1, 2]];
+        let actual = get_minimal_quorums(&network);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn get_minimal_quorums_broken_trivial() {
+        let network = Network::from_json_file("test_data/broken_trivial.json");
+
+        let expected = vec![vec![0], vec![1, 2]];
+        let actual = get_minimal_quorums(&network);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn get_minimal_quorums_broken_trivial_reversed_node_ids() {
+        let mut network = Network::from_json_file("test_data/broken_trivial.json");
+        network.nodes.reverse();
+
+        let expected = vec![vec![2], vec![0, 1]];
         let actual = get_minimal_quorums(&network);
 
         assert_eq!(expected, actual);
