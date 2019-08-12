@@ -1,6 +1,8 @@
 use super::*;
 use bit_set::BitSet;
 
+use std::collections::VecDeque;
+
 /// Create a **BitSet** from a list of elements.
 ///
 /// ## Example
@@ -80,15 +82,17 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     let mut unprocessed: Vec<NodeID> = (0..n).collect();
 
     unprocessed = reduce_to_strongly_connected_components(unprocessed, network);
-    println!("Reducing removed {} nodes ...", n - unprocessed.len());
-
-    unprocessed.reverse(); // will be used as LIFO queue
+    println!(
+        "Reducing removed {} of {} nodes...",
+        n - unprocessed.len(),
+        n
+    );
 
     let mut selection = BitSet::with_capacity(n);
     let mut available = unprocessed.iter().cloned().collect();
 
     fn step(
-        unprocessed: &mut Vec<NodeID>,
+        unprocessed: &mut VecDeque<NodeID>,
         selection: &mut BitSet,
         available: &mut BitSet,
         network: &Network,
@@ -97,7 +101,7 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
 
         if network.is_quorum(selection) {
             result.push(selection.clone());
-        } else if let Some(current_candidate) = unprocessed.pop() {
+        } else if let Some(current_candidate) = unprocessed.pop_front() {
             selection.insert(current_candidate);
 
             result.extend(step(unprocessed, selection, available, network));
@@ -109,7 +113,7 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
                 result.extend(step(unprocessed, selection, available, network));
             }
 
-            unprocessed.push(current_candidate);
+            unprocessed.push_back(current_candidate);
             available.insert(current_candidate);
         }
         result
@@ -120,7 +124,12 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
             .all(|x| network.nodes[x].is_quorum(available))
     }
 
-    let quorums = step(&mut unprocessed, &mut selection, &mut available, network);
+    let quorums = step(
+        &mut unprocessed.into(),
+        &mut selection,
+        &mut available,
+        network,
+    );
     println!("Found {} quorums...", quorums.len());
 
     remove_non_minimal_node_sets(quorums)
