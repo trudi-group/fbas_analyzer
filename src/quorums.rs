@@ -62,6 +62,13 @@ impl QuorumSet {
 
         found_validator_matches + found_inner_quorum_set_matches == self.threshold
     }
+    fn get_all_nodes(&self) -> Vec<NodeID> {
+        let mut result = self.validators.clone();
+        for inner_quorum_set in self.inner_quorum_sets.iter() {
+            result.extend(inner_quorum_set.get_all_nodes());
+        }
+        result
+    }
 }
 
 pub fn has_quorum_intersection(network: &Network) -> bool {
@@ -71,6 +78,10 @@ pub fn has_quorum_intersection(network: &Network) -> bool {
 pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     let n = network.nodes.len();
     let mut unprocessed: Vec<NodeID> = (0..n).collect();
+
+    unprocessed = reduce_to_strongly_connected_components(unprocessed, network);
+    println!("Reducing removed {} nodes ...", n - unprocessed.len());
+
     unprocessed.reverse(); // will be used as LIFO queue
 
     let mut selection = BitSet::with_capacity(n);
@@ -110,6 +121,8 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     }
 
     let quorums = step(&mut unprocessed, &mut selection, &mut available, network);
+    println!("Found {} quorums...", quorums.len());
+
     remove_non_minimal_node_sets(quorums)
 }
 
@@ -138,6 +151,36 @@ fn remove_non_minimal_node_sets(node_sets: Vec<BitSet>) -> Vec<BitSet> {
     minimal_node_sets
 }
 
+pub fn reduce_to_strongly_connected_components(
+    nodes: Vec<NodeID>,
+    network: &Network,
+) -> Vec<NodeID> {
+    // can probably be done faster
+    let k = nodes.len();
+    let reduced_once = remove_nodes_not_included_in_quorum_slices(nodes, network);
+
+    if reduced_once.len() < k {
+        reduce_to_strongly_connected_components(reduced_once, network)
+    } else {
+        reduced_once
+    }
+}
+
+fn remove_nodes_not_included_in_quorum_slices(
+    nodes: Vec<NodeID>,
+    network: &Network,
+) -> Vec<NodeID> {
+    let mut included_nodes = BitSet::with_capacity(network.nodes.len());
+
+    for node_id in nodes {
+        let node = &network.nodes[node_id];
+        for included_node in node.quorum_set.get_all_nodes() {
+            included_nodes.insert(included_node);
+        }
+    }
+    included_nodes.into_iter().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,14 +199,14 @@ mod tests {
     #[test]
     fn is_quorum_if_not_quorum() {
         let node = test_node(&[0, 1, 2], 3);
-        let node_set = &[1, 2, 3].iter().copied().collect();
+        let node_set = [1, 2, 3].iter().copied().collect();
         assert!(!node.is_quorum(&node_set));
     }
 
     #[test]
     fn is_quorum_if_quorum() {
         let node = test_node(&[0, 1, 2], 2);
-        let node_set = &[1, 2, 3].iter().copied().collect();
+        let node_set = [1, 2, 3].iter().copied().collect();
         assert!(node.is_quorum(&node_set));
     }
 
@@ -182,8 +225,8 @@ mod tests {
                 inner_quorum_sets: vec![],
             },
         ];
-        let not_quorum = &[1, 2, 3].iter().copied().collect();
-        let quorum = &[0, 3, 4, 5].iter().copied().collect();
+        let not_quorum = [1, 2, 3].iter().copied().collect();
+        let quorum = [0, 3, 4, 5].iter().copied().collect();
         assert!(!node.is_quorum(&not_quorum));
         assert!(node.is_quorum(&quorum));
     }
