@@ -35,11 +35,7 @@ macro_rules! bitset {
 
 impl Network {
     fn is_quorum(&self, node_set: &BitSet) -> bool {
-        !node_set.is_empty()
-            && node_set
-                .into_iter()
-                .find(|x| !self.nodes[*x].is_quorum(&node_set))
-                == None
+        !node_set.is_empty() && node_set.iter().all(|x| self.nodes[x].is_quorum(&node_set))
     }
 }
 impl Node {
@@ -155,11 +151,7 @@ fn remove_non_minimal_node_sets(node_sets: Vec<BitSet>) -> Vec<BitSet> {
     node_sets.sort_by(|x, y| x.len().cmp(&y.len()));
 
     for node_set in node_sets.into_iter() {
-        if minimal_node_sets
-            .iter()
-            .find(|x| x.is_subset(&node_set))
-            .is_none()
-        {
+        if minimal_node_sets.iter().all(|x| !x.is_subset(&node_set)) {
             minimal_node_sets.push(node_set);
         }
     }
@@ -335,6 +327,16 @@ mod tests {
         let broken = Network::from_json_file("test_data/broken_trivial.json");
 
         assert!(has_quorum_intersection(&correct));
+        assert!(!has_quorum_intersection(&broken));
+    }
+
+    #[test]
+    fn has_quorum_intersection_nontrivial() {
+        let correct = Network::from_json_file("test_data/correct.json");
+        let broken = Network::from_json_file("test_data/broken.json");
+
+        // "correct" currently broken too because there is a one node quorum in this file
+        assert!(!has_quorum_intersection(&correct));
         assert!(!has_quorum_intersection(&broken));
     }
 }
