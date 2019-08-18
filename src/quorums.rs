@@ -88,6 +88,10 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
         n
     );
 
+    println!("Sorting...");
+    unprocessed = sort_nodes_by_rank(unprocessed, network);
+    println!("Sorted.");
+
     let mut selection = BitSet::with_capacity(n);
     let mut available = unprocessed.iter().cloned().collect();
 
@@ -113,7 +117,7 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
                 result.extend(step(unprocessed, selection, available, network));
             }
 
-            unprocessed.push_back(current_candidate);
+            unprocessed.push_front(current_candidate);
             available.insert(current_candidate);
         }
         result
@@ -132,7 +136,9 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     );
     println!("Found {} quorums...", quorums.len());
 
-    remove_non_minimal_node_sets(quorums)
+    let minimal_quorums = remove_non_minimal_node_sets(quorums);
+    println!("Reduced to {} minimal quorums.", minimal_quorums.len());
+    minimal_quorums
 }
 
 pub fn all_node_sets_interesect(node_sets: &[BitSet]) -> bool {
@@ -173,6 +179,31 @@ pub fn reduce_to_strongly_connected_components(
     } else {
         reduced_once
     }
+}
+
+pub fn sort_nodes_by_rank(nodes: Vec<NodeID>, network: &Network) -> Vec<NodeID> {
+    // a quick and dirty something resembling page rank
+    // TODO not protected against overflows ...
+    let mut scores: Vec<u64> = vec![1; network.nodes.len()];
+
+    let runs = 10;
+
+    for _ in 0..runs {
+        let scores_snapshot = scores.clone();
+
+        for node_id in nodes.iter().copied() {
+            let node = &network.nodes[node_id];
+
+            for trusted_node_id in node.quorum_set.get_all_nodes() {
+                scores[trusted_node_id] += scores_snapshot[node_id];
+            }
+        }
+    }
+
+    let mut nodes = nodes;
+    // sort by "highest score first"
+    nodes.sort_by(|x, y| scores[*y].cmp(&scores[*x]));
+    nodes
 }
 
 fn remove_nodes_not_included_in_quorum_slices(
