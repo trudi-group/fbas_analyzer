@@ -45,20 +45,24 @@ impl Node {
 }
 impl QuorumSet {
     pub fn is_quorum(&self, node_set: &BitSet) -> bool {
-        let found_validator_matches = self
-            .validators
-            .iter()
-            .filter(|x| node_set.contains(**x))
-            .take(self.threshold)
-            .count();
-        let found_inner_quorum_set_matches = self
-            .inner_quorum_sets
-            .iter()
-            .filter(|x| x.is_quorum(node_set))
-            .take(self.threshold - found_validator_matches)
-            .count();
+        if self.threshold == 0 {
+            false // badly configured quorum set
+        } else {
+            let found_validator_matches = self
+                .validators
+                .iter()
+                .filter(|x| node_set.contains(**x))
+                .take(self.threshold)
+                .count();
+            let found_inner_quorum_set_matches = self
+                .inner_quorum_sets
+                .iter()
+                .filter(|x| x.is_quorum(node_set))
+                .take(self.threshold - found_validator_matches)
+                .count();
 
-        found_validator_matches + found_inner_quorum_set_matches == self.threshold
+            found_validator_matches + found_inner_quorum_set_matches == self.threshold
+        }
     }
     fn get_all_nodes(&self) -> Vec<NodeID> {
         let mut result = self.validators.clone();
@@ -335,8 +339,7 @@ mod tests {
         let correct = Network::from_json_file("test_data/correct.json");
         let broken = Network::from_json_file("test_data/broken.json");
 
-        // "correct" currently broken too because there is a one node quorum in this file
-        assert!(!has_quorum_intersection(&correct));
+        assert!(has_quorum_intersection(&correct));
         assert!(!has_quorum_intersection(&broken));
     }
 }
