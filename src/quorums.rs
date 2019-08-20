@@ -233,14 +233,14 @@ mod tests {
     #[test]
     fn is_quorum_if_not_quorum() {
         let node = test_node(&[0, 1, 2], 3);
-        let node_set = [1, 2, 3].iter().copied().collect();
+        let node_set = bitset![1, 2, 3];
         assert!(!node.is_quorum(&node_set));
     }
 
     #[test]
     fn is_quorum_if_quorum() {
         let node = test_node(&[0, 1, 2], 2);
-        let node_set = [1, 2, 3].iter().copied().collect();
+        let node_set = bitset![1, 2, 3];
         assert!(node.is_quorum(&node_set));
     }
 
@@ -259,8 +259,8 @@ mod tests {
                 inner_quorum_sets: vec![],
             },
         ];
-        let not_quorum = [1, 2, 3].iter().copied().collect();
-        let quorum = [0, 3, 4, 5].iter().copied().collect();
+        let not_quorum = bitset![1, 2, 3];
+        let quorum = bitset![0, 3, 4, 5];
         assert!(!node.is_quorum(&not_quorum));
         assert!(node.is_quorum(&quorum));
     }
@@ -269,17 +269,26 @@ mod tests {
     fn is_quorum_for_network() {
         let network = Network::from_json_file("test_data/correct_trivial.json");
 
-        assert!(network.is_quorum(&vec![0, 1].into_iter().collect()));
-        assert!(!network.is_quorum(&vec![0].into_iter().collect()));
+        assert!(network.is_quorum(&bitset![0, 1]));
+        assert!(!network.is_quorum(&bitset![0]));
     }
 
     #[test]
     fn empty_set_is_not_quorum() {
         let node = test_node(&[0, 1, 2], 2);
-        assert!(!node.is_quorum(&BitSet::new()));
+        assert!(!node.is_quorum(&bitset![]));
 
         let network = Network::from_json_file("test_data/correct_trivial.json");
-        assert!(!network.is_quorum(&BitSet::new()));
+        assert!(!network.is_quorum(&bitset![]));
+    }
+
+    #[test]
+    fn quorum_set_with_threshold_0_trusts_no_one() {
+        let node = test_node(&[0, 1, 2], 0);
+        assert!(!node.is_quorum(&bitset![]));
+        assert!(!node.is_quorum(&bitset![0]));
+        assert!(!node.is_quorum(&bitset![0, 1]));
+        assert!(!node.is_quorum(&bitset![0, 1, 2]));
     }
 
     #[test]
