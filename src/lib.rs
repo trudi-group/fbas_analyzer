@@ -17,9 +17,10 @@ struct QuorumSet {
     inner_quorum_sets: Vec<QuorumSet>,
 }
 mod io;
-mod quorums;
+mod quorums; // <- most of the magic happens here
 
 pub use quorums::{all_node_sets_interesect, get_minimal_quorums, has_quorum_intersection};
+pub use io::{node_sets_to_json};
 
 #[cfg(test)]
 mod tests {

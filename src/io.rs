@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde_json;
 
 use std::collections::HashMap;
+use std::fmt;
 use std::fs;
 
 use crate::*;
@@ -83,6 +84,19 @@ impl QuorumSet {
                 .collect(),
         }
     }
+}
+
+pub fn node_sets_to_json(node_sets: &Vec<impl fmt::Debug>) -> String {
+    // TODO use serde here maybe once bit_set implements Serialize trait
+    let mut result = String::new();
+
+    result.push_str("[\n");
+
+    let lines: Vec<String> = node_sets.iter().map(|x| format!("  {:?}", x)).collect();
+    result.push_str(&lines.join(",\n"));
+
+    result.push_str("\n]");
+    result
 }
 
 #[cfg(test)]
