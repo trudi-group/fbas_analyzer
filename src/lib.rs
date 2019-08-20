@@ -19,8 +19,8 @@ struct QuorumSet {
 mod io;
 mod quorums; // <- most of the magic happens here
 
+pub use io::node_sets_to_json;
 pub use quorums::{all_node_sets_interesect, get_minimal_quorums, has_quorum_intersection};
-pub use io::{node_sets_to_json};
 
 #[cfg(test)]
 mod tests {

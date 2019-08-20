@@ -295,7 +295,7 @@ mod tests {
     fn get_minimal_quorums_correct_trivial() {
         let network = Network::from_json_file("test_data/correct_trivial.json");
 
-        let expected = vec![bitset! {0, 1}, bitset! {0, 2}, bitset! {1, 2}];
+        let expected = vec![bitset![0, 1], bitset![0, 2], bitset![1, 2]];
         let actual = get_minimal_quorums(&network);
 
         assert_eq!(expected, actual);
@@ -305,7 +305,7 @@ mod tests {
     fn get_minimal_quorums_broken_trivial() {
         let network = Network::from_json_file("test_data/broken_trivial.json");
 
-        let expected = vec![bitset! {0}, bitset! {1, 2}];
+        let expected = vec![bitset![0], bitset![1, 2]];
         let actual = get_minimal_quorums(&network);
 
         assert_eq!(expected, actual);
@@ -316,7 +316,7 @@ mod tests {
         let mut network = Network::from_json_file("test_data/broken_trivial.json");
         network.nodes.reverse();
 
-        let expected = vec![bitset! {2}, bitset! {0, 1}];
+        let expected = vec![bitset![2], bitset![0, 1]];
         let actual = get_minimal_quorums(&network);
 
         assert_eq!(expected, actual);
@@ -325,11 +325,11 @@ mod tests {
     #[test]
     fn node_set_interesections() {
         assert!(all_node_sets_interesect(&vec![
-            bitset! {0,1},
-            bitset! {0,2},
-            bitset! {1,2}
+            bitset![0, 1],
+            bitset![0, 2],
+            bitset![1, 2]
         ]));
-        assert!(!all_node_sets_interesect(&vec![bitset! {0}, bitset! {1,2}]));
+        assert!(!all_node_sets_interesect(&vec![bitset![0], bitset![1, 2]]));
     }
 
     #[test]
