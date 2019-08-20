@@ -1,6 +1,6 @@
 use super::*;
 use bit_set::BitSet;
-
+use log::info;
 use std::collections::VecDeque;
 
 /// Create a **BitSet** from a list of elements.
@@ -81,16 +81,17 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     let n = network.nodes.len();
     let mut unprocessed: Vec<NodeID> = (0..n).collect();
 
+    info!("Reducing to strongly connected components...");
     unprocessed = reduce_to_strongly_connected_components(unprocessed, network);
-    println!(
+    info!(
         "Reducing removed {} of {} nodes...",
         n - unprocessed.len(),
         n
     );
 
-    println!("Sorting...");
+    info!("Sorting nodes by rank...");
     unprocessed = sort_nodes_by_rank(unprocessed, network);
-    println!("Sorted.");
+    info!("Sorted.");
 
     let mut selection = BitSet::with_capacity(n);
     let mut available = unprocessed.iter().cloned().collect();
@@ -134,10 +135,10 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
         &mut available,
         network,
     );
-    println!("Found {} quorums...", quorums.len());
+    info!("Found {} quorums.", quorums.len());
 
     let minimal_quorums = remove_non_minimal_node_sets(quorums);
-    println!("Reduced to {} minimal quorums.", minimal_quorums.len());
+    info!("Reduced to {} minimal quorums.", minimal_quorums.len());
     minimal_quorums
 }
 
