@@ -1,6 +1,7 @@
 use super::*;
 use bit_set::BitSet;
 use log::info;
+use std::collections::BTreeMap;
 use std::collections::VecDeque;
 
 /// Create a **BitSet** from a list of elements.
@@ -172,6 +173,101 @@ pub fn sort_nodes_by_rank(nodes: Vec<NodeID>, network: &Network) -> Vec<NodeID> 
     // sort by "highest score first"
     nodes.sort_by(|x, y| scores[*y].cmp(&scores[*x]));
     nodes
+}
+
+pub fn get_minimal_blocking_sets(quorums: &[BitSet]) -> Vec<BitSet> {
+    // TODO has refactoring and performance tuning potential
+
+    let mut quorum_memberships: BTreeMap<NodeID, BitSet> = BTreeMap::new();
+    let mut quorum_members: Vec<u32> = vec![0; quorums.len()];
+
+    for (quorum_id, quorum) in quorums.iter().enumerate() {
+        for node_id in quorum.iter() {
+            (*quorum_memberships
+                .entry(node_id)
+                .or_insert_with(BitSet::new))
+            .insert(quorum_id);
+            quorum_members[quorum_id] += 1;
+        }
+    }
+
+    let mut unprocessed: Vec<NodeID> = quorum_memberships.keys().cloned().collect();
+    // sort so that nodes included in many quorums are first
+    unprocessed.sort_by(|x, y| {
+        quorum_memberships[y]
+            .len()
+            .cmp(&quorum_memberships[x].len())
+    });
+
+    let mut unprocessed = VecDeque::from(unprocessed);
+    let mut selection = Vec::new();
+    let missing_quorums: BitSet = (0..quorums.len()).collect();
+
+    fn step(
+        unprocessed: &mut VecDeque<NodeID>,
+        selection: &mut Vec<NodeID>,
+        remaining_quorum_members: &mut Vec<u32>,
+        missing_quorums: BitSet,
+        quorum_memberships: &BTreeMap<NodeID, BitSet>,
+    ) -> Vec<BitSet> {
+        let mut result: Vec<BitSet> = vec![];
+
+        if missing_quorums.is_empty() {
+            result.push(selection.iter().cloned().collect());
+        } else if missing_quorums
+            .iter()
+            .all(|x| remaining_quorum_members[x] == 0)
+        {
+        } else if let Some(current_candidate) = unprocessed.pop_front() {
+            for quorum_id in quorum_memberships[&current_candidate].iter() {
+                remaining_quorum_members[quorum_id] -= 1;
+            }
+
+            selection.push(current_candidate);
+            let mut updated_missing_quorums = missing_quorums.clone();
+            for quorum in quorum_memberships[&current_candidate].iter() {
+                updated_missing_quorums.remove(quorum);
+            }
+            result.extend(step(
+                unprocessed,
+                selection,
+                remaining_quorum_members,
+                updated_missing_quorums,
+                quorum_memberships,
+            ));
+
+            selection.pop();
+            result.extend(step(
+                unprocessed,
+                selection,
+                remaining_quorum_members,
+                missing_quorums,
+                quorum_memberships,
+            ));
+
+            unprocessed.push_front(current_candidate);
+            for quorum_id in quorum_memberships[&current_candidate].iter() {
+                remaining_quorum_members[quorum_id] += 1;
+            }
+        }
+        result
+    }
+
+    info!("Getting all blocking sets...");
+    let blocking_sets = step(
+        &mut unprocessed,
+        &mut selection,
+        &mut quorum_members,
+        missing_quorums,
+        &quorum_memberships,
+    );
+    info!("Found {} blocking sets.", blocking_sets.len());
+    let minimal_blocking_sets = remove_non_minimal_node_sets(blocking_sets);
+    info!(
+        "Reduced to {} minimal blocking sets.",
+        minimal_blocking_sets.len()
+    );
+    minimal_blocking_sets
 }
 
 fn remove_non_minimal_node_sets(node_sets: Vec<BitSet>) -> Vec<BitSet> {
@@ -348,5 +444,15 @@ mod tests {
 
         assert!(has_quorum_intersection(&correct));
         assert!(!has_quorum_intersection(&broken));
+    }
+
+    #[test]
+    fn get_minimal_blocking_sets_simple() {
+        let minimal_quorums = vec![bitset![0, 1], bitset![0, 2]];
+
+        let expected = vec![bitset![0], bitset![1, 2]];
+        let actual = get_minimal_blocking_sets(&minimal_quorums);
+
+        assert_eq!(expected, actual);
     }
 }

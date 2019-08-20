@@ -11,35 +11,32 @@ fn main() {
     if let Some(path) = env::args().nth(1) {
         let network = Network::from_json_file(&path);
 
-        let minimal_quorums = get_minimal_quorums(&network);
-        let intersection = all_node_sets_interesect(&minimal_quorums);
+        println!(
+            "(In all following dumps, nodes are identified by their index in the input JSON.)\n"
+        );
 
-        let smallest_minimal_quorum_size = minimal_quorums.iter().map(|x| x.len()).min().unwrap();
-        let smallest_minimal_quorums_count = minimal_quorums
-            .iter()
-            .filter(|x| x.len() <= smallest_minimal_quorum_size)
-            .count();
+        let minimal_quorums = get_minimal_quorums(&network);
+        println!("We found {} minimal quorums:", minimal_quorums.len());
+        println!("\n{}\n", node_sets_to_json(&minimal_quorums));
+
+        let minimal_blocking_sets = get_minimal_blocking_sets(&minimal_quorums);
+        println!(
+            "We found {} minimal blocking sets:",
+            minimal_blocking_sets.len()
+        );
+        println!("\n{}\n", node_sets_to_json(&minimal_blocking_sets));
 
         println!(
-            "We found {} minimal quorums ({} of them with size {}, the smallest quorum size).",
-            minimal_quorums.len(),
-            smallest_minimal_quorums_count,
-            smallest_minimal_quorum_size
+            "Control over any of these node sets is sufficient to compromise liveliness and \
+             censor future transactions.\n"
         );
-        if intersection {
-            println!("Each of these node groups can effectively censor future transactions.");
-        }
-        println!("");
 
-        if intersection {
+        if all_node_sets_interesect(&minimal_quorums) {
             println!("All quorums intersect.");
         } else {
             println!("Some quorums don't intersect - safety severely threatened for some nodes!");
         }
-        println!("");
-
-        println!("Here is a dump of all minimal quorums (nodes are identified by their index in the input JSON):");
-        println!("{}", node_sets_to_json(&minimal_quorums));
+        println!();
     } else {
         println!(
             "Usage: {} path-to-stellarbeat-nodes.json",

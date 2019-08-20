@@ -86,7 +86,7 @@ impl QuorumSet {
     }
 }
 
-pub fn node_sets_to_json(node_sets: &Vec<impl fmt::Debug>) -> String {
+pub fn node_sets_to_json(node_sets: &[impl fmt::Debug]) -> String {
     // TODO use serde here maybe once bit_set implements Serialize trait
     let mut result = String::new();
 
