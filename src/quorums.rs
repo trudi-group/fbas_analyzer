@@ -39,12 +39,12 @@ impl Network {
     }
 }
 impl Node {
-    pub fn is_quorum(&self, node_set: &BitSet) -> bool {
+    fn is_quorum(&self, node_set: &BitSet) -> bool {
         self.quorum_set.is_quorum(node_set)
     }
 }
 impl QuorumSet {
-    pub fn is_quorum(&self, node_set: &BitSet) -> bool {
+    fn is_quorum(&self, node_set: &BitSet) -> bool {
         if self.threshold == 0 {
             false // badly configured quorum set
         } else {
@@ -148,35 +148,6 @@ pub fn all_node_sets_interesect(node_sets: &[BitSet]) -> bool {
         .all(|(i, x)| node_sets.iter().skip(i + 1).all(|y| !x.is_disjoint(y)))
 }
 
-fn remove_non_minimal_node_sets(node_sets: Vec<BitSet>) -> Vec<BitSet> {
-    let mut node_sets = node_sets;
-    let mut minimal_node_sets: Vec<BitSet> = vec![];
-
-    node_sets.sort_by(|x, y| x.len().cmp(&y.len()));
-
-    for node_set in node_sets.into_iter() {
-        if minimal_node_sets.iter().all(|x| !x.is_subset(&node_set)) {
-            minimal_node_sets.push(node_set);
-        }
-    }
-    minimal_node_sets
-}
-
-pub fn reduce_to_strongly_connected_components(
-    nodes: Vec<NodeID>,
-    network: &Network,
-) -> Vec<NodeID> {
-    // can probably be done faster
-    let k = nodes.len();
-    let reduced_once = remove_nodes_not_included_in_quorum_slices(nodes, network);
-
-    if reduced_once.len() < k {
-        reduce_to_strongly_connected_components(reduced_once, network)
-    } else {
-        reduced_once
-    }
-}
-
 pub fn sort_nodes_by_rank(nodes: Vec<NodeID>, network: &Network) -> Vec<NodeID> {
     // a quick and dirty something resembling page rank
     // TODO not protected against overflows ...
@@ -200,6 +171,32 @@ pub fn sort_nodes_by_rank(nodes: Vec<NodeID>, network: &Network) -> Vec<NodeID> 
     // sort by "highest score first"
     nodes.sort_by(|x, y| scores[*y].cmp(&scores[*x]));
     nodes
+}
+
+fn remove_non_minimal_node_sets(node_sets: Vec<BitSet>) -> Vec<BitSet> {
+    let mut node_sets = node_sets;
+    let mut minimal_node_sets: Vec<BitSet> = vec![];
+
+    node_sets.sort_by(|x, y| x.len().cmp(&y.len()));
+
+    for node_set in node_sets.into_iter() {
+        if minimal_node_sets.iter().all(|x| !x.is_subset(&node_set)) {
+            minimal_node_sets.push(node_set);
+        }
+    }
+    minimal_node_sets
+}
+
+fn reduce_to_strongly_connected_components(nodes: Vec<NodeID>, network: &Network) -> Vec<NodeID> {
+    // can probably be done faster
+    let k = nodes.len();
+    let reduced_once = remove_nodes_not_included_in_quorum_slices(nodes, network);
+
+    if reduced_once.len() < k {
+        reduce_to_strongly_connected_components(reduced_once, network)
+    } else {
+        reduced_once
+    }
 }
 
 fn remove_nodes_not_included_in_quorum_slices(
