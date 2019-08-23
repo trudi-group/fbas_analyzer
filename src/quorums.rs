@@ -455,4 +455,22 @@ mod tests {
 
         assert_eq!(expected, actual);
     }
+
+    #[test]
+    #[ignore]
+    fn minimal_blocking_sets_more_minimal_than_minimal_quorums() {
+        let network = Network::from_json_file("test_data/stellarbeat_2019-08-02.json");
+        let minimal_quorums = get_minimal_quorums(&network);
+        let minimal_blocking_sets = get_minimal_blocking_sets(&minimal_quorums);
+
+        let minimal_all = remove_non_minimal_node_sets(
+            minimal_blocking_sets
+                .iter()
+                .chain(minimal_quorums.iter())
+                .cloned()
+                .collect(),
+        );
+
+        assert_eq!(minimal_blocking_sets, minimal_all);
+    }
 }
