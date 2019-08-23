@@ -9,7 +9,7 @@ use std::collections::VecDeque;
 /// ## Example
 ///
 /// ```
-/// #[macro_use] extern crate fba_quorum_analyzer;
+/// #[macro_use] extern crate fbas_analyzer;
 ///
 /// let set = bitset!{23, 42};
 /// assert!(set.contains(23));

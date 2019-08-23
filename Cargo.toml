@@ -1,5 +1,5 @@
 [package]
-name = "fba_quorum_analyzer"
+name = "fbas_analyzer"
 version = "0.1.0"
 authors = ["Martin Florian <martin.florian@hu-berlin.de>"]
 edition = "2018"

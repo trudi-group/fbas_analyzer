@@ -1,9 +1,9 @@
 extern crate env_logger;
-extern crate fba_quorum_analyzer;
+extern crate fbas_analyzer;
 
 use std::env;
 
-use fba_quorum_analyzer::*;
+use fbas_analyzer::*;
 
 fn main() {
     env_logger::init();
