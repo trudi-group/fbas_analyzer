@@ -23,6 +23,10 @@ struct Cli {
     #[structopt(short = "i", long = "quorum-intersection")]
     quorum_intersection: bool,
 
+    /// In output, identify nodes by their public key (default: use their index in the input JSON)
+    #[structopt(short = "p", long = "output-public-keys")]
+    output_public_keys: bool,
+
     #[structopt(flatten)]
     verbosity: Verbosity,
 }
@@ -44,10 +48,19 @@ fn main() -> CliResult {
     } else {
         (q, b, i)
     };
+    let p = args.output_public_keys;
 
-    if q || b {
+    let format = |x| {
+        if p {
+            format_node_sets(x, &network)
+        } else {
+            format_node_sets_raw(x)
+        }
+    };
+
+    if !p && (q || b) {
         println!(
-            "(In all following dumps, nodes are identified by their index in the input JSON.)\n"
+            "(In the following dumps, nodes are identified by their index in the input JSON.)\n"
         );
     }
     if q || b || i {
@@ -55,7 +68,7 @@ fn main() -> CliResult {
 
         if q {
             println!("We found {} minimal quorums:", minimal_quorums.len());
-            println!("\n{}\n", node_sets_to_json(&minimal_quorums));
+            println!("\n{}\n", format(&minimal_quorums));
         }
         if b {
             let minimal_blocking_sets = get_minimal_blocking_sets(&minimal_quorums);
@@ -63,7 +76,7 @@ fn main() -> CliResult {
                 "We found {} minimal blocking sets:",
                 minimal_blocking_sets.len()
             );
-            println!("\n{}\n", node_sets_to_json(&minimal_blocking_sets));
+            println!("\n{}\n", format(&minimal_blocking_sets));
             println!(
                 "Control over any of these node sets is sufficient to compromise liveliness and \
                  censor future transactions.\n"

@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde_json;
 
+use bit_set::BitSet;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
@@ -86,7 +87,8 @@ impl QuorumSet {
     }
 }
 
-pub fn node_sets_to_json(node_sets: &[impl fmt::Debug]) -> String {
+/// Nodes represented by NodeIDs (which should be equal to nodes' indices in the input JSON).
+pub fn format_node_sets_raw(node_sets: &[impl fmt::Debug]) -> String {
     // TODO use serde here maybe once bit_set implements Serialize trait
     let mut result = String::new();
 
@@ -96,6 +98,37 @@ pub fn node_sets_to_json(node_sets: &[impl fmt::Debug]) -> String {
     result.push_str(&lines.join(",\n"));
 
     result.push_str("\n]");
+    result
+}
+
+/// Nodes represented by nodes' public keys.
+pub fn format_node_sets(node_sets: &Vec<BitSet>, network: &Network) -> String {
+    let mut result = String::new();
+
+    result.push_str("[\n");
+
+    let lines: Vec<String> = node_sets
+        .iter()
+        .map(|x| format_node_set(x, network))
+        .collect();
+    result.push_str(&lines.join(",\n"));
+
+    result.push_str("\n]");
+    result
+}
+
+/// Nodes represented by nodes' public keys.
+pub fn format_node_set(node_set: &BitSet, network: &Network) -> String {
+    let mut result = String::new();
+
+    result.push_str("{ ");
+    let lines: Vec<String> = node_set
+        .iter()
+        .map(|x| format!("\"{}\"", network.nodes[x].public_key))
+        .collect();
+    result.push_str(&lines.join(", "));
+
+    result.push_str(" }");
     result
 }
 
