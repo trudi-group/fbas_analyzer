@@ -46,7 +46,7 @@ impl Network {
     fn from_raw(raw_network: RawNetwork) -> Self {
         let raw_nodes = raw_network.0;
 
-        let pk_to_id: HashMap<PublicKey, NodeID> = raw_nodes
+        let pk_to_id: HashMap<PublicKey, NodeId> = raw_nodes
             .iter()
             .enumerate()
             .map(|(x, y)| (y.public_key.clone(), x))
@@ -61,7 +61,7 @@ impl Network {
     }
 }
 impl Node {
-    fn from_raw(raw_node: RawNode, pk_to_id: &HashMap<PublicKey, NodeID>) -> Self {
+    fn from_raw(raw_node: RawNode, pk_to_id: &HashMap<PublicKey, NodeId>) -> Self {
         Node {
             public_key: raw_node.public_key,
             quorum_set: QuorumSet::from_raw(raw_node.quorum_set, pk_to_id),
@@ -69,7 +69,7 @@ impl Node {
     }
 }
 impl QuorumSet {
-    fn from_raw(raw_quorum_set: RawQuorumSet, pk_to_id: &HashMap<PublicKey, NodeID>) -> Self {
+    fn from_raw(raw_quorum_set: RawQuorumSet, pk_to_id: &HashMap<PublicKey, NodeId>) -> Self {
         QuorumSet {
             threshold: raw_quorum_set.threshold,
             validators: raw_quorum_set
@@ -87,7 +87,7 @@ impl QuorumSet {
     }
 }
 
-/// Nodes represented by NodeIDs (which should be equal to nodes' indices in the input JSON).
+/// Nodes represented by NodeIds (which should be equal to nodes' indices in the input JSON).
 pub fn format_node_sets_raw(node_sets: &[impl fmt::Debug]) -> String {
     // TODO use serde here maybe once bit_set implements Serialize trait
     let mut result = String::new();

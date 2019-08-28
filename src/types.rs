@@ -1,21 +1,24 @@
-pub type NodeID = usize; // internal and possibly different between runs
+pub type NodeId = usize; // internal and possibly different between runs
 pub type PublicKey = String;
 
 #[derive(Debug, PartialEq)]
 pub struct Network {
     pub(crate) nodes: Vec<Node>,
 }
+
 #[derive(Debug, PartialEq)]
 pub struct Node {
     pub(crate) public_key: PublicKey,
     pub(crate) quorum_set: QuorumSet,
 }
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct QuorumSet {
     pub(crate) threshold: usize,
-    pub(crate) validators: Vec<NodeID>,
+    pub(crate) validators: Vec<NodeId>,
     pub(crate) inner_quorum_sets: Vec<QuorumSet>,
 }
+
 
 /// Create a **BitSet** from a list of elements.
 ///

@@ -35,7 +35,7 @@ impl QuorumSet {
             found_validator_matches + found_inner_quorum_set_matches == self.threshold
         }
     }
-    fn get_all_nodes(&self) -> Vec<NodeID> {
+    fn get_all_nodes(&self) -> Vec<NodeId> {
         let mut result = self.validators.clone();
         for inner_quorum_set in self.inner_quorum_sets.iter() {
             result.extend(inner_quorum_set.get_all_nodes());
@@ -50,7 +50,7 @@ pub fn has_quorum_intersection(network: &Network) -> bool {
 
 pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     let n = network.nodes.len();
-    let mut unprocessed: Vec<NodeID> = (0..n).collect();
+    let mut unprocessed: Vec<NodeId> = (0..n).collect();
 
     info!("Reducing to strongly connected components...");
     unprocessed = reduce_to_strongly_connected_components(unprocessed, network);
@@ -68,7 +68,7 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     let mut available = unprocessed.iter().cloned().collect();
 
     fn step(
-        unprocessed: &mut VecDeque<NodeID>,
+        unprocessed: &mut VecDeque<NodeId>,
         selection: &mut BitSet,
         available: &mut BitSet,
         network: &Network,
@@ -120,7 +120,7 @@ pub fn all_node_sets_interesect(node_sets: &[BitSet]) -> bool {
         .all(|(i, x)| node_sets.iter().skip(i + 1).all(|y| !x.is_disjoint(y)))
 }
 
-pub fn sort_nodes_by_rank(nodes: Vec<NodeID>, network: &Network) -> Vec<NodeID> {
+pub fn sort_nodes_by_rank(nodes: Vec<NodeId>, network: &Network) -> Vec<NodeId> {
     // a quick and dirty something resembling page rank
     // TODO not protected against overflows ...
     let mut scores: Vec<u64> = vec![1; network.nodes.len()];
@@ -148,7 +148,7 @@ pub fn sort_nodes_by_rank(nodes: Vec<NodeID>, network: &Network) -> Vec<NodeID> 
 pub fn get_minimal_blocking_sets(quorums: &[BitSet]) -> Vec<BitSet> {
     // TODO has refactoring and performance tuning potential
 
-    let mut quorum_memberships: BTreeMap<NodeID, BitSet> = BTreeMap::new();
+    let mut quorum_memberships: BTreeMap<NodeId, BitSet> = BTreeMap::new();
     let mut quorum_members: Vec<u32> = vec![0; quorums.len()];
 
     for (quorum_id, quorum) in quorums.iter().enumerate() {
@@ -161,7 +161,7 @@ pub fn get_minimal_blocking_sets(quorums: &[BitSet]) -> Vec<BitSet> {
         }
     }
 
-    let mut unprocessed: Vec<NodeID> = quorum_memberships.keys().cloned().collect();
+    let mut unprocessed: Vec<NodeId> = quorum_memberships.keys().cloned().collect();
     // sort so that nodes included in many quorums are first
     unprocessed.sort_by(|x, y| {
         quorum_memberships[y]
@@ -174,11 +174,11 @@ pub fn get_minimal_blocking_sets(quorums: &[BitSet]) -> Vec<BitSet> {
     let missing_quorums: BitSet = (0..quorums.len()).collect();
 
     fn step(
-        unprocessed: &mut VecDeque<NodeID>,
-        selection: &mut Vec<NodeID>,
+        unprocessed: &mut VecDeque<NodeId>,
+        selection: &mut Vec<NodeId>,
         remaining_quorum_members: &mut Vec<u32>,
         missing_quorums: BitSet,
-        quorum_memberships: &BTreeMap<NodeID, BitSet>,
+        quorum_memberships: &BTreeMap<NodeId, BitSet>,
     ) -> Vec<BitSet> {
         let mut result: Vec<BitSet> = vec![];
 
@@ -254,7 +254,7 @@ fn remove_non_minimal_node_sets(node_sets: Vec<BitSet>) -> Vec<BitSet> {
     minimal_node_sets
 }
 
-fn reduce_to_strongly_connected_components(nodes: Vec<NodeID>, network: &Network) -> Vec<NodeID> {
+fn reduce_to_strongly_connected_components(nodes: Vec<NodeId>, network: &Network) -> Vec<NodeId> {
     // can probably be done faster
     let k = nodes.len();
     let reduced_once = remove_nodes_not_included_in_quorum_slices(nodes, network);
@@ -267,9 +267,9 @@ fn reduce_to_strongly_connected_components(nodes: Vec<NodeID>, network: &Network
 }
 
 fn remove_nodes_not_included_in_quorum_slices(
-    nodes: Vec<NodeID>,
+    nodes: Vec<NodeId>,
     network: &Network,
-) -> Vec<NodeID> {
+) -> Vec<NodeId> {
     let mut included_nodes = BitSet::with_capacity(network.nodes.len());
 
     for node_id in nodes {
@@ -285,7 +285,7 @@ fn remove_nodes_not_included_in_quorum_slices(
 mod tests {
     use super::*;
 
-    fn test_node(validators: &[NodeID], threshold: usize) -> Node {
+    fn test_node(validators: &[NodeId], threshold: usize) -> Node {
         Node {
             public_key: Default::default(),
             quorum_set: QuorumSet {
