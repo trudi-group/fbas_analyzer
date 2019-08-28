@@ -33,12 +33,12 @@ impl QuorumSet {
             found_validator_matches + found_inner_quorum_set_matches == self.threshold
         }
     }
-    fn get_all_nodes(&self) -> Vec<NodeId> {
-        let mut result = self.validators.clone();
+    fn contained_nodes(&self) -> NodeIdSet {
+        let mut nodes: NodeIdSet = self.validators.iter().cloned().collect();
         for inner_quorum_set in self.inner_quorum_sets.iter() {
-            result.extend(inner_quorum_set.get_all_nodes());
+            nodes.union_with(&inner_quorum_set.contained_nodes());
         }
-        result
+        nodes
     }
 }
 
@@ -129,7 +129,7 @@ pub fn sort_nodes_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
         for node_id in nodes.iter().copied() {
             let node = &fbas.nodes[node_id];
 
-            for trusted_node_id in node.quorum_set.get_all_nodes() {
+            for trusted_node_id in node.quorum_set.contained_nodes().into_iter() {
                 scores[trusted_node_id] += scores_snapshot[node_id];
             }
         }
@@ -267,7 +267,7 @@ fn remove_nodes_not_included_in_quorum_slices(nodes: Vec<NodeId>, fbas: &Fbas) -
 
     for node_id in nodes {
         let node = &fbas.nodes[node_id];
-        for included_node in node.quorum_set.get_all_nodes() {
+        for included_node in node.quorum_set.contained_nodes().into_iter() {
             included_nodes.insert(included_node);
         }
     }
