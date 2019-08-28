@@ -1,21 +1,19 @@
 use super::*;
-use bit_set::BitSet;
 use log::info;
 use std::collections::BTreeMap;
-use std::collections::VecDeque;
 
 impl Network {
-    fn is_quorum(&self, node_set: &BitSet) -> bool {
+    fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
         !node_set.is_empty() && node_set.iter().all(|x| self.nodes[x].is_quorum(&node_set))
     }
 }
 impl Node {
-    fn is_quorum(&self, node_set: &BitSet) -> bool {
+    fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
         self.quorum_set.is_quorum(node_set)
     }
 }
 impl QuorumSet {
-    fn is_quorum(&self, node_set: &BitSet) -> bool {
+    fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
         if self.threshold == 0 {
             false // badly configured quorum set
         } else {
@@ -48,7 +46,7 @@ pub fn has_quorum_intersection(network: &Network) -> bool {
     all_node_sets_interesect(&get_minimal_quorums(network))
 }
 
-pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
+pub fn get_minimal_quorums(network: &Network) -> Vec<NodeIdSet> {
     let n = network.nodes.len();
     let mut unprocessed: Vec<NodeId> = (0..n).collect();
 
@@ -64,16 +62,16 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     unprocessed = sort_nodes_by_rank(unprocessed, network);
     info!("Sorted.");
 
-    let mut selection = BitSet::with_capacity(n);
+    let mut selection = NodeIdSet::with_capacity(n);
     let mut available = unprocessed.iter().cloned().collect();
 
     fn step(
-        unprocessed: &mut VecDeque<NodeId>,
-        selection: &mut BitSet,
-        available: &mut BitSet,
+        unprocessed: &mut NodeIdDeque,
+        selection: &mut NodeIdSet,
+        available: &mut NodeIdSet,
         network: &Network,
-    ) -> Vec<BitSet> {
-        let mut result: Vec<BitSet> = vec![];
+    ) -> Vec<NodeIdSet> {
+        let mut result: Vec<NodeIdSet> = vec![];
 
         if network.is_quorum(selection) {
             result.push(selection.clone());
@@ -94,7 +92,7 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
         }
         result
     }
-    fn quorums_possible(selection: &BitSet, available: &BitSet, network: &Network) -> bool {
+    fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, network: &Network) -> bool {
         selection
             .iter()
             .all(|x| network.nodes[x].is_quorum(available))
@@ -113,7 +111,7 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<BitSet> {
     minimal_quorums
 }
 
-pub fn all_node_sets_interesect(node_sets: &[BitSet]) -> bool {
+pub fn all_node_sets_interesect(node_sets: &[NodeIdSet]) -> bool {
     node_sets
         .iter()
         .enumerate()
@@ -145,17 +143,17 @@ pub fn sort_nodes_by_rank(nodes: Vec<NodeId>, network: &Network) -> Vec<NodeId> 
     nodes
 }
 
-pub fn get_minimal_blocking_sets(quorums: &[BitSet]) -> Vec<BitSet> {
+pub fn get_minimal_blocking_sets(quorums: &[NodeIdSet]) -> Vec<NodeIdSet> {
     // TODO has refactoring and performance tuning potential
 
-    let mut quorum_memberships: BTreeMap<NodeId, BitSet> = BTreeMap::new();
+    let mut quorum_memberships: BTreeMap<NodeId, NodeIdSet> = BTreeMap::new();
     let mut quorum_members: Vec<u32> = vec![0; quorums.len()];
 
     for (quorum_id, quorum) in quorums.iter().enumerate() {
         for node_id in quorum.iter() {
             (*quorum_memberships
                 .entry(node_id)
-                .or_insert_with(BitSet::new))
+                .or_insert_with(NodeIdSet::new))
             .insert(quorum_id);
             quorum_members[quorum_id] += 1;
         }
@@ -169,18 +167,18 @@ pub fn get_minimal_blocking_sets(quorums: &[BitSet]) -> Vec<BitSet> {
             .cmp(&quorum_memberships[x].len())
     });
 
-    let mut unprocessed = VecDeque::from(unprocessed);
+    let mut unprocessed = NodeIdDeque::from(unprocessed);
     let mut selection = Vec::new();
-    let missing_quorums: BitSet = (0..quorums.len()).collect();
+    let missing_quorums: NodeIdSet = (0..quorums.len()).collect();
 
     fn step(
-        unprocessed: &mut VecDeque<NodeId>,
+        unprocessed: &mut NodeIdDeque,
         selection: &mut Vec<NodeId>,
         remaining_quorum_members: &mut Vec<u32>,
-        missing_quorums: BitSet,
-        quorum_memberships: &BTreeMap<NodeId, BitSet>,
-    ) -> Vec<BitSet> {
-        let mut result: Vec<BitSet> = vec![];
+        missing_quorums: NodeIdSet,
+        quorum_memberships: &BTreeMap<NodeId, NodeIdSet>,
+    ) -> Vec<NodeIdSet> {
+        let mut result: Vec<NodeIdSet> = vec![];
 
         if missing_quorums.is_empty() {
             result.push(selection.iter().cloned().collect());
@@ -240,9 +238,9 @@ pub fn get_minimal_blocking_sets(quorums: &[BitSet]) -> Vec<BitSet> {
     minimal_blocking_sets
 }
 
-fn remove_non_minimal_node_sets(node_sets: Vec<BitSet>) -> Vec<BitSet> {
+fn remove_non_minimal_node_sets(node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
     let mut node_sets = node_sets;
-    let mut minimal_node_sets: Vec<BitSet> = vec![];
+    let mut minimal_node_sets: Vec<NodeIdSet> = vec![];
 
     node_sets.sort_by(|x, y| x.len().cmp(&y.len()));
 
@@ -270,7 +268,7 @@ fn remove_nodes_not_included_in_quorum_slices(
     nodes: Vec<NodeId>,
     network: &Network,
 ) -> Vec<NodeId> {
-    let mut included_nodes = BitSet::with_capacity(network.nodes.len());
+    let mut included_nodes = NodeIdSet::with_capacity(network.nodes.len());
 
     for node_id in nodes {
         let node = &network.nodes[node_id];

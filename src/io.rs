@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use serde_json;
 
-use bit_set::BitSet;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
@@ -102,7 +101,7 @@ pub fn format_node_sets_raw(node_sets: &[impl fmt::Debug]) -> String {
 }
 
 /// Nodes represented by nodes' public keys.
-pub fn format_node_sets(node_sets: &Vec<BitSet>, network: &Network) -> String {
+pub fn format_node_sets(node_sets: &Vec<NodeIdSet>, network: &Network) -> String {
     let mut result = String::new();
 
     result.push_str("[\n");
@@ -118,7 +117,7 @@ pub fn format_node_sets(node_sets: &Vec<BitSet>, network: &Network) -> String {
 }
 
 /// Nodes represented by nodes' public keys.
-pub fn format_node_set(node_set: &BitSet, network: &Network) -> String {
+pub fn format_node_set(node_set: &NodeIdSet, network: &Network) -> String {
     let mut result = String::new();
 
     result.push_str("{ ");

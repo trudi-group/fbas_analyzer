@@ -1,5 +1,11 @@
+pub use bit_set::BitSet;
+pub use std::collections::VecDeque;
+
 pub type NodeId = usize; // internal and possibly different between runs
 pub type PublicKey = String;
+
+pub type NodeIdSet = BitSet;
+pub type NodeIdDeque = VecDeque<NodeId>;
 
 #[derive(Debug, PartialEq)]
 pub struct Network {
@@ -18,7 +24,6 @@ pub struct QuorumSet {
     pub(crate) validators: Vec<NodeId>,
     pub(crate) inner_quorum_sets: Vec<QuorumSet>,
 }
-
 
 /// Create a **BitSet** from a list of elements.
 ///
