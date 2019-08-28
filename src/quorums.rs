@@ -2,7 +2,7 @@ use super::*;
 use log::info;
 use std::collections::BTreeMap;
 
-impl Network {
+impl Fbas {
     fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
         !node_set.is_empty() && node_set.iter().all(|x| self.nodes[x].is_quorum(&node_set))
     }
@@ -42,16 +42,16 @@ impl QuorumSet {
     }
 }
 
-pub fn has_quorum_intersection(network: &Network) -> bool {
-    all_node_sets_interesect(&get_minimal_quorums(network))
+pub fn has_quorum_intersection(fbas: &Fbas) -> bool {
+    all_node_sets_interesect(&get_minimal_quorums(fbas))
 }
 
-pub fn get_minimal_quorums(network: &Network) -> Vec<NodeIdSet> {
-    let n = network.nodes.len();
+pub fn get_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
+    let n = fbas.nodes.len();
     let mut unprocessed: Vec<NodeId> = (0..n).collect();
 
     info!("Reducing to strongly connected components...");
-    unprocessed = reduce_to_strongly_connected_components(unprocessed, network);
+    unprocessed = reduce_to_strongly_connected_components(unprocessed, fbas);
     info!(
         "Reducing removed {} of {} nodes...",
         n - unprocessed.len(),
@@ -59,7 +59,7 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<NodeIdSet> {
     );
 
     info!("Sorting nodes by rank...");
-    unprocessed = sort_nodes_by_rank(unprocessed, network);
+    unprocessed = sort_nodes_by_rank(unprocessed, fbas);
     info!("Sorted.");
 
     let mut selection = NodeIdSet::with_capacity(n);
@@ -69,22 +69,22 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<NodeIdSet> {
         unprocessed: &mut NodeIdDeque,
         selection: &mut NodeIdSet,
         available: &mut NodeIdSet,
-        network: &Network,
+        fbas: &Fbas,
     ) -> Vec<NodeIdSet> {
         let mut result: Vec<NodeIdSet> = vec![];
 
-        if network.is_quorum(selection) {
+        if fbas.is_quorum(selection) {
             result.push(selection.clone());
         } else if let Some(current_candidate) = unprocessed.pop_front() {
             selection.insert(current_candidate);
 
-            result.extend(step(unprocessed, selection, available, network));
+            result.extend(step(unprocessed, selection, available, fbas));
 
             selection.remove(current_candidate);
             available.remove(current_candidate);
 
-            if quorums_possible(selection, available, network) {
-                result.extend(step(unprocessed, selection, available, network));
+            if quorums_possible(selection, available, fbas) {
+                result.extend(step(unprocessed, selection, available, fbas));
             }
 
             unprocessed.push_front(current_candidate);
@@ -92,17 +92,15 @@ pub fn get_minimal_quorums(network: &Network) -> Vec<NodeIdSet> {
         }
         result
     }
-    fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, network: &Network) -> bool {
-        selection
-            .iter()
-            .all(|x| network.nodes[x].is_quorum(available))
+    fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
+        selection.iter().all(|x| fbas.nodes[x].is_quorum(available))
     }
 
     let quorums = step(
         &mut unprocessed.into(),
         &mut selection,
         &mut available,
-        network,
+        fbas,
     );
     info!("Found {} quorums.", quorums.len());
 
@@ -118,10 +116,10 @@ pub fn all_node_sets_interesect(node_sets: &[NodeIdSet]) -> bool {
         .all(|(i, x)| node_sets.iter().skip(i + 1).all(|y| !x.is_disjoint(y)))
 }
 
-pub fn sort_nodes_by_rank(nodes: Vec<NodeId>, network: &Network) -> Vec<NodeId> {
+pub fn sort_nodes_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
     // a quick and dirty something resembling page rank
     // TODO not protected against overflows ...
-    let mut scores: Vec<u64> = vec![1; network.nodes.len()];
+    let mut scores: Vec<u64> = vec![1; fbas.nodes.len()];
 
     let runs = 10;
 
@@ -129,7 +127,7 @@ pub fn sort_nodes_by_rank(nodes: Vec<NodeId>, network: &Network) -> Vec<NodeId> 
         let scores_snapshot = scores.clone();
 
         for node_id in nodes.iter().copied() {
-            let node = &network.nodes[node_id];
+            let node = &fbas.nodes[node_id];
 
             for trusted_node_id in node.quorum_set.get_all_nodes() {
                 scores[trusted_node_id] += scores_snapshot[node_id];
@@ -252,26 +250,23 @@ fn remove_non_minimal_node_sets(node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
     minimal_node_sets
 }
 
-fn reduce_to_strongly_connected_components(nodes: Vec<NodeId>, network: &Network) -> Vec<NodeId> {
+fn reduce_to_strongly_connected_components(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
     // can probably be done faster
     let k = nodes.len();
-    let reduced_once = remove_nodes_not_included_in_quorum_slices(nodes, network);
+    let reduced_once = remove_nodes_not_included_in_quorum_slices(nodes, fbas);
 
     if reduced_once.len() < k {
-        reduce_to_strongly_connected_components(reduced_once, network)
+        reduce_to_strongly_connected_components(reduced_once, fbas)
     } else {
         reduced_once
     }
 }
 
-fn remove_nodes_not_included_in_quorum_slices(
-    nodes: Vec<NodeId>,
-    network: &Network,
-) -> Vec<NodeId> {
-    let mut included_nodes = NodeIdSet::with_capacity(network.nodes.len());
+fn remove_nodes_not_included_in_quorum_slices(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
+    let mut included_nodes = NodeIdSet::with_capacity(fbas.nodes.len());
 
     for node_id in nodes {
-        let node = &network.nodes[node_id];
+        let node = &fbas.nodes[node_id];
         for included_node in node.quorum_set.get_all_nodes() {
             included_nodes.insert(included_node);
         }
@@ -330,11 +325,11 @@ mod tests {
     }
 
     #[test]
-    fn is_quorum_for_network() {
-        let network = Network::from_json_file("test_data/correct_trivial.json");
+    fn is_quorum_for_fbas() {
+        let fbas = Fbas::from_json_file("test_data/correct_trivial.json");
 
-        assert!(network.is_quorum(&bitset![0, 1]));
-        assert!(!network.is_quorum(&bitset![0]));
+        assert!(fbas.is_quorum(&bitset![0, 1]));
+        assert!(!fbas.is_quorum(&bitset![0]));
     }
 
     #[test]
@@ -342,8 +337,8 @@ mod tests {
         let node = test_node(&[0, 1, 2], 2);
         assert!(!node.is_quorum(&bitset![]));
 
-        let network = Network::from_json_file("test_data/correct_trivial.json");
-        assert!(!network.is_quorum(&bitset![]));
+        let fbas = Fbas::from_json_file("test_data/correct_trivial.json");
+        assert!(!fbas.is_quorum(&bitset![]));
     }
 
     #[test]
@@ -357,31 +352,31 @@ mod tests {
 
     #[test]
     fn get_minimal_quorums_correct_trivial() {
-        let network = Network::from_json_file("test_data/correct_trivial.json");
+        let fbas = Fbas::from_json_file("test_data/correct_trivial.json");
 
         let expected = vec![bitset![0, 1], bitset![0, 2], bitset![1, 2]];
-        let actual = get_minimal_quorums(&network);
+        let actual = get_minimal_quorums(&fbas);
 
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn get_minimal_quorums_broken_trivial() {
-        let network = Network::from_json_file("test_data/broken_trivial.json");
+        let fbas = Fbas::from_json_file("test_data/broken_trivial.json");
 
         let expected = vec![bitset![0], bitset![1, 2]];
-        let actual = get_minimal_quorums(&network);
+        let actual = get_minimal_quorums(&fbas);
 
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn get_minimal_quorums_broken_trivial_reversed_node_ids() {
-        let mut network = Network::from_json_file("test_data/broken_trivial.json");
-        network.nodes.reverse();
+        let mut fbas = Fbas::from_json_file("test_data/broken_trivial.json");
+        fbas.nodes.reverse();
 
         let expected = vec![bitset![2], bitset![0, 1]];
-        let actual = get_minimal_quorums(&network);
+        let actual = get_minimal_quorums(&fbas);
 
         assert_eq!(expected, actual);
     }
@@ -398,8 +393,8 @@ mod tests {
 
     #[test]
     fn has_quorum_intersection_trivial() {
-        let correct = Network::from_json_file("test_data/correct_trivial.json");
-        let broken = Network::from_json_file("test_data/broken_trivial.json");
+        let correct = Fbas::from_json_file("test_data/correct_trivial.json");
+        let broken = Fbas::from_json_file("test_data/broken_trivial.json");
 
         assert!(has_quorum_intersection(&correct));
         assert!(!has_quorum_intersection(&broken));
@@ -407,8 +402,8 @@ mod tests {
 
     #[test]
     fn has_quorum_intersection_nontrivial() {
-        let correct = Network::from_json_file("test_data/correct.json");
-        let broken = Network::from_json_file("test_data/broken.json");
+        let correct = Fbas::from_json_file("test_data/correct.json");
+        let broken = Fbas::from_json_file("test_data/broken.json");
 
         assert!(has_quorum_intersection(&correct));
         assert!(!has_quorum_intersection(&broken));
@@ -427,8 +422,8 @@ mod tests {
     #[test]
     #[ignore]
     fn minimal_blocking_sets_more_minimal_than_minimal_quorums() {
-        let network = Network::from_json_file("test_data/stellarbeat_2019-08-02.json");
-        let minimal_quorums = get_minimal_quorums(&network);
+        let fbas = Fbas::from_json_file("test_data/stellarbeat_2019-08-02.json");
+        let minimal_quorums = get_minimal_quorums(&fbas);
         let minimal_blocking_sets = get_minimal_blocking_sets(&minimal_quorums);
 
         let minimal_all = remove_non_minimal_node_sets(

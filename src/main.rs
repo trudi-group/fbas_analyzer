@@ -35,7 +35,7 @@ fn main() -> CliResult {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
-    let network = Network::from_json_file(&args.path);
+    let fbas = Fbas::from_json_file(&args.path);
 
     let (q, b, i) = (
         args.minimal_quorums,
@@ -52,7 +52,7 @@ fn main() -> CliResult {
 
     let format = |x| {
         if p {
-            to_json_str_using_public_keys(x, &network)
+            to_json_str_using_public_keys(x, &fbas)
         } else {
             to_json_str_using_node_ids(x)
         }
@@ -64,7 +64,7 @@ fn main() -> CliResult {
         );
     }
     if q || b || i {
-        let minimal_quorums = get_minimal_quorums(&network);
+        let minimal_quorums = get_minimal_quorums(&fbas);
 
         if q {
             println!("We found {} minimal quorums:", minimal_quorums.len());

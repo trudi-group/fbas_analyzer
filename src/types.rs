@@ -8,7 +8,7 @@ pub type NodeIdSet = BitSet;
 pub type NodeIdDeque = VecDeque<NodeId>;
 
 #[derive(Debug, PartialEq)]
-pub struct Network {
+pub struct Fbas {
     pub(crate) nodes: Vec<Node>,
 }
 

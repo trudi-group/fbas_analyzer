@@ -7,8 +7,8 @@ use std::fs;
 use crate::*;
 
 #[derive(Deserialize)]
-struct RawNetwork(Vec<RawNode>);
-impl RawNetwork {
+struct RawFbas(Vec<RawNode>);
+impl RawFbas {
     fn from_json_str(json: &str) -> Self {
         serde_json::from_str(json).expect("Error parsing JSON")
     }
@@ -32,16 +32,16 @@ struct RawQuorumSet {
     inner_quorum_sets: Vec<RawQuorumSet>,
 }
 
-impl Network {
+impl Fbas {
     pub fn from_json_str(json: &str) -> Self {
-        Self::from_raw(RawNetwork::from_json_str(json))
+        Self::from_raw(RawFbas::from_json_str(json))
     }
     pub fn from_json_file(path: &str) -> Self {
-        Self::from_raw(RawNetwork::from_json_file(path))
+        Self::from_raw(RawFbas::from_json_file(path))
     }
 
-    fn from_raw(raw_network: RawNetwork) -> Self {
-        let raw_nodes = raw_network.0;
+    fn from_raw(raw_fbas: RawFbas) -> Self {
+        let raw_nodes = raw_fbas.0;
 
         let pk_to_id: HashMap<PublicKey, NodeId> = raw_nodes
             .iter()
@@ -54,7 +54,7 @@ impl Network {
             .map(|x| Node::from_raw(x, &pk_to_id))
             .collect();
 
-        Network { nodes }
+        Fbas { nodes }
     }
 }
 impl Node {
@@ -86,16 +86,17 @@ impl QuorumSet {
 
 /// Nodes represented by NodeIds (which should be equal to nodes' indices in the input JSON).
 pub fn to_json_str_using_node_ids(node_sets: &[NodeIdSet]) -> String {
-
     let node_sets: Vec<Vec<NodeId>> = node_sets.iter().map(|x| x.iter().collect()).collect();
 
     serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
 }
 
 /// Nodes represented by nodes' public keys.
-pub fn to_json_str_using_public_keys(node_sets: &[NodeIdSet], network: &Network) -> String {
-
-    let node_sets: Vec<Vec<&PublicKey>> = node_sets.iter().map(|x| x.iter().map(|x| &network.nodes[x].public_key).collect()).collect();
+pub fn to_json_str_using_public_keys(node_sets: &[NodeIdSet], fbas: &Fbas) -> String {
+    let node_sets: Vec<Vec<&PublicKey>> = node_sets
+        .iter()
+        .map(|x| x.iter().map(|x| &fbas.nodes[x].public_key).collect())
+        .collect();
 
     serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
 }
@@ -104,7 +105,7 @@ pub fn to_json_str_using_public_keys(node_sets: &[NodeIdSet], network: &Network)
 mod tests {
     use super::*;
     #[test]
-    fn from_json_to_network() {
+    fn from_json_to_fbas() {
         let input = r#"[
             {
                 "publicKey": "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
@@ -163,7 +164,7 @@ mod tests {
             Default::default(),
         ];
 
-        let actual = Network::from_json_str(&input);
+        let actual = Fbas::from_json_str(&input);
         let actual_public_keys: Vec<PublicKey> =
             actual.nodes.iter().map(|x| x.public_key.clone()).collect();
         let actual_quorum_sets: Vec<QuorumSet> =
@@ -200,7 +201,7 @@ mod tests {
             Default::default(),
         ];
 
-        let actual = Network::from_json_str(&input);
+        let actual = Fbas::from_json_str(&input);
         let actual_quorum_sets: Vec<QuorumSet> =
             actual.nodes.into_iter().map(|x| x.quorum_set).collect();
 
@@ -212,7 +213,7 @@ mod tests {
         use std::fs;
         for item in fs::read_dir("test_data").unwrap() {
             let path = item.unwrap().path();
-            Network::from_json_file(path.to_str().unwrap());
+            Fbas::from_json_file(path.to_str().unwrap());
         }
     }
 }

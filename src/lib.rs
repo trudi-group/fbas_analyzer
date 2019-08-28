@@ -1,9 +1,9 @@
-mod types;
 mod io;
 mod quorums; // <- most of the magic happens here
+mod types;
 
+pub use types::Fbas;
 use types::*;
-pub use types::Network;
 
 pub use io::{to_json_str_using_node_ids, to_json_str_using_public_keys};
 
