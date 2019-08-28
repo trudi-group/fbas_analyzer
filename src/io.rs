@@ -2,7 +2,6 @@ use serde::Deserialize;
 use serde_json;
 
 use std::collections::HashMap;
-use std::fmt;
 use std::fs;
 
 use crate::*;
@@ -14,8 +13,7 @@ impl RawNetwork {
         serde_json::from_str(json).expect("Error parsing JSON")
     }
     fn from_json_file(path: &str) -> Self {
-        let json =
-            fs::read_to_string(path).unwrap_or_else(|_| format!("Error reading file {:?}", path));
+        let json = fs::read_to_string(path).expect(&format!("Error reading file {:?}", path));
         Self::from_json_str(&json)
     }
 }
@@ -87,48 +85,19 @@ impl QuorumSet {
 }
 
 /// Nodes represented by NodeIds (which should be equal to nodes' indices in the input JSON).
-pub fn format_node_sets_raw(node_sets: &[impl fmt::Debug]) -> String {
-    // TODO use serde here maybe once bit_set implements Serialize trait
-    let mut result = String::new();
+pub fn to_json_str_using_node_ids(node_sets: &[NodeIdSet]) -> String {
 
-    result.push_str("[\n");
+    let node_sets: Vec<Vec<NodeId>> = node_sets.iter().map(|x| x.iter().collect()).collect();
 
-    let lines: Vec<String> = node_sets.iter().map(|x| format!("  {:?}", x)).collect();
-    result.push_str(&lines.join(",\n"));
-
-    result.push_str("\n]");
-    result
+    serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
 }
 
 /// Nodes represented by nodes' public keys.
-pub fn format_node_sets(node_sets: &Vec<NodeIdSet>, network: &Network) -> String {
-    let mut result = String::new();
+pub fn to_json_str_using_public_keys(node_sets: &[NodeIdSet], network: &Network) -> String {
 
-    result.push_str("[\n");
+    let node_sets: Vec<Vec<&PublicKey>> = node_sets.iter().map(|x| x.iter().map(|x| &network.nodes[x].public_key).collect()).collect();
 
-    let lines: Vec<String> = node_sets
-        .iter()
-        .map(|x| format_node_set(x, network))
-        .collect();
-    result.push_str(&lines.join(",\n"));
-
-    result.push_str("\n]");
-    result
-}
-
-/// Nodes represented by nodes' public keys.
-pub fn format_node_set(node_set: &NodeIdSet, network: &Network) -> String {
-    let mut result = String::new();
-
-    result.push_str("{ ");
-    let lines: Vec<String> = node_set
-        .iter()
-        .map(|x| format!("\"{}\"", network.nodes[x].public_key))
-        .collect();
-    result.push_str(&lines.join(", "));
-
-    result.push_str(" }");
-    result
+    serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
 }
 
 #[cfg(test)]

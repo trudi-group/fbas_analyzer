@@ -52,9 +52,9 @@ fn main() -> CliResult {
 
     let format = |x| {
         if p {
-            format_node_sets(x, &network)
+            to_json_str_using_public_keys(x, &network)
         } else {
-            format_node_sets_raw(x)
+            to_json_str_using_node_ids(x)
         }
     };
 
