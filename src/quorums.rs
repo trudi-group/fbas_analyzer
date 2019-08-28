@@ -4,36 +4,6 @@ use log::info;
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 
-/// Create a **BitSet** from a list of elements.
-///
-/// ## Example
-///
-/// ```
-/// #[macro_use] extern crate fbas_analyzer;
-///
-/// let set = bitset!{23, 42};
-/// assert!(set.contains(23));
-/// assert!(set.contains(42));
-/// assert!(!set.contains(100));
-/// ```
-#[macro_export]
-macro_rules! bitset {
-    (@single $($x:tt)*) => (());
-    (@count $($rest:expr),*) => (<[()]>::len(&[$(bitset!(@single $rest)),*]));
-
-    ($($key:expr,)+) => { bitset!($($key),+) };
-    ($($key:expr),*) => {
-        {
-            let _cap = bitset!(@count $($key),*);
-            let mut _set = ::bit_set::BitSet::with_capacity(_cap);
-            $(
-                let _ = _set.insert($key);
-            )*
-            _set
-        }
-    };
-}
-
 impl Network {
     fn is_quorum(&self, node_set: &BitSet) -> bool {
         !node_set.is_empty() && node_set.iter().all(|x| self.nodes[x].is_quorum(&node_set))
