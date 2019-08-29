@@ -43,10 +43,10 @@ impl QuorumSet {
 }
 
 pub fn has_quorum_intersection(fbas: &Fbas) -> bool {
-    all_node_sets_interesect(&get_minimal_quorums(fbas))
+    all_node_sets_interesect(&find_minimal_quorums(fbas))
 }
 
-pub fn get_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
+pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     let n = fbas.nodes.len();
     let mut unprocessed: Vec<NodeId> = (0..n).collect();
 
@@ -141,7 +141,7 @@ pub fn sort_nodes_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
     nodes
 }
 
-pub fn get_minimal_blocking_sets(quorums: &[NodeIdSet]) -> Vec<NodeIdSet> {
+pub fn find_minimal_blocking_sets(quorums: &[NodeIdSet]) -> Vec<NodeIdSet> {
     // TODO has refactoring and performance tuning potential
 
     let mut quorum_memberships: BTreeMap<NodeId, NodeIdSet> = BTreeMap::new();
@@ -351,32 +351,32 @@ mod tests {
     }
 
     #[test]
-    fn get_minimal_quorums_correct_trivial() {
+    fn find_minimal_quorums_correct_trivial() {
         let fbas = Fbas::from_json_file("test_data/correct_trivial.json");
 
         let expected = vec![bitset![0, 1], bitset![0, 2], bitset![1, 2]];
-        let actual = get_minimal_quorums(&fbas);
+        let actual = find_minimal_quorums(&fbas);
 
         assert_eq!(expected, actual);
     }
 
     #[test]
-    fn get_minimal_quorums_broken_trivial() {
+    fn find_minimal_quorums_broken_trivial() {
         let fbas = Fbas::from_json_file("test_data/broken_trivial.json");
 
         let expected = vec![bitset![0], bitset![1, 2]];
-        let actual = get_minimal_quorums(&fbas);
+        let actual = find_minimal_quorums(&fbas);
 
         assert_eq!(expected, actual);
     }
 
     #[test]
-    fn get_minimal_quorums_broken_trivial_reversed_node_ids() {
+    fn find_minimal_quorums_broken_trivial_reversed_node_ids() {
         let mut fbas = Fbas::from_json_file("test_data/broken_trivial.json");
         fbas.nodes.reverse();
 
         let expected = vec![bitset![2], bitset![0, 1]];
-        let actual = get_minimal_quorums(&fbas);
+        let actual = find_minimal_quorums(&fbas);
 
         assert_eq!(expected, actual);
     }
@@ -410,11 +410,11 @@ mod tests {
     }
 
     #[test]
-    fn get_minimal_blocking_sets_simple() {
+    fn find_minimal_blocking_sets_simple() {
         let minimal_quorums = vec![bitset![0, 1], bitset![0, 2]];
 
         let expected = vec![bitset![0], bitset![1, 2]];
-        let actual = get_minimal_blocking_sets(&minimal_quorums);
+        let actual = find_minimal_blocking_sets(&minimal_quorums);
 
         assert_eq!(expected, actual);
     }
@@ -423,8 +423,8 @@ mod tests {
     #[ignore]
     fn minimal_blocking_sets_more_minimal_than_minimal_quorums() {
         let fbas = Fbas::from_json_file("test_data/stellarbeat_2019-08-02.json");
-        let minimal_quorums = get_minimal_quorums(&fbas);
-        let minimal_blocking_sets = get_minimal_blocking_sets(&minimal_quorums);
+        let minimal_quorums = find_minimal_quorums(&fbas);
+        let minimal_blocking_sets = find_minimal_blocking_sets(&minimal_quorums);
 
         let minimal_all = remove_non_minimal_node_sets(
             minimal_blocking_sets

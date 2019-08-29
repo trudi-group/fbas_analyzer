@@ -64,14 +64,14 @@ fn main() -> CliResult {
         );
     }
     if q || b || i {
-        let minimal_quorums = get_minimal_quorums(&fbas);
+        let minimal_quorums = find_minimal_quorums(&fbas);
 
         if q {
             println!("We found {} minimal quorums:", minimal_quorums.len());
             println!("\n{}\n", format(&minimal_quorums));
         }
         if b {
-            let minimal_blocking_sets = get_minimal_blocking_sets(&minimal_quorums);
+            let minimal_blocking_sets = find_minimal_blocking_sets(&minimal_quorums);
             println!(
                 "We found {} minimal blocking sets:",
                 minimal_blocking_sets.len()
