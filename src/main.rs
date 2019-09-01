@@ -83,7 +83,7 @@ fn main() -> CliResult {
             );
         }
         if i {
-            if all_node_sets_interesect(&minimal_quorums) {
+            if all_interesect(&minimal_quorums) {
                 println!("All quorums intersect.");
             } else {
                 println!(

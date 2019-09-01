@@ -6,7 +6,7 @@ use criterion::black_box;
 use criterion::Criterion;
 
 use fbas_analyzer::{
-    all_node_sets_interesect, find_minimal_blocking_sets, find_minimal_quorums, Fbas,
+    all_interesect, find_minimal_blocking_sets, find_minimal_quorums, Fbas,
 };
 
 pub fn criterion_benchmark(c: &mut Criterion) {
@@ -16,8 +16,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("find_minimal_quorums", |b| {
         b.iter(|| find_minimal_quorums(black_box(&fbas)))
     });
-    c.bench_function("all_node_sets_interesect", |b| {
-        b.iter(|| all_node_sets_interesect(black_box(&minimal_quorums)))
+    c.bench_function("all_interesect", |b| {
+        b.iter(|| all_interesect(black_box(&minimal_quorums)))
     });
     c.bench_function("find_minimal_blocking_sets", |b| {
         b.iter(|| find_minimal_blocking_sets(black_box(&minimal_quorums)))
@@ -26,7 +26,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().sample_size(10);
+    config = Criterion::default().sample_size(20);
     targets = criterion_benchmark
 }
 criterion_main!(benches);
