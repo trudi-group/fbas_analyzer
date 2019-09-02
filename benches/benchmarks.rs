@@ -5,9 +5,7 @@ extern crate fbas_analyzer;
 use criterion::black_box;
 use criterion::Criterion;
 
-use fbas_analyzer::{
-    all_interesect, find_minimal_blocking_sets, find_minimal_quorums, Fbas,
-};
+use fbas_analyzer::{all_interesect, find_minimal_blocking_sets, find_minimal_quorums, Fbas};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let fbas = Fbas::from_json_file("test_data/stellarbeat_2019-08-02.json");

@@ -1,9 +1,11 @@
 use super::*;
-use std::collections::BTreeMap;
+use std::ops::Index;
 
-pub fn find_minimal_blocking_sets(quorums: &[NodeIdSet]) -> Vec<NodeIdSet> {
+struct MembershipsMap(Vec<BitSet>);
+
+pub fn find_minimal_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
     info!("Getting blocking sets...");
-    let blocking_sets = find_blocking_sets(quorums);
+    let blocking_sets = find_blocking_sets(node_sets);
     info!("Found {} blocking sets.", blocking_sets.len());
     let minimal_blocking_sets = remove_non_minimal_node_sets(blocking_sets);
     info!(
@@ -13,106 +15,96 @@ pub fn find_minimal_blocking_sets(quorums: &[NodeIdSet]) -> Vec<NodeIdSet> {
     minimal_blocking_sets
 }
 
-fn find_blocking_sets(quorums: &[NodeIdSet]) -> Vec<NodeIdSet> {
-    // TODO has refactoring and performance tuning potential
+fn find_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
+    let (mut unprocessed, memberships) = extract_nodes_and_node_set_memberships(node_sets);
 
-    let (quorum_memberships, mut quorum_members) = extract_quorum_memberships(quorums);
-
-    let mut unprocessed: Vec<NodeId> = quorum_memberships.keys().cloned().collect();
-
-    info!("Sorting nodes by number of quorum membership...");
-    unprocessed = sort_by_number_of_quorum_memberships(unprocessed, &quorum_memberships);
+    info!("Sorting nodes by number of memberships...");
+    unprocessed = sort_by_number_of_node_set_memberships(unprocessed, &memberships);
     info!("Sorted.");
 
     let mut unprocessed = NodeIdDeque::from(unprocessed);
-    let mut selection = Vec::new();
-    let missing_quorums: BitSet = (0..quorums.len()).collect();
+    let mut selection = NodeIdSet::new();
+    let missing_node_sets: BitSet = (0..node_sets.len()).collect();
 
     fn step(
         unprocessed: &mut NodeIdDeque,
-        selection: &mut Vec<NodeId>,
-        remaining_quorum_members: &mut Vec<u32>,
-        missing_quorums: BitSet,
-        quorum_memberships: &BTreeMap<NodeId, BitSet>,
+        selection: &mut NodeIdSet,
+        missing_node_sets: BitSet,
+        memberships: &MembershipsMap,
     ) -> Vec<NodeIdSet> {
         let mut result: Vec<NodeIdSet> = vec![];
 
-        if missing_quorums.is_empty() {
-            result.push(selection.iter().cloned().collect());
-        } else if missing_quorums
-            .iter()
-            .all(|x| remaining_quorum_members[x] == 0)
-        {
+        if missing_node_sets.is_empty() {
+            result.push(selection.clone());
         } else if let Some(current_candidate) = unprocessed.pop_front() {
-            for quorum_id in quorum_memberships[&current_candidate].iter() {
-                remaining_quorum_members[quorum_id] -= 1;
+            let useful = !missing_node_sets.is_disjoint(&memberships[current_candidate]);
+
+            if useful {
+                selection.insert(current_candidate);
+                let mut updated_missing_node_sets = missing_node_sets.clone();
+                for node_set in memberships[current_candidate].iter() {
+                    updated_missing_node_sets.remove(node_set);
+                }
+                result.extend(step(
+                    unprocessed,
+                    selection,
+                    updated_missing_node_sets,
+                    memberships,
+                ));
+                selection.remove(current_candidate);
             }
-
-            selection.push(current_candidate);
-            let mut updated_missing_quorums = missing_quorums.clone();
-            for quorum in quorum_memberships[&current_candidate].iter() {
-                updated_missing_quorums.remove(quorum);
-            }
-            result.extend(step(
-                unprocessed,
-                selection,
-                remaining_quorum_members,
-                updated_missing_quorums,
-                quorum_memberships,
-            ));
-
-            selection.pop();
-            result.extend(step(
-                unprocessed,
-                selection,
-                remaining_quorum_members,
-                missing_quorums,
-                quorum_memberships,
-            ));
-
+            result.extend(step(unprocessed, selection, missing_node_sets, memberships));
             unprocessed.push_front(current_candidate);
-            for quorum_id in quorum_memberships[&current_candidate].iter() {
-                remaining_quorum_members[quorum_id] += 1;
-            }
         }
         result
     }
     step(
         &mut unprocessed,
         &mut selection,
-        &mut quorum_members,
-        missing_quorums,
-        &quorum_memberships,
+        missing_node_sets,
+        &memberships,
     )
 }
 
-fn extract_quorum_memberships(quorums: &[NodeIdSet]) -> (BTreeMap<NodeId, BitSet>, Vec<u32>) {
+fn extract_nodes_and_node_set_memberships(
+    node_sets: &[NodeIdSet],
+) -> (Vec<NodeId>, MembershipsMap) {
+    let nodes: NodeIdSet = node_sets.iter().flatten().collect();
+    let max_node_id = nodes.iter().max().unwrap_or(0);
 
-    let mut quorum_memberships: BTreeMap<NodeId, BitSet> = BTreeMap::new();
-    let mut quorum_members: Vec<u32> = vec![0; quorums.len()];
+    let mut memberships = MembershipsMap::new(max_node_id);
 
-    for (quorum_id, quorum) in quorums.iter().enumerate() {
-        for node_id in quorum.iter() {
-            (*quorum_memberships
-                .entry(node_id)
-                .or_insert_with(BitSet::new))
-            .insert(quorum_id);
-            quorum_members[quorum_id] += 1;
+    for (node_set_id, node_set) in node_sets.iter().enumerate() {
+        for node_id in node_set.iter() {
+            memberships.insert(node_id, node_set_id);
         }
     }
-    (quorum_memberships, quorum_members)
+    (nodes.into_iter().collect(), memberships)
 }
 
-/// Sort so that nodes included in many quorums are first
-fn sort_by_number_of_quorum_memberships(nodes: Vec<NodeId>, quorum_memberships: &BTreeMap<NodeId, BitSet>) -> Vec<NodeId> {
-
+/// Sort so that nodes included in many node sets are first
+fn sort_by_number_of_node_set_memberships(
+    nodes: Vec<NodeId>,
+    memberships: &MembershipsMap,
+) -> Vec<NodeId> {
     let mut nodes = nodes;
-    nodes.sort_by(|x, y| {
-        quorum_memberships[y]
-            .len()
-            .cmp(&quorum_memberships[x].len())
-    });
+    nodes.sort_by(|x, y| memberships[*y].len().cmp(&memberships[*x].len()));
     nodes
+}
+
+impl Index<NodeId> for MembershipsMap {
+    type Output = BitSet;
+    fn index(&self, i: NodeId) -> &BitSet {
+        &self.0[i]
+    }
+}
+impl MembershipsMap {
+    pub fn new(biggest_index: NodeId) -> Self {
+        MembershipsMap((0..=biggest_index).map(|_| BitSet::new()).collect())
+    }
+    pub fn insert(&mut self, member_id: NodeId, node_set_id: usize) -> bool {
+        self.0[member_id].insert(node_set_id)
+    }
 }
 
 #[cfg(test)]
@@ -121,12 +113,37 @@ mod tests {
 
     #[test]
     fn find_minimal_blocking_sets_simple() {
-        let minimal_quorums = vec![bitset![0, 1], bitset![0, 2]];
+        let minimal_node_sets = vec![bitset![0, 1], bitset![0, 2]];
 
         let expected = vec![bitset![0], bitset![1, 2]];
-        let actual = find_minimal_blocking_sets(&minimal_quorums);
+        let actual = find_minimal_blocking_sets(&minimal_node_sets);
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_blocking_sets_less_simple() {
+        let node_sets = vec![
+            bitset![0, 1],
+            bitset![0, 2],
+            bitset![1, 3],
+            bitset![0, 1, 2],
+        ];
+
+        let expected = vec![bitset![0, 1], bitset![0, 3], bitset![1, 2]];
+        let actual = find_minimal_blocking_sets(&node_sets);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_blocking_sets_nontrivial() {
+        let fbas = Fbas::from_json_file("test_data/correct.json");
+
+        let minimal_quorums = find_minimal_quorums(&fbas);
+        let minimal_blocking_sets = find_minimal_blocking_sets(&minimal_quorums);
+
+        assert_eq!(minimal_quorums, minimal_blocking_sets);
     }
 
     #[test]
