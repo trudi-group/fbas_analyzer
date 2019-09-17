@@ -149,7 +149,7 @@ mod tests {
     #[test]
     #[ignore]
     fn minimal_blocking_sets_more_minimal_than_minimal_quorums() {
-        let fbas = Fbas::from_json_file("test_data/stellarbeat_2019-08-02.json");
+        let fbas = Fbas::from_json_file("test_data/stellarbeat_nodes_2019-09-17.json");
         let minimal_quorums = find_minimal_quorums(&fbas);
         let minimal_blocking_sets = find_minimal_blocking_sets(&minimal_quorums);
 

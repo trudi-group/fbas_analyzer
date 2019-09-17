@@ -65,8 +65,8 @@ pub fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     )
 }
 
+/// A quick and dirty something resembling page rank
 pub fn sort_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
-    // a quick and dirty something resembling page rank
     // TODO not protected against overflows ...
     let mut scores: Vec<u64> = vec![1; fbas.nodes.len()];
 
