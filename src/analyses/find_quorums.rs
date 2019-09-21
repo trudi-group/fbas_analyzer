@@ -116,10 +116,11 @@ fn remove_nodes_not_included_in_quorum_slices(nodes: Vec<NodeId>, fbas: &Fbas) -
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn find_minimal_quorums_correct_trivial() {
-        let fbas = Fbas::from_json_file("test_data/correct_trivial.json");
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
 
         let expected = vec![bitset![0, 1], bitset![0, 2], bitset![1, 2]];
         let actual = find_minimal_quorums(&fbas);
@@ -129,7 +130,7 @@ mod tests {
 
     #[test]
     fn find_minimal_quorums_broken_trivial() {
-        let fbas = Fbas::from_json_file("test_data/broken_trivial.json");
+        let fbas = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
 
         let expected = vec![bitset![0], bitset![1, 2]];
         let actual = find_minimal_quorums(&fbas);
@@ -139,7 +140,7 @@ mod tests {
 
     #[test]
     fn find_minimal_quorums_broken_trivial_reversed_node_ids() {
-        let mut fbas = Fbas::from_json_file("test_data/broken_trivial.json");
+        let mut fbas = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
         fbas.nodes.reverse();
 
         let expected = vec![bitset![2], bitset![0, 1]];

@@ -110,6 +110,7 @@ impl MembershipsMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn find_minimal_blocking_sets_simple() {
@@ -138,7 +139,7 @@ mod tests {
 
     #[test]
     fn find_minimal_blocking_sets_nontrivial() {
-        let fbas = Fbas::from_json_file("test_data/correct.json");
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
 
         let minimal_quorums = find_minimal_quorums(&fbas);
         let minimal_blocking_sets = find_minimal_blocking_sets(&minimal_quorums);
@@ -149,7 +150,7 @@ mod tests {
     #[test]
     #[ignore]
     fn minimal_blocking_sets_more_minimal_than_minimal_quorums() {
-        let fbas = Fbas::from_json_file("test_data/stellarbeat_nodes_2019-09-17.json");
+        let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
         let minimal_quorums = find_minimal_quorums(&fbas);
         let minimal_blocking_sets = find_minimal_blocking_sets(&minimal_quorums);
 

@@ -1,6 +1,6 @@
 pub use bit_set::BitSet;
-pub use std::collections::VecDeque;
 pub use std::collections::HashMap;
+pub use std::collections::VecDeque;
 
 pub type NodeId = usize; // internal and possibly different between runs
 pub type PublicKey = String;

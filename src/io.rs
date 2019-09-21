@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde_json;
 
 use std::fs;
+use std::path::Path;
 
 use crate::*;
 
@@ -11,8 +12,8 @@ impl RawFbas {
     fn from_json_str(json: &str) -> Self {
         serde_json::from_str(json).expect("Error parsing JSON")
     }
-    fn from_json_file(path: &str) -> Self {
-        let json = fs::read_to_string(path).expect(&format!("Error reading file {:?}", path));
+    fn from_json_file(path: &Path) -> Self {
+        let json = fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
         Self::from_json_str(&json)
     }
 }
@@ -34,7 +35,7 @@ impl Fbas {
     pub fn from_json_str(json: &str) -> Self {
         Self::from_raw(RawFbas::from_json_str(json))
     }
-    pub fn from_json_file(path: &str) -> Self {
+    pub fn from_json_file(path: &Path) -> Self {
         Self::from_raw(RawFbas::from_json_file(path))
     }
     fn from_raw(raw_fbas: RawFbas) -> Self {
@@ -87,8 +88,8 @@ impl RawOrganizations {
     fn from_json_str(json: &str) -> Self {
         serde_json::from_str(json).expect("Error parsing JSON")
     }
-    fn from_json_file(path: &str) -> Self {
-        let json = fs::read_to_string(path).expect(&format!("Error reading file {:?}", path));
+    fn from_json_file(path: &Path) -> Self {
+        let json = fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
         Self::from_json_str(&json)
     }
 }
@@ -102,7 +103,7 @@ impl Organizations {
     pub fn from_json_str(json: &str, fbas: &Fbas) -> Self {
         Self::from_raw(RawOrganizations::from_json_str(json), fbas)
     }
-    pub fn from_json_file(path: &str, fbas: &Fbas) -> Self {
+    pub fn from_json_file(path: &Path, fbas: &Fbas) -> Self {
         Self::from_raw(RawOrganizations::from_json_file(path), fbas)
     }
     fn from_raw(raw_organizations: RawOrganizations, fbas: &Fbas) -> Self {

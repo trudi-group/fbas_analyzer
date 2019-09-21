@@ -59,7 +59,7 @@ pub fn all_interesect(node_sets: &[NodeIdSet]) -> bool {
 }
 
 /// Reduce to minimal node sets, i.e. to a set of node sets so that no member set is a superset of another.
-fn remove_non_minimal_node_sets(node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
+pub fn remove_non_minimal_node_sets(node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
     let mut node_sets = node_sets;
     let mut minimal_node_sets: Vec<NodeIdSet> = vec![];
 
@@ -97,6 +97,7 @@ impl Organizations {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     fn test_node(validators: &[NodeId], threshold: usize) -> Node {
         Node {
@@ -146,7 +147,7 @@ mod tests {
 
     #[test]
     fn is_quorum_for_fbas() {
-        let fbas = Fbas::from_json_file("test_data/correct_trivial.json");
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
 
         assert!(fbas.is_quorum(&bitset![0, 1]));
         assert!(!fbas.is_quorum(&bitset![0]));
@@ -157,7 +158,7 @@ mod tests {
         let node = test_node(&[0, 1, 2], 2);
         assert!(!node.is_quorum(&bitset![]));
 
-        let fbas = Fbas::from_json_file("test_data/correct_trivial.json");
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
         assert!(!fbas.is_quorum(&bitset![]));
     }
 
@@ -182,8 +183,8 @@ mod tests {
 
     #[test]
     fn has_quorum_intersection_trivial() {
-        let correct = Fbas::from_json_file("test_data/correct_trivial.json");
-        let broken = Fbas::from_json_file("test_data/broken_trivial.json");
+        let correct = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
+        let broken = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
 
         assert!(correct.has_quorum_intersection());
         assert!(!broken.has_quorum_intersection());
@@ -191,8 +192,8 @@ mod tests {
 
     #[test]
     fn has_quorum_intersection_nontrivial() {
-        let correct = Fbas::from_json_file("test_data/correct.json");
-        let broken = Fbas::from_json_file("test_data/broken.json");
+        let correct = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let broken = Fbas::from_json_file(Path::new("test_data/broken.json"));
 
         assert!(correct.has_quorum_intersection());
         assert!(!broken.has_quorum_intersection());
