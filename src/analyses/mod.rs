@@ -73,6 +73,27 @@ fn remove_non_minimal_node_sets(node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
     minimal_node_sets
 }
 
+impl Organizations {
+    /// Collapse a node ID so that all nodes by the same organization get the same ID.
+    pub fn collapse_node(self: &Self, node_id: NodeId) -> NodeId {
+        self.collapsed_ids[node_id]
+    }
+    /// Collapse a node ID set so that all nodes by the same organization get the same ID.
+    pub fn collapse_node_set(self: &Self, node_set: NodeIdSet) -> NodeIdSet {
+        node_set
+            .into_iter()
+            .map(|x| self.collapse_node(x))
+            .collect()
+    }
+    /// Collapse a list of node ID sets so that all nodes by the same organization get the same ID.
+    pub fn collapse_node_sets(self: &Self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
+        node_sets
+            .into_iter()
+            .map(|x| self.collapse_node_set(x))
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,6 +204,39 @@ mod tests {
 
         let expected = vec![bitset![0, 1], bitset![0, 2]];
         let actual = remove_non_minimal_node_sets(non_minimal);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn collapse_node_sets_organization() {
+        let fbas_input = r#"[
+            {
+                "publicKey": "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH"
+            },
+            {
+                "publicKey": "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ"
+            },
+            {
+                "publicKey": "GCWJKM4EGTGJUVSWUJDPCQEOEP5LHSOFKSA4HALBTOO4T4H3HCHOM6UX"
+            }]"#;
+        let organizations_input = r#"[
+            {
+                "id": "266107f8966d45eedce41fee2581326d",
+                "name": "Stellar Development Foundation",
+                "validators": [
+                    "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK",
+                    "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+                    "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ"
+                ]
+            }]"#;
+        let fbas = Fbas::from_json_str(&fbas_input);
+        let organizations = Organizations::from_json_str(&organizations_input, &fbas);
+
+        let node_sets = vec![bitset![0], bitset![1, 2]];
+
+        let expected = vec![bitset![0], bitset![0, 2]];
+        let actual = organizations.collapse_node_sets(node_sets);
+
         assert_eq!(expected, actual);
     }
 }

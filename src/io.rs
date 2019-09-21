@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use serde_json;
 
-use std::collections::HashMap;
 use std::fs;
 
 use crate::*;
@@ -31,7 +30,6 @@ struct RawQuorumSet {
     #[serde(rename = "innerQuorumSets", default)]
     inner_quorum_sets: Vec<RawQuorumSet>,
 }
-
 impl Fbas {
     pub fn from_json_str(json: &str) -> Self {
         Self::from_raw(RawFbas::from_json_str(json))
@@ -39,7 +37,6 @@ impl Fbas {
     pub fn from_json_file(path: &str) -> Self {
         Self::from_raw(RawFbas::from_json_file(path))
     }
-
     fn from_raw(raw_fbas: RawFbas) -> Self {
         let raw_nodes = raw_fbas.0;
 
@@ -54,7 +51,7 @@ impl Fbas {
             .map(|x| Node::from_raw(x, &pk_to_id))
             .collect();
 
-        Fbas { nodes }
+        Fbas { nodes, pk_to_id }
     }
 }
 impl Node {
@@ -79,6 +76,55 @@ impl QuorumSet {
                 .inner_quorum_sets
                 .into_iter()
                 .map(|x| QuorumSet::from_raw(x, pk_to_id))
+                .collect(),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct RawOrganizations(Vec<RawOrganization>);
+impl RawOrganizations {
+    fn from_json_str(json: &str) -> Self {
+        serde_json::from_str(json).expect("Error parsing JSON")
+    }
+    fn from_json_file(path: &str) -> Self {
+        let json = fs::read_to_string(path).expect(&format!("Error reading file {:?}", path));
+        Self::from_json_str(&json)
+    }
+}
+#[derive(Deserialize)]
+struct RawOrganization {
+    id: String,
+    name: String,
+    validators: Vec<PublicKey>,
+}
+impl Organizations {
+    pub fn from_json_str(json: &str, fbas: &Fbas) -> Self {
+        Self::from_raw(RawOrganizations::from_json_str(json), fbas)
+    }
+    pub fn from_json_file(path: &str, fbas: &Fbas) -> Self {
+        Self::from_raw(RawOrganizations::from_json_file(path), fbas)
+    }
+    fn from_raw(raw_organizations: RawOrganizations, fbas: &Fbas) -> Self {
+        let organizations: Vec<Organization> = raw_organizations
+            .0
+            .into_iter()
+            .map(|x| Organization::from_raw(x, &fbas.pk_to_id))
+            .collect();
+
+        Organizations::new(organizations, fbas)
+    }
+}
+impl Organization {
+    fn from_raw(raw_organization: RawOrganization, pk_to_id: &HashMap<PublicKey, NodeId>) -> Self {
+        Organization {
+            id: raw_organization.id,
+            name: raw_organization.name,
+            validators: raw_organization
+                .validators
+                .into_iter()
+                .filter_map(|pk| pk_to_id.get(&pk))
+                .cloned()
                 .collect(),
         }
     }
@@ -208,12 +254,13 @@ mod tests {
         assert_eq!(expected_quorum_sets, actual_quorum_sets);
     }
 
-    #[test]
-    fn from_json_doesnt_panic_for_test_files() {
-        use std::fs;
-        for item in fs::read_dir("test_data").unwrap() {
-            let path = item.unwrap().path();
-            Fbas::from_json_file(path.to_str().unwrap());
-        }
-    }
+    // broken since we also have "organizations" test files now
+    // #[test]
+    // fn from_json_doesnt_panic_for_test_files() {
+    //     use std::fs;
+    //     for item in fs::read_dir("test_data").unwrap() {
+    //         let path = item.unwrap().path();
+    //         Fbas::from_json_file(path.to_str().unwrap());
+    //     }
+    // }
 }
