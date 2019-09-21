@@ -30,6 +30,7 @@ pub struct QuorumSet {
 pub struct Organizations {
     pub(crate) organizations: Vec<Organization>,
     pub(crate) collapsed_ids: Vec<NodeId>,
+    id_to_org_idx: HashMap<NodeId, usize>,
 }
 pub struct Organization {
     pub(crate) id: String,
@@ -39,18 +40,29 @@ pub struct Organization {
 impl Organizations {
     pub fn new(organizations: Vec<Organization>, fbas: &Fbas) -> Self {
         let mut collapsed_ids: Vec<NodeId> = (0..fbas.nodes.len()).collect();
+        let mut id_to_org_idx: HashMap<NodeId, usize> = HashMap::new();
 
-        for organization in organizations.iter() {
-            let mut validator_it = organization.validators.iter().copied();
+        for (org_idx, org) in organizations.iter().enumerate() {
+            let mut validator_it = org.validators.iter().copied();
             if let Some(collapsed_id) = validator_it.next() {
+                id_to_org_idx.insert(collapsed_id, org_idx);
                 for validator in validator_it {
                     collapsed_ids[validator] = collapsed_id;
+                    id_to_org_idx.insert(validator, org_idx);
                 }
             }
         }
         Organizations {
             organizations,
             collapsed_ids,
+            id_to_org_idx,
+        }
+    }
+    pub fn get_by_member(self: &Self, node_id: &NodeId) -> Option<&Organization> {
+        if let Some(&org_idx) = self.id_to_org_idx.get(node_id) {
+            Some(&self.organizations[org_idx])
+        } else {
+            None
         }
     }
 }

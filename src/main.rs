@@ -7,7 +7,7 @@ use structopt::StructOpt;
 
 use std::path::PathBuf;
 
-/// Learn things about a given FBAS
+/// Learn things about a given FBAS (parses data from stellarbeat.org)
 #[derive(Debug, StructOpt)]
 struct Cli {
     /// Path to JSON file describing the FBAS in stellarbeat.org "nodes" format
@@ -75,7 +75,7 @@ fn main() -> CliResult {
     let format = |x| {
         if p {
             if let Some(ref orgs) = organizations {
-                String::from("not implemented yet")
+                to_json_str_using_organization_names(x, &fbas, &orgs)
             } else {
                 to_json_str_using_public_keys(x, &fbas)
             }

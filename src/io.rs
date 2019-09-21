@@ -13,7 +13,8 @@ impl RawFbas {
         serde_json::from_str(json).expect("Error parsing JSON")
     }
     fn from_json_file(path: &Path) -> Self {
-        let json = fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
+        let json =
+            fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
         Self::from_json_str(&json)
     }
 }
@@ -89,7 +90,8 @@ impl RawOrganizations {
         serde_json::from_str(json).expect("Error parsing JSON")
     }
     fn from_json_file(path: &Path) -> Self {
-        let json = fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
+        let json =
+            fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
         Self::from_json_str(&json)
     }
 }
@@ -138,11 +140,32 @@ pub fn to_json_str_using_node_ids(node_sets: &[NodeIdSet]) -> String {
     serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
 }
 
-/// Nodes represented by nodes' public keys.
+/// Nodes represented by their public keys.
 pub fn to_json_str_using_public_keys(node_sets: &[NodeIdSet], fbas: &Fbas) -> String {
     let node_sets: Vec<Vec<&PublicKey>> = node_sets
         .iter()
         .map(|x| x.iter().map(|x| &fbas.nodes[x].public_key).collect())
+        .collect();
+
+    serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
+}
+
+/// Nodes represented by their organization's name.
+pub fn to_json_str_using_organization_names(
+    node_sets: &[NodeIdSet],
+    fbas: &Fbas,
+    organizations: &Organizations,
+) -> String {
+    let node_sets: Vec<Vec<&String>> = node_sets
+        .iter()
+        .map(|x| {
+            x.iter()
+                .map(|x| match &organizations.get_by_member(&x) {
+                    Some(org) => &org.name,
+                    None => &fbas.nodes[x].public_key,
+                })
+                .collect()
+        })
         .collect();
 
     serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
