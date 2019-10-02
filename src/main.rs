@@ -96,7 +96,6 @@ fn main() -> CliResult {
     }
     if q || b || i {
         let minimal_quorums = maybe_collapse(find_minimal_quorums(&fbas));
-        // FIXME this uglyness to make the borrow checker happy
         let minimal_blocking_sets = if b {
             maybe_collapse(find_minimal_blocking_sets(&minimal_quorums))
         } else {
@@ -143,6 +142,18 @@ fn main() -> CliResult {
                     "Some quorums don't intersect - safety severely threatened for some nodes!"
                 );
             }
+        }
+        if q || b || mi {
+            let mut all_sets = vec![];
+            all_sets.extend_from_slice(&minimal_quorums);
+            all_sets.extend_from_slice(&minimal_blocking_sets);
+            all_sets.extend_from_slice(&minimal_intersections);
+            let all_nodes = involved_nodes(&all_sets);
+            println!(
+                "There is a total of {} distinct nodes involved in all of these sets:",
+                all_nodes.len()
+            );
+            println!("\n{}\n", format(&vec![all_nodes]));
         }
     }
     Ok(())

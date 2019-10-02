@@ -60,6 +60,14 @@ pub fn all_interesect(node_sets: &[NodeIdSet]) -> bool {
         .all(|(i, x)| node_sets.iter().skip(i + 1).all(|y| !x.is_disjoint(y)))
 }
 
+pub fn involved_nodes(node_sets: &[NodeIdSet]) -> NodeIdSet {
+    let mut all_nodes: NodeIdSet = bitset![];
+    for node_set in node_sets {
+        all_nodes.union_with(node_set);
+    }
+    all_nodes
+}
+
 /// Reduce to minimal node sets, i.e. to a set of node sets so that no member set is a superset of another.
 pub fn remove_non_minimal_node_sets(node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
     let mut node_sets = node_sets;
