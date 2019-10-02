@@ -25,6 +25,10 @@ struct Cli {
     #[structopt(short = "i", long = "quorum-intersection")]
     quorum_intersection: bool,
 
+    /// Output minimal_intersections
+    #[structopt(long = "minimal-intersections")]
+    minimal_intersections: bool,
+
     /// Collapse nodes by organization - nodes from the same organization are handled as one;
     /// you must provide the path to a stellarbeat.org "organizations" JSON file
     #[structopt(short = "o", long = "organizations")]
@@ -48,7 +52,7 @@ fn main() -> CliResult {
     let (q, b, i) = (
         args.minimal_quorums,
         args.minimal_blocking_sets,
-        args.quorum_intersection,
+        args.quorum_intersection || args.minimal_intersections,
     );
     // no flags set => output everything
     let (q, b, i) = if (q, b, i) == (false, false, false) {
@@ -56,6 +60,7 @@ fn main() -> CliResult {
     } else {
         (q, b, i)
     };
+    let mi = args.minimal_intersections;
 
     let organizations = if let Some(organizations_path) = args.organizations_path {
         Some(Organizations::from_json_file(&organizations_path, &fbas))
@@ -91,27 +96,48 @@ fn main() -> CliResult {
     }
     if q || b || i {
         let minimal_quorums = maybe_collapse(find_minimal_quorums(&fbas));
+        // FIXME this uglyness to make the borrow checker happy
+        let minimal_blocking_sets = if b {
+            maybe_collapse(find_minimal_blocking_sets(&minimal_quorums))
+        } else {
+            vec![]
+        };
+        let minimal_intersections = if mi {
+            maybe_collapse(find_minimal_intersections(&minimal_quorums))
+        } else {
+            vec![]
+        };
 
         if q {
             println!("We found {} minimal quorums:", minimal_quorums.len());
             println!("\n{}\n", format(&minimal_quorums));
         }
         if b {
-            let minimal_blocking_sets =
-                maybe_collapse(find_minimal_blocking_sets(&minimal_quorums));
             println!(
-                "We found {} minimal blocking sets:",
+                "We found {} minimal blocking sets (minimal indispensable sets for global \
+                 liveliness):",
                 minimal_blocking_sets.len()
             );
             println!("\n{}\n", format(&minimal_blocking_sets));
             println!(
-                "Control over any of these sets is sufficient to compromise liveliness and \
-                 censor future transactions.\n"
+                "Control over any of these sets is sufficient to compromise the liveliness of all \
+                 nodes and censor future transactions.\n"
             );
         }
         if i {
             if all_interesect(&minimal_quorums) {
-                println!("All quorums intersect.");
+                println!("All quorums intersect.\n");
+                if mi {
+                    println!(
+                        "We found {} minimal intersections (minimal indispensable sets for \
+                         safety):",
+                        minimal_intersections.len()
+                    );
+                    println!("\n{}\n", format(&minimal_intersections));
+                    println!(
+                        "Control over any of these sets is sufficient to compromise safety by undermining the quorum intersection of at least two quorums.\n"
+                    );
+                }
             } else {
                 println!(
                     "Some quorums don't intersect - safety severely threatened for some nodes!"

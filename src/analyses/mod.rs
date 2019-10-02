@@ -2,9 +2,11 @@ use super::*;
 use log::info;
 
 mod find_blocking_sets;
+mod find_intersections;
 mod find_quorums;
 
 pub use find_blocking_sets::find_minimal_blocking_sets;
+pub use find_intersections::find_minimal_intersections;
 pub use find_quorums::find_minimal_quorums;
 
 impl Fbas {
