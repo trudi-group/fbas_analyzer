@@ -17,9 +17,9 @@ fn find_intersections(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
 
     for (i, ns1) in node_sets.iter().enumerate() {
         for ns2 in node_sets.iter().skip(i + 1) {
-            let mut intersection = ns1.clone();
-            intersection.intersect_with(ns2);
-            intersections.push(intersection);
+            let mut intersection_tmp = ns1.clone();
+            intersection_tmp.intersect_with(ns2);
+            intersections.push(intersection_tmp);
         }
     }
     intersections

@@ -160,7 +160,7 @@ pub fn to_json_str_using_organization_names(
         .iter()
         .map(|x| {
             x.iter()
-                .map(|x| match &organizations.get_by_member(&x) {
+                .map(|x| match &organizations.get_by_member(x) {
                     Some(org) => &org.name,
                     None => &fbas.nodes[x].public_key,
                 })

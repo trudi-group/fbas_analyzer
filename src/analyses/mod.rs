@@ -219,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    fn collapse_node_sets_organization() {
+    fn collapse_node_sets_by_organization() {
         let fbas_input = r#"[
             {
                 "publicKey": "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH"

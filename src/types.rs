@@ -58,8 +58,8 @@ impl Organizations {
             id_to_org_idx,
         }
     }
-    pub fn get_by_member(self: &Self, node_id: &NodeId) -> Option<&Organization> {
-        if let Some(&org_idx) = self.id_to_org_idx.get(node_id) {
+    pub fn get_by_member(self: &Self, node_id: NodeId) -> Option<&Organization> {
+        if let Some(&org_idx) = self.id_to_org_idx.get(&node_id) {
             Some(&self.organizations[org_idx])
         } else {
             None
