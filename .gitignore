@@ -1,4 +1,5 @@
 /target
+/test_data/*.json
 **/*.rs.bk
 **/*.swp
 Cargo.lock

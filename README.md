@@ -20,11 +20,15 @@ cargo test
 ```
 cargo build --release
 ```
-4. Run tool using data from stellarbeat
+4. Try tool using older data from stellarbeat
 ```
 target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -o test_data/stellarbeat_organizations_2019-09-17.json -a -p
 ```
-5. Play around some more
+5. Get some new data from stellarbeat (if their API didn't change too much...)
+```
+scripts/get_latest_stellarbeat_data.sh
+```
+6. Play around some more
 ```
 target/release/fbas_analyzer -h
 ```
