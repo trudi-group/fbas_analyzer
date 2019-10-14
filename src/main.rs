@@ -17,7 +17,7 @@ struct Cli {
     #[structopt(short = "q", long = "get-minimal-quorums")]
     minimal_quorums: bool,
 
-    /// Output (and find) minimal blocking sets (minimal indispensable sets for global liveliness)
+    /// Output (and find) minimal blocking sets (minimal indispensable sets for global liveness)
     #[structopt(short = "b", long = "get-minimal-blocking-sets")]
     minimal_blocking_sets: bool,
 
@@ -118,12 +118,12 @@ fn main() -> CliResult {
         }
         if b {
             println!(
-                "We found {} minimal blocking sets (minimal indispensable sets for global liveliness):",
+                "We found {} minimal blocking sets (minimal indispensable sets for global liveness):",
                 minimal_blocking_sets.len()
             );
             println!("\n{}\n", format(&minimal_blocking_sets));
             println!(
-                "Control over any of these sets is sufficient to compromise the liveliness of all \
+                "Control over any of these sets is sufficient to compromise the liveness of all \
                  nodes and to censor future transactions.\n"
             );
         }
