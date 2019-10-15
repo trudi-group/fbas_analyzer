@@ -13,11 +13,40 @@ pub struct Fbas {
     pub(crate) nodes: Vec<Node>,
     pub(crate) pk_to_id: HashMap<PublicKey, NodeId>,
 }
+impl Fbas {
+    pub fn new() -> Self {
+        Fbas {
+            nodes: vec![],
+            pk_to_id: HashMap::new(),
+        }
+    }
+    pub fn add_node(&mut self, node: Node) {
+        let node_id = self.nodes.len();
+        // use expect_none here once it becomes stable
+        if let Some(duplicate_id) = self.pk_to_id.insert(node.public_key.clone(), node_id) {
+            panic!(
+                "Duplicate public key {}",
+                self.nodes[duplicate_id].public_key
+            );
+        }
+        self.nodes.push(node);
+    }
+}
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Node {
     pub(crate) public_key: PublicKey,
     pub(crate) quorum_set: QuorumSet,
+}
+impl Node {
+    pub fn new_generic(some_id: usize) -> Self {
+        let public_key = format!("node {}", some_id);
+        let quorum_set = QuorumSet::new();
+        Node {
+            public_key,
+            quorum_set,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -25,6 +54,15 @@ pub struct QuorumSet {
     pub(crate) threshold: usize,
     pub(crate) validators: Vec<NodeId>,
     pub(crate) inner_quorum_sets: Vec<QuorumSet>,
+}
+impl QuorumSet {
+    pub fn new() -> Self {
+        QuorumSet {
+            threshold: 0,
+            validators: vec![],
+            inner_quorum_sets: vec![],
+        }
+    }
 }
 
 pub struct Organizations {
@@ -95,4 +133,32 @@ macro_rules! bitset {
             _set
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_generic_node() {
+        let node = Node::new_generic(42);
+        assert_eq!(node.public_key, "node 42");
+        assert_eq!(
+            node.quorum_set,
+            QuorumSet {
+                threshold: 0,
+                validators: vec![],
+                inner_quorum_sets: vec![]
+            }
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn add_node_panics_on_duplicate_public_key() {
+        let mut fbas = Fbas::new();
+        let node = Node::new_generic(42);
+        fbas.add_node(node.clone());
+        fbas.add_node(node);
+    }
 }

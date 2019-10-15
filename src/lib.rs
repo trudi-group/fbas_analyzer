@@ -1,5 +1,6 @@
 mod analyses;
 mod io;
+mod simulation;
 mod types;
 
 use types::*;

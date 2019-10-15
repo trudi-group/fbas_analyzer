@@ -1,18 +1,11 @@
 use super::*;
 use log::info;
 
-// impl Fbas {
-//     fn evolve(target_number_of_nodes: usize) -> Self {
-//     }
-// }
-
-impl Node {
-    fn new_generic(id: NodeId) -> Self {
-        let public_key = format!("node {}", id);
-        let quorum_set = Default::default();
-        Node {
-            public_key,
-            quorum_set,
+impl Fbas {
+    pub fn evolve(&mut self, nodes_to_spawn: usize) {
+        let n = self.nodes.len();
+        for i in n..(n + nodes_to_spawn) {
+            self.add_node(Node::new_generic(i));
         }
     }
 }
@@ -22,16 +15,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn create_generic_node() {
-        let node = Node::new_generic(42);
-        assert_eq!(node.public_key, "node 42");
+    fn evolve_1_node_fbas() {
+        let mut fbas = Fbas::new();
+        fbas.evolve(1);
+        assert_eq!(fbas.nodes, vec![Node::new_generic(0)]);
+    }
+
+    #[test]
+    fn evolve_1_to_3_node_fbas() {
+        let mut fbas = Fbas::new();
+        fbas.evolve(1);
+        assert_eq!(fbas.nodes, vec![Node::new_generic(0)]);
+        fbas.evolve(2);
         assert_eq!(
-            node.quorum_set,
-            QuorumSet {
-                threshold: 0,
-                validators: vec![],
-                inner_quorum_sets: vec![]
-            }
+            fbas.nodes,
+            vec![
+                Node::new_generic(0),
+                Node::new_generic(1),
+                Node::new_generic(2),
+            ]
         );
     }
 }
