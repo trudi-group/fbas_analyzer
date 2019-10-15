@@ -48,6 +48,24 @@ impl QuorumSetConfigurator for SuperLiveQsc {
     }
 }
 
+/// Creates threshold=n quorum sets containing all n nodes in the FBAS
+struct SuperSafeQsc;
+impl QuorumSetConfigurator for SuperSafeQsc {
+    /// Also counts the "next" node (most likely the one currently being created). This solves
+    /// the bootstrapping problem that the first node otherwise doesn't have a valid quorum.
+    fn build_new(&self, fbas: &Fbas) -> QuorumSet {
+        let n = fbas.nodes.len() + 1;
+        let threshold = n;
+        let validators = (0..n).collect();
+        let inner_quorum_sets = vec![];
+        QuorumSet {
+            threshold,
+            validators,
+            inner_quorum_sets,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,9 +88,20 @@ mod tests {
     }
 
     #[test]
-    fn super_live_fbas_has_a_quorum() {
+    fn super_live_fbas_has_quorums() {
         let mut fbas = Fbas::new();
         let qsc = SuperLiveQsc {};
+        fbas.evolve(3, &qsc);
+        assert!(fbas.is_quorum(&bitset![0]));
+        assert!(fbas.is_quorum(&bitset![1]));
+        assert!(fbas.is_quorum(&bitset![2]));
+        assert!(fbas.is_quorum(&bitset![0, 1, 2]));
+    }
+
+    #[test]
+    fn super_safe_fbas_has_a_quorum() {
+        let mut fbas = Fbas::new();
+        let qsc = SuperSafeQsc {};
         fbas.evolve(3, &qsc);
         assert!(fbas.is_quorum(&bitset![0, 1, 2]));
     }
@@ -83,5 +112,13 @@ mod tests {
         let qsc = SuperLiveQsc {};
         fbas.evolve(3, &qsc);
         assert!(!fbas.has_quorum_intersection());
+    }
+
+    #[test]
+    fn super_safe_fbas_has_quorum_intersection() {
+        let mut fbas = Fbas::new();
+        let qsc = SuperSafeQsc {};
+        fbas.evolve(8, &qsc);
+        assert!(fbas.has_quorum_intersection());
     }
 }
