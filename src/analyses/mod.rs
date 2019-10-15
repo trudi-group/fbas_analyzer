@@ -10,11 +10,10 @@ pub use find_intersections::find_minimal_intersections;
 pub use find_quorums::find_minimal_quorums;
 
 impl Fbas {
-    fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
+    pub fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
         !node_set.is_empty() && node_set.iter().all(|x| self.nodes[x].is_quorum(&node_set))
     }
-    #[allow(dead_code)]
-    fn has_quorum_intersection(&self) -> bool {
+    pub fn has_quorum_intersection(&self) -> bool {
         all_interesect(&find_minimal_quorums(&self))
     }
 }

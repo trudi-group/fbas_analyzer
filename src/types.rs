@@ -39,8 +39,7 @@ pub struct Node {
     pub(crate) quorum_set: QuorumSet,
 }
 impl Node {
-    pub fn new_generic(some_id: usize) -> Self {
-        let public_key = format!("node {}", some_id);
+    pub fn new(public_key: PublicKey) -> Self {
         let quorum_set = QuorumSet::new();
         Node {
             public_key,
@@ -140,9 +139,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn create_generic_node() {
-        let node = Node::new_generic(42);
-        assert_eq!(node.public_key, "node 42");
+    fn new_node() {
+        let node = Node::new("test".to_string());
+        assert_eq!(node.public_key, "test");
         assert_eq!(
             node.quorum_set,
             QuorumSet {
@@ -157,7 +156,7 @@ mod tests {
     #[should_panic]
     fn add_node_panics_on_duplicate_public_key() {
         let mut fbas = Fbas::new();
-        let node = Node::new_generic(42);
+        let node = Node::new("test".to_string());
         fbas.add_node(node.clone());
         fbas.add_node(node);
     }
