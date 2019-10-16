@@ -44,6 +44,21 @@ impl QuorumSetConfigurator for SuperLiveQsc {
             inner_quorum_sets,
         }
     }
+    fn change_existing(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
+        let n = fbas.nodes.len();
+        let candidate = QuorumSet {
+            threshold: 1,
+            validators: (0..n).collect(),
+            inner_quorum_sets: vec![],
+        };
+        let existing = &mut fbas.nodes[node_id].quorum_set;
+        if candidate == *existing {
+            NoChange
+        } else {
+            *existing = candidate;
+            Change
+        }
+    }
 }
 
 /// Basic Quorum Set Configurator priorizing FBAS safety.
@@ -76,6 +91,21 @@ impl QuorumSetConfigurator for SuperSafeQsc {
             threshold,
             validators,
             inner_quorum_sets,
+        }
+    }
+    fn change_existing(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
+        let n = fbas.nodes.len();
+        let candidate = QuorumSet {
+            threshold: n,
+            validators: (0..n).collect(),
+            inner_quorum_sets: vec![],
+        };
+        let existing = &mut fbas.nodes[node_id].quorum_set;
+        if candidate == *existing {
+            NoChange
+        } else {
+            *existing = candidate;
+            Change
         }
     }
 }

@@ -91,4 +91,31 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn simulate_global_reevaluation_round_can_make_all_nodes_super_safe() {
+        let mut fbas = Fbas::new();
+        for i in 0..8 {
+            fbas.add_node(Node {
+                public_key:generate_generic_node_name(i),
+                quorum_set: Default::default(),
+            });
+        }
+        let qsc = quorum_set_configurators::SuperSafeQsc;
+        fbas.simulate_global_reevaluation_round(&qsc);
+
+        let expected_quorum_set = QuorumSet {
+            threshold: 8,
+            validators: vec![0,1,2,3,4,5,6,7],
+            inner_quorum_sets: vec![],
+        };
+        let expeted: Vec<QuorumSet> = (0..8).into_iter().map(|_| expected_quorum_set.clone()).collect();
+        let actual: Vec<QuorumSet> = fbas.nodes.into_iter().map(|node| node.quorum_set).collect();
+        assert_eq!(expeted, actual);
+    }
+
+    // #[test]
+    // fn simulate_global_reevaluation_stops_once_stable() {
+       // todo need to count steps 
+    // }
 }
