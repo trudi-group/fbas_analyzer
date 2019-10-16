@@ -36,27 +36,12 @@ impl QuorumSetConfigurator for SuperLiveQsc {
     /// the bootstrapping problem that the first node otherwise doesn't have a valid quorum.
     fn build_new(&self, fbas: &Fbas) -> QuorumSet {
         let threshold = 1;
-        let validators = (0..=fbas.nodes.len()).collect();
+        let validators = (0..fbas.nodes.len()).collect();
         let inner_quorum_sets = vec![];
         QuorumSet {
             threshold,
             validators,
             inner_quorum_sets,
-        }
-    }
-    fn change_existing(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
-        let n = fbas.nodes.len();
-        let candidate = QuorumSet {
-            threshold: 1,
-            validators: (0..n).collect(),
-            inner_quorum_sets: vec![],
-        };
-        let existing = &mut fbas.nodes[node_id].quorum_set;
-        if candidate == *existing {
-            NoChange
-        } else {
-            *existing = candidate;
-            Change
         }
     }
 }
@@ -80,10 +65,8 @@ impl QuorumSetConfigurator for SuperLiveQsc {
 #[derive(Default)]
 pub struct SuperSafeQsc;
 impl QuorumSetConfigurator for SuperSafeQsc {
-    /// Also counts the "next" node (most likely the one currently being created). This solves
-    /// the bootstrapping problem that the first node otherwise doesn't have a valid quorum.
     fn build_new(&self, fbas: &Fbas) -> QuorumSet {
-        let n = fbas.nodes.len() + 1;
+        let n = fbas.nodes.len();
         let threshold = n;
         let validators = (0..n).collect();
         let inner_quorum_sets = vec![];
@@ -91,21 +74,6 @@ impl QuorumSetConfigurator for SuperSafeQsc {
             threshold,
             validators,
             inner_quorum_sets,
-        }
-    }
-    fn change_existing(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
-        let n = fbas.nodes.len();
-        let candidate = QuorumSet {
-            threshold: n,
-            validators: (0..n).collect(),
-            inner_quorum_sets: vec![],
-        };
-        let existing = &mut fbas.nodes[node_id].quorum_set;
-        if candidate == *existing {
-            NoChange
-        } else {
-            *existing = candidate;
-            Change
         }
     }
 }

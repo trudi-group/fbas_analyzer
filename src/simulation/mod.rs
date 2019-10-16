@@ -3,7 +3,8 @@ use super::*;
 pub mod quorum_set_configurators;
 
 impl Fbas {
-    /// Add `nodes_to_spawn` new nodes, setting their quorum sets using `qsc`
+    /// Add `nodes_to_spawn` new nodes, setting their quorum sets using `qsc`.
+    /// Also lets all nodes reevaluate their quorum sets after each new node is added.
     pub fn simulate_growth(&mut self, nodes_to_spawn: usize, qsc: &impl QuorumSetConfigurator) {
         let n = self.nodes.len();
         for i in n..(n + nodes_to_spawn) {
@@ -13,6 +14,7 @@ impl Fbas {
                 public_key,
                 quorum_set,
             });
+            self.simulate_global_reevaluation(i + 1, qsc);
         }
     }
     /// Make all nodes reevaluate and update their quorum sets using `qsc`, up to
@@ -44,9 +46,15 @@ impl Fbas {
 
 pub trait QuorumSetConfigurator {
     fn build_new(&self, fbas: &Fbas) -> QuorumSet;
-    #[allow(unused_variables)]
     fn change_existing(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
-        NoChange
+        let candidate = self.build_new(fbas);
+        let existing = &mut fbas.nodes[node_id].quorum_set;
+        if candidate == *existing {
+            NoChange
+        } else {
+            *existing = candidate;
+            Change
+        }
     }
 }
 
