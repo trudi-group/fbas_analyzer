@@ -10,45 +10,8 @@ pub use find_intersections::find_minimal_intersections;
 pub use find_quorums::find_minimal_quorums;
 
 impl Fbas {
-    pub fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
-        !node_set.is_empty() && node_set.iter().all(|x| self.nodes[x].is_quorum(&node_set))
-    }
     pub fn has_quorum_intersection(&self) -> bool {
         all_interesect(&find_minimal_quorums(&self))
-    }
-}
-impl Node {
-    fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
-        self.quorum_set.is_quorum(node_set)
-    }
-}
-impl QuorumSet {
-    fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
-        if self.threshold == 0 {
-            false // badly configured quorum set
-        } else {
-            let found_validator_matches = self
-                .validators
-                .iter()
-                .filter(|x| node_set.contains(**x))
-                .take(self.threshold)
-                .count();
-            let found_inner_quorum_set_matches = self
-                .inner_quorum_sets
-                .iter()
-                .filter(|x| x.is_quorum(node_set))
-                .take(self.threshold - found_validator_matches)
-                .count();
-
-            found_validator_matches + found_inner_quorum_set_matches == self.threshold
-        }
-    }
-    fn contained_nodes(&self) -> NodeIdSet {
-        let mut nodes: NodeIdSet = self.validators.iter().cloned().collect();
-        for inner_quorum_set in self.inner_quorum_sets.iter() {
-            nodes.union_with(&inner_quorum_set.contained_nodes());
-        }
-        nodes
     }
 }
 
@@ -107,78 +70,6 @@ impl Organizations {
 mod tests {
     use super::*;
     use std::path::Path;
-
-    fn test_node(validators: &[NodeId], threshold: usize) -> Node {
-        Node {
-            public_key: Default::default(),
-            quorum_set: QuorumSet {
-                threshold,
-                validators: validators.iter().copied().collect(),
-                inner_quorum_sets: vec![],
-            },
-        }
-    }
-
-    #[test]
-    fn is_quorum_if_not_quorum() {
-        let node = test_node(&[0, 1, 2], 3);
-        let node_set = bitset![1, 2, 3];
-        assert!(!node.is_quorum(&node_set));
-    }
-
-    #[test]
-    fn is_quorum_if_quorum() {
-        let node = test_node(&[0, 1, 2], 2);
-        let node_set = bitset![1, 2, 3];
-        assert!(node.is_quorum(&node_set));
-    }
-
-    #[test]
-    fn is_quorum_with_inner_quorum_sets() {
-        let mut node = test_node(&[0, 1], 3);
-        node.quorum_set.inner_quorum_sets = vec![
-            QuorumSet {
-                threshold: 2,
-                validators: vec![2, 3, 4],
-                inner_quorum_sets: vec![],
-            },
-            QuorumSet {
-                threshold: 2,
-                validators: vec![4, 5, 6],
-                inner_quorum_sets: vec![],
-            },
-        ];
-        let not_quorum = bitset![1, 2, 3];
-        let quorum = bitset![0, 3, 4, 5];
-        assert!(!node.is_quorum(&not_quorum));
-        assert!(node.is_quorum(&quorum));
-    }
-
-    #[test]
-    fn is_quorum_for_fbas() {
-        let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
-
-        assert!(fbas.is_quorum(&bitset![0, 1]));
-        assert!(!fbas.is_quorum(&bitset![0]));
-    }
-
-    #[test]
-    fn empty_set_is_not_quorum() {
-        let node = test_node(&[0, 1, 2], 2);
-        assert!(!node.is_quorum(&bitset![]));
-
-        let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
-        assert!(!fbas.is_quorum(&bitset![]));
-    }
-
-    #[test]
-    fn quorum_set_with_threshold_0_trusts_no_one() {
-        let node = test_node(&[0, 1, 2], 0);
-        assert!(!node.is_quorum(&bitset![]));
-        assert!(!node.is_quorum(&bitset![0]));
-        assert!(!node.is_quorum(&bitset![0, 1]));
-        assert!(!node.is_quorum(&bitset![0, 1, 2]));
-    }
 
     #[test]
     fn node_set_interesections() {

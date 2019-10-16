@@ -47,6 +47,7 @@ struct Cli {
     verbosity: Verbosity,
 }
 
+#[allow(clippy::many_single_char_names)]
 fn main() -> CliResult {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
@@ -157,7 +158,7 @@ fn main() -> CliResult {
                 "There is a total of {} distinct nodes involved in all of these sets:",
                 all_nodes.len()
             );
-            println!("\n{}\n", format(&vec![all_nodes]));
+            println!("\n{}\n", format(&[all_nodes]));
         }
     }
     Ok(())

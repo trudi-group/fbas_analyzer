@@ -97,7 +97,6 @@ impl RawOrganizations {
 }
 #[derive(Deserialize)]
 struct RawOrganization {
-    id: String,
     name: String,
     validators: Vec<PublicKey>,
 }
@@ -121,7 +120,6 @@ impl Organizations {
 impl Organization {
     fn from_raw(raw_organization: RawOrganization, pk_to_id: &HashMap<PublicKey, NodeId>) -> Self {
         Organization {
-            id: raw_organization.id,
             name: raw_organization.name,
             validators: raw_organization
                 .validators

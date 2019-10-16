@@ -32,7 +32,7 @@ mod tests {
     #[test]
     fn simulate_growth_1_to_3_node_fbas() {
         let mut fbas = Fbas::new();
-        let qsc = quorum_set_configurators::DummyQsc {};
+        let qsc = quorum_set_configurators::DummyQsc;
         fbas.simulate_growth(1, &qsc);
         assert_eq!(fbas.nodes, vec![Node::new(generate_generic_node_name(0)),]);
         fbas.simulate_growth(2, &qsc);
