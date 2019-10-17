@@ -1,10 +1,13 @@
 use super::*;
 
+use rand::seq::SliceRandom;
+use rand::thread_rng;
+
 pub mod quorum_set_configurators;
 
 impl Fbas {
-    /// Creates a generic dummy network of size `n`, full of nodes with empty quorum sets
-    pub fn new_generic(n: usize) -> Self {
+    /// Creates a generate_generic dummy network of size `n`, full of nodes with empty quorum sets
+    pub fn new_generate_generic(n: usize) -> Self {
         let mut fbas = Fbas::new();
         for i in 0..n {
             fbas.add_node(Node {
@@ -40,8 +43,16 @@ impl Fbas {
     ) -> usize {
         let mut stable = false;
         let mut next_round_number = 0;
+
+        // Visit nodes in random order each time
+        let mut order: Vec<NodeId> = (0..self.nodes.len()).collect();
+        let mut rng = thread_rng();
+
         while !stable && next_round_number < maximum_number_of_rounds {
-            stable = !self.simulate_global_reevaluation_round(qsc).had_change();
+            order.shuffle(&mut rng);
+            stable = !self
+                .simulate_global_reevaluation_round(&order, qsc)
+                .had_change();
             next_round_number += 1;
         }
         next_round_number
@@ -49,11 +60,12 @@ impl Fbas {
     /// Make *all* nodes reevaluate their quorum sets *once*, using `qsc`.
     fn simulate_global_reevaluation_round(
         &mut self,
+        order: &[NodeId],
         qsc: &impl QuorumSetConfigurator,
     ) -> ChangeEffect {
         let mut any_change = NoChange;
-        for node_id in 0..self.nodes.len() {
-            let change = qsc.change_existing(node_id, self);
+        for node_id in order {
+            let change = qsc.change_existing(*node_id, self);
             any_change.update(change);
         }
         any_change
@@ -118,9 +130,9 @@ mod tests {
 
     #[test]
     fn simulate_global_reevaluation_round_can_make_all_nodes_super_safe() {
-        let mut fbas = Fbas::new_generic(8);
+        let mut fbas = Fbas::new_generate_generic(8);
         let qsc = quorum_set_configurators::SuperSafeQsc;
-        fbas.simulate_global_reevaluation_round(&qsc);
+        fbas.simulate_global_reevaluation_round(&[0, 1, 2, 3, 4, 5, 6, 7], &qsc);
 
         let expected_quorum_set = QuorumSet {
             threshold: 8,
@@ -137,10 +149,17 @@ mod tests {
 
     #[test]
     fn simulate_global_reevaluation_stops_once_stable() {
-        let mut fbas = Fbas::new_generic(8);
+        let mut fbas = Fbas::new_generate_generic(8);
         let qsc = quorum_set_configurators::SuperSafeQsc;
 
         let number_of_rounds = fbas.simulate_global_reevaluation(1000000, &qsc);
         assert_eq!(number_of_rounds, 2);
     }
+
+    // #[test]
+    // fn simulate_global_reevaluation_visits_in_random_order() {
+    // TODO
+    //     let mut fbas = Fbas::new_generate_generic(8);
+    //     let qsc = quorum_set_configurators::SuperSafeQsc;
+    // }
 }
