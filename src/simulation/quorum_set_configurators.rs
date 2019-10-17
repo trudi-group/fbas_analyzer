@@ -20,11 +20,12 @@ impl QuorumSetConfigurator for DummyQsc {
 /// use fbas_analyzer::{Fbas, Simulator};
 /// use fbas_analyzer::quorum_set_configurators::SuperLiveQsc;
 /// use fbas_analyzer::monitors::DummyMonitor;
+/// use std::rc::Rc;
 ///
 /// let mut simulator = Simulator::new(
 ///     Fbas::new(),
-///     SuperLiveQsc,
-///     DummyMonitor,
+///     Rc::new(SuperLiveQsc),
+///     Rc::new(DummyMonitor),
 /// );
 /// simulator.simulate_growth(3);
 ///
@@ -60,11 +61,12 @@ impl QuorumSetConfigurator for SuperLiveQsc {
 /// use fbas_analyzer::{Fbas, Simulator};
 /// use fbas_analyzer::quorum_set_configurators::SuperSafeQsc;
 /// use fbas_analyzer::monitors::DummyMonitor;
+/// use std::rc::Rc;
 ///
 /// let mut simulator = Simulator::new(
 ///     Fbas::new(),
-///     SuperSafeQsc,
-///     DummyMonitor,
+///     Rc::new(SuperSafeQsc),
+///     Rc::new(DummyMonitor),
 /// );
 /// simulator.simulate_growth(3);
 ///
@@ -95,7 +97,8 @@ mod tests {
 
     #[test]
     fn super_live_fbas_has_quorums() {
-        let mut simulator = Simulator::new(Fbas::new(), SuperLiveQsc, DummyMonitor);
+        let mut simulator =
+            Simulator::new(Fbas::new(), Rc::new(SuperLiveQsc), Rc::new(DummyMonitor));
         simulator.simulate_growth(3);
         assert!(simulator.fbas.is_quorum(&bitset![0]));
         assert!(simulator.fbas.is_quorum(&bitset![1]));
@@ -105,21 +108,24 @@ mod tests {
 
     #[test]
     fn super_safe_fbas_has_a_quorum() {
-        let mut simulator = Simulator::new(Fbas::new(), SuperSafeQsc, DummyMonitor);
+        let mut simulator =
+            Simulator::new(Fbas::new(), Rc::new(SuperSafeQsc), Rc::new(DummyMonitor));
         simulator.simulate_growth(3);
         assert!(simulator.fbas.is_quorum(&bitset![0, 1, 2]));
     }
 
     #[test]
     fn super_live_fbas_has_no_quorum_intersection() {
-        let mut simulator = Simulator::new(Fbas::new(), SuperLiveQsc, DummyMonitor);
+        let mut simulator =
+            Simulator::new(Fbas::new(), Rc::new(SuperLiveQsc), Rc::new(DummyMonitor));
         simulator.simulate_growth(3);
         assert!(!simulator.fbas.has_quorum_intersection());
     }
 
     #[test]
     fn super_safe_fbas_has_quorum_intersection() {
-        let mut simulator = Simulator::new(Fbas::new(), SuperSafeQsc, DummyMonitor);
+        let mut simulator =
+            Simulator::new(Fbas::new(), Rc::new(SuperSafeQsc), Rc::new(DummyMonitor));
         simulator.simulate_growth(8);
         assert!(simulator.fbas.has_quorum_intersection());
     }

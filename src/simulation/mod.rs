@@ -1,5 +1,7 @@
 use super::*;
 
+use std::rc::Rc;
+
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 
@@ -8,20 +10,16 @@ pub mod quorum_set_configurators;
 
 pub struct Simulator {
     fbas: Fbas,
-    qsc: Box<dyn QuorumSetConfigurator>,
-    monitor: Box<dyn SimulationMonitor>,
+    qsc: Rc<dyn QuorumSetConfigurator>,
+    monitor: Rc<dyn SimulationMonitor>,
 }
 impl Simulator {
     pub fn new(
         fbas: Fbas,
-        qsc: impl QuorumSetConfigurator + 'static,
-        monitor: impl SimulationMonitor + 'static,
+        qsc: Rc<impl QuorumSetConfigurator + 'static>,
+        monitor: Rc<impl SimulationMonitor + 'static>,
     ) -> Self {
-        Simulator {
-            fbas,
-            qsc: Box::new(qsc),
-            monitor: Box::new(monitor),
-        }
+        Simulator { fbas, qsc, monitor }
     }
     /// Get the contained FBAS, effectively ending the simulation
     pub fn finalize(self) -> Fbas {
@@ -30,15 +28,11 @@ impl Simulator {
     /// Add `nodes_to_spawn` new nodes, setting their quorum sets using `qsc`.
     /// Also lets all nodes reevaluate their quorum sets after each new node is added.
     pub fn simulate_growth(&mut self, nodes_to_spawn: usize) {
-        let n = self.fbas.nodes.len();
-        for i in n..(n + nodes_to_spawn) {
-            let public_key = generate_generic_node_name(i);
+        for _ in 0 .. nodes_to_spawn {
             let quorum_set = self.qsc.build_new(&self.fbas);
-            self.fbas.add_node(Node {
-                public_key,
-                quorum_set,
-            });
-            self.simulate_global_reevaluation(i + 1);
+            let node_id = self.fbas.add_generic_node(quorum_set);
+            self.monitor.register_event(AddNode(node_id));
+            self.simulate_global_reevaluation(self.fbas.number_of_nodes());
         }
     }
     /// Make all nodes reevaluate and update their quorum sets using `qsc`, up to
@@ -72,20 +66,6 @@ impl Simulator {
     }
 }
 
-impl Fbas {
-    /// Creates a generate generic dummy network of size `n`, full of nodes with empty quorum sets
-    pub fn new_generic(n: usize) -> Self {
-        let mut fbas = Fbas::new();
-        for i in 0..n {
-            fbas.add_node(Node {
-                public_key: generate_generic_node_name(i),
-                quorum_set: Default::default(),
-            });
-        }
-        fbas
-    }
-}
-
 pub trait QuorumSetConfigurator {
     fn build_new(&self, fbas: &Fbas) -> QuorumSet;
     fn change_existing(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
@@ -101,7 +81,7 @@ pub trait QuorumSetConfigurator {
 }
 
 pub trait SimulationMonitor {
-    fn register_event(&mut self, event: Event);
+    fn register_event(&self, event: Event);
 }
 
 #[derive(PartialEq)]
@@ -131,6 +111,25 @@ impl ChangeEffect {
 }
 use ChangeEffect::*;
 
+impl Fbas {
+    /// FBAS of `n` nodes with empty quorum sets
+    pub fn new_generic_unconfigured(n: usize) -> Self {
+        let mut fbas = Fbas::new();
+        for _ in 0..n {
+            fbas.add_generic_node(QuorumSet::new());
+        }
+        fbas
+    }
+    /// Add a node with generic "`public_key`"
+    pub fn add_generic_node(&mut self, quorum_set: QuorumSet) -> NodeId {
+        let node_id = self.nodes.len();
+        self.add_node(Node {
+            public_key: generate_generic_node_name(node_id),
+            quorum_set
+        });
+        node_id
+    }
+}
 fn generate_generic_node_name(node_id: NodeId) -> String {
     format!("n{}", node_id)
 }
@@ -143,8 +142,8 @@ mod tests {
     fn simulate_growth_1_to_3_node_fbas() {
         let mut simulator = Simulator::new(
             Fbas::new(),
-            quorum_set_configurators::DummyQsc,
-            monitors::DummyMonitor,
+            Rc::new(quorum_set_configurators::DummyQsc),
+            Rc::new(monitors::DummyMonitor),
         );
         simulator.simulate_growth(1);
         assert_eq!(
@@ -163,11 +162,24 @@ mod tests {
     }
 
     #[test]
+    fn monitoring_works() {
+        let monitor = Rc::new(monitors::DebugMonitor::new());
+        let mut simulator = Simulator::new(
+            Fbas::new(),
+            Rc::new(quorum_set_configurators::DummyQsc),
+            Rc::clone(&monitor),
+        );
+        assert!(monitor.registered_events().is_empty());
+        simulator.simulate_growth(1);
+        assert!(!monitor.registered_events().is_empty());
+    }
+
+    #[test]
     fn simulate_global_reevaluation_round_can_make_all_nodes_super_safe() {
         let mut simulator = Simulator::new(
-            Fbas::new_generic(8),
-            quorum_set_configurators::SuperSafeQsc,
-            monitors::DummyMonitor,
+            Fbas::new_generic_unconfigured(8),
+            Rc::new(quorum_set_configurators::SuperSafeQsc),
+            Rc::new(monitors::DummyMonitor),
         );
         simulator.simulate_global_reevaluation_round(&[0, 1, 2, 3, 4, 5, 6, 7]);
 
@@ -192,9 +204,9 @@ mod tests {
     #[test]
     fn simulate_global_reevaluation_stops_once_stable() {
         let mut simulator = Simulator::new(
-            Fbas::new_generic(8),
-            quorum_set_configurators::SuperSafeQsc,
-            monitors::DummyMonitor,
+            Fbas::new_generic_unconfigured(8),
+            Rc::new(quorum_set_configurators::SuperSafeQsc),
+            Rc::new(monitors::DummyMonitor),
         );
 
         let number_of_rounds = simulator.simulate_global_reevaluation(1000000);

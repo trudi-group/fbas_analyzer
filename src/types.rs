@@ -20,7 +20,7 @@ impl Fbas {
             pk_to_id: HashMap::new(),
         }
     }
-    pub fn add_node(&mut self, node: Node) {
+    pub fn add_node(&mut self, node: Node) -> NodeId {
         let node_id = self.nodes.len();
         // use expect_none here once it becomes stable
         if let Some(duplicate_id) = self.pk_to_id.insert(node.public_key.clone(), node_id) {
@@ -30,6 +30,10 @@ impl Fbas {
             );
         }
         self.nodes.push(node);
+        node_id
+    }
+    pub fn number_of_nodes(&self) -> usize {
+        self.nodes.len()
     }
     pub fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
         !node_set.is_empty() && node_set.iter().all(|x| self.nodes[x].is_quorum(&node_set))
