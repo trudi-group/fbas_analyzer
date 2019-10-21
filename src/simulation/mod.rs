@@ -28,7 +28,7 @@ impl Simulator {
     /// Add `nodes_to_spawn` new nodes, setting their quorum sets using `qsc`.
     /// Also lets all nodes reevaluate their quorum sets after each new node is added.
     pub fn simulate_growth(&mut self, nodes_to_spawn: usize) {
-        for _ in 0 .. nodes_to_spawn {
+        for _ in 0..nodes_to_spawn {
             let quorum_set = self.qsc.build_new(&self.fbas);
             let node_id = self.fbas.add_generic_node(quorum_set);
             self.monitor.register_event(AddNode(node_id));
@@ -48,19 +48,26 @@ impl Simulator {
         let mut order: Vec<NodeId> = (0..self.fbas.nodes.len()).collect();
         let mut rng = thread_rng();
 
+        self.monitor.register_event(StartGlobalReevaluation);
+
         while !stable && next_round_number < maximum_number_of_rounds {
             order.shuffle(&mut rng);
             stable = !self.simulate_global_reevaluation_round(&order).had_change();
             next_round_number += 1;
         }
+
+        self.monitor.register_event(FinishGlobalReevaluation);
         next_round_number
     }
     /// Make *all* nodes reevaluate their quorum sets *once*, using `qsc`.
     fn simulate_global_reevaluation_round(&mut self, order: &[NodeId]) -> ChangeEffect {
+        self.monitor.register_event(StartGlobalReevaluationRound);
         let mut any_change = NoChange;
-        for node_id in order {
-            let change = self.qsc.change_existing(*node_id, &mut self.fbas);
+        for &node_id in order {
+            let change = self.qsc.change_existing(node_id, &mut self.fbas);
             any_change.update(change);
+            self.monitor
+                .register_event(QuorumSetChange(node_id, change));
         }
         any_change
     }
@@ -84,24 +91,24 @@ pub trait SimulationMonitor {
     fn register_event(&self, event: Event);
 }
 
-#[derive(PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Event {
     AddNode(NodeId),
     StartGlobalReevaluation,
-    StartGolvalReevaluationRound,
-    EndGlobalReevaluation,
+    StartGlobalReevaluationRound,
+    FinishGlobalReevaluation,
     QuorumSetChange(NodeId, ChangeEffect),
 }
 use Event::*;
 
-#[derive(PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ChangeEffect {
     Change,
     NoChange,
 }
 impl ChangeEffect {
-    fn had_change(&self) -> bool {
-        *self == Change
+    fn had_change(self) -> bool {
+        self == Change
     }
     fn update(&mut self, other: ChangeEffect) {
         if *self == ChangeEffect::NoChange {
@@ -125,7 +132,7 @@ impl Fbas {
         let node_id = self.nodes.len();
         self.add_node(Node {
             public_key: generate_generic_node_name(node_id),
-            quorum_set
+            quorum_set,
         });
         node_id
     }
@@ -136,50 +143,34 @@ fn generate_generic_node_name(node_id: NodeId) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::monitors::*;
+    use super::quorum_set_configurators::*;
     use super::*;
 
     #[test]
-    fn simulate_growth_1_to_3_node_fbas() {
-        let mut simulator = Simulator::new(
-            Fbas::new(),
-            Rc::new(quorum_set_configurators::DummyQsc),
-            Rc::new(monitors::DummyMonitor),
-        );
-        simulator.simulate_growth(1);
-        assert_eq!(
-            simulator.fbas.nodes,
-            vec![Node::new(generate_generic_node_name(0)),]
-        );
-        simulator.simulate_growth(2);
-        assert_eq!(
-            simulator.fbas.nodes,
-            vec![
-                Node::new(generate_generic_node_name(0)),
-                Node::new(generate_generic_node_name(1)),
-                Node::new(generate_generic_node_name(2)),
-            ]
-        );
+    fn growth_with_interruptions() {
+        let mut simulator = Simulator::new(Fbas::new(), Rc::new(DummyQsc), Rc::new(DummyMonitor));
+        simulator.simulate_growth(3);
+        assert_eq!(simulator.fbas, Fbas::new_generic_unconfigured(3));
+        simulator.simulate_growth(5);
+        assert_eq!(simulator.finalize(), Fbas::new_generic_unconfigured(8));
     }
 
     #[test]
     fn monitoring_works() {
-        let monitor = Rc::new(monitors::DebugMonitor::new());
-        let mut simulator = Simulator::new(
-            Fbas::new(),
-            Rc::new(quorum_set_configurators::DummyQsc),
-            Rc::clone(&monitor),
-        );
-        assert!(monitor.registered_events().is_empty());
+        let monitor = Rc::new(DebugMonitor::new());
+        let mut simulator = Simulator::new(Fbas::new(), Rc::new(DummyQsc), Rc::clone(&monitor));
+        assert!(monitor.events().is_empty());
         simulator.simulate_growth(1);
-        assert!(!monitor.registered_events().is_empty());
+        assert!(!monitor.events().is_empty());
     }
 
     #[test]
-    fn simulate_global_reevaluation_round_can_make_all_nodes_super_safe() {
+    fn global_reevaluation_round_can_make_all_nodes_super_safe() {
         let mut simulator = Simulator::new(
             Fbas::new_generic_unconfigured(8),
-            Rc::new(quorum_set_configurators::SuperSafeQsc),
-            Rc::new(monitors::DummyMonitor),
+            Rc::new(SuperSafeQsc),
+            Rc::new(DummyMonitor),
         );
         simulator.simulate_global_reevaluation_round(&[0, 1, 2, 3, 4, 5, 6, 7]);
 
@@ -202,21 +193,43 @@ mod tests {
     }
 
     #[test]
-    fn simulate_global_reevaluation_stops_once_stable() {
+    fn global_reevaluation_stops_once_stable() {
         let mut simulator = Simulator::new(
             Fbas::new_generic_unconfigured(8),
-            Rc::new(quorum_set_configurators::SuperSafeQsc),
-            Rc::new(monitors::DummyMonitor),
+            Rc::new(SuperSafeQsc),
+            Rc::new(DummyMonitor),
         );
-
         let number_of_rounds = simulator.simulate_global_reevaluation(1000000);
         assert_eq!(number_of_rounds, 2);
     }
 
-    // #[test]
-    // fn simulate_global_reevaluation_visits_in_random_order() {
-    // TODO
-    //     let mut fbas = Fbas::new_generate_generic(8);
-    //     let qsc = quorum_set_configurators::SuperSafeQsc;
-    // }
+    #[test]
+    fn global_reevaluation_visits_in_random_order() {
+        let monitor = Rc::new(DebugMonitor::new());
+        let mut simulator = Simulator::new(
+            Fbas::new_generic_unconfigured(128),
+            Rc::new(SuperSafeQsc),
+            Rc::clone(&monitor),
+        );
+        simulator.simulate_global_reevaluation(2);
+
+        let events: Vec<Event> = monitor.events().iter().cloned().collect();
+        let rounds = events
+            .split(|&event| event == StartGlobalReevaluationRound)
+            .skip(1);
+
+        let orderings: Vec<Vec<NodeId>> = rounds
+            .map(|round| {
+                round
+                    .into_iter()
+                    .filter_map(|&event| match event {
+                        QuorumSetChange(id, _) => Some(id),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .collect();
+        assert_eq!(orderings.len(), 2);
+        assert_ne!(orderings[0], orderings[1]);
+    }
 }

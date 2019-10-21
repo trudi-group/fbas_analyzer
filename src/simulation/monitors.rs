@@ -8,23 +8,23 @@ impl SimulationMonitor for DummyMonitor {
     fn register_event(&self, _: Event) {}
 }
 
-/// Stores all events in `registered_events` for later analysis
+/// Stores all events in `recorded_events` for later analysis
 #[derive(Default)]
 pub struct DebugMonitor {
-    registered_events: RefCell<Vec<Event>>,
+    recorded_events: RefCell<Vec<Event>>,
 }
 impl DebugMonitor {
     pub fn new() -> Self {
         DebugMonitor {
-            registered_events: RefCell::new(vec![]),
+            recorded_events: RefCell::new(vec![]),
         }
     }
-    pub fn registered_events(&self) -> Ref<Vec<Event>> {
-        self.registered_events.borrow()
+    pub fn events(&self) -> Ref<Vec<Event>> {
+        self.recorded_events.borrow()
     }
 }
 impl SimulationMonitor for DebugMonitor {
     fn register_event(&self, event: Event) {
-        self.registered_events.borrow_mut().push(event);
+        self.recorded_events.borrow_mut().push(event);
     }
 }
