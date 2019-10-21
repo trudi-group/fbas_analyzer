@@ -29,8 +29,8 @@ impl Simulator {
     /// Also lets all nodes reevaluate their quorum sets after each new node is added.
     pub fn simulate_growth(&mut self, nodes_to_spawn: usize) {
         for _ in 0..nodes_to_spawn {
-            let quorum_set = self.qsc.build_new(&self.fbas);
-            let node_id = self.fbas.add_generic_node(quorum_set);
+            let node_id = self.fbas.add_generic_node(QuorumSet::new());
+            self.qsc.configure(node_id, &mut self.fbas);
             self.monitor.register_event(AddNode(node_id));
             self.simulate_global_reevaluation(self.fbas.number_of_nodes());
         }
@@ -65,7 +65,7 @@ impl Simulator {
         self.monitor.register_event(StartGlobalReevaluationRound);
         let mut any_change = NoChange;
         for &node_id in order {
-            let change = self.qsc.change_existing(node_id, &mut self.fbas);
+            let change = self.qsc.configure(node_id, &mut self.fbas);
             any_change.update(change);
             self.monitor
                 .register_event(QuorumSetChange(node_id, change));
@@ -75,17 +75,7 @@ impl Simulator {
 }
 
 pub trait QuorumSetConfigurator {
-    fn build_new(&self, fbas: &Fbas) -> QuorumSet;
-    fn change_existing(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
-        let candidate = self.build_new(fbas);
-        let existing = &mut fbas.nodes[node_id].quorum_set;
-        if candidate == *existing {
-            NoChange
-        } else {
-            *existing = candidate;
-            Change
-        }
-    }
+    fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect;
 }
 
 pub trait SimulationMonitor {
