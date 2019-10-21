@@ -1,5 +1,7 @@
 use super::*;
 
+use std::cmp;
+
 /// Dummy Quorum Set Configurator.
 ///
 /// Creates empty quorum sets.
@@ -11,7 +13,7 @@ impl QuorumSetConfigurator for DummyQsc {
     }
 }
 
-/// Basic Quorum Set Configurator priorizing FBAS liveness.
+/// Super simple Quorum Set Configurator priorizing FBAS liveness.
 ///
 /// Creates threshold=1 quorum sets containing all nodes in the FBAS
 ///
@@ -52,7 +54,7 @@ impl QuorumSetConfigurator for SuperLiveQsc {
     }
 }
 
-/// Basic Quorum Set Configurator priorizing FBAS safety.
+/// Super simple Quorum Set Configurator priorizing FBAS safety.
 ///
 /// Creates threshold=n quorum sets containing all n nodes in the FBAS.
 ///
@@ -87,6 +89,32 @@ impl QuorumSetConfigurator for SuperSafeQsc {
             validators,
             inner_quorum_sets,
         }
+    }
+}
+
+pub struct SimpleRandomNoChangeQsc {
+    k: usize,
+    threshold: usize,
+}
+impl QuorumSetConfigurator for SimpleRandomNoChangeQsc {
+    fn build_new(&self, fbas: &Fbas) -> QuorumSet {
+        let k = cmp::min(self.k, fbas.nodes.len());
+
+        let threshold = cmp::min(k, self.threshold);
+
+        let node_ids: Vec<NodeId> = (0..fbas.nodes.len()).collect();
+        let validators: Vec<NodeId> = node_ids
+            .choose_multiple(&mut thread_rng(), k)
+            .copied()
+            .collect();
+        QuorumSet {
+            threshold,
+            validators,
+            inner_quorum_sets: vec![],
+        }
+    }
+    fn change_existing(&self, _: NodeId, _: &mut Fbas) -> ChangeEffect {
+        NoChange
     }
 }
 

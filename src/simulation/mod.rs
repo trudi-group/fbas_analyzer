@@ -56,7 +56,8 @@ impl Simulator {
             next_round_number += 1;
         }
         let number_of_rounds = next_round_number;
-        self.monitor.register_event(FinishGlobalReevaluation(number_of_rounds));
+        self.monitor
+            .register_event(FinishGlobalReevaluation(number_of_rounds));
         number_of_rounds
     }
     /// Make *all* nodes reevaluate their quorum sets *once*, using `qsc`.
