@@ -55,9 +55,9 @@ impl Simulator {
             stable = !self.simulate_global_reevaluation_round(&order).had_change();
             next_round_number += 1;
         }
-
-        self.monitor.register_event(FinishGlobalReevaluation);
-        next_round_number
+        let number_of_rounds = next_round_number;
+        self.monitor.register_event(FinishGlobalReevaluation(number_of_rounds));
+        number_of_rounds
     }
     /// Make *all* nodes reevaluate their quorum sets *once*, using `qsc`.
     fn simulate_global_reevaluation_round(&mut self, order: &[NodeId]) -> ChangeEffect {
@@ -96,7 +96,7 @@ pub enum Event {
     AddNode(NodeId),
     StartGlobalReevaluation,
     StartGlobalReevaluationRound,
-    FinishGlobalReevaluation,
+    FinishGlobalReevaluation(usize),
     QuorumSetChange(NodeId, ChangeEffect),
 }
 use Event::*;
@@ -160,9 +160,9 @@ mod tests {
     fn monitoring_works() {
         let monitor = Rc::new(DebugMonitor::new());
         let mut simulator = Simulator::new(Fbas::new(), Rc::new(DummyQsc), Rc::clone(&monitor));
-        assert!(monitor.events().is_empty());
+        assert!(monitor.events_ref().is_empty());
         simulator.simulate_growth(1);
-        assert!(!monitor.events().is_empty());
+        assert!(!monitor.events_ref().is_empty());
     }
 
     #[test]
@@ -213,7 +213,7 @@ mod tests {
         );
         simulator.simulate_global_reevaluation(2);
 
-        let events: Vec<Event> = monitor.events().iter().cloned().collect();
+        let events: Vec<Event> = monitor.events_clone();
         let rounds = events
             .split(|&event| event == StartGlobalReevaluationRound)
             .skip(1);
