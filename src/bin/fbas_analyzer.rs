@@ -86,12 +86,12 @@ fn main() -> CliResult {
     let format = |x| {
         if p {
             if let Some(ref orgs) = organizations {
-                to_json_str_using_organization_names(x, &fbas, &orgs)
+                to_json_string_using_organization_names(x, &fbas, &orgs)
             } else {
-                to_json_str_using_public_keys(x, &fbas)
+                to_json_string_using_public_keys(x, &fbas)
             }
         } else {
-            to_json_str_using_node_ids(x)
+            to_json_string_using_node_ids(x)
         }
     };
 

@@ -61,6 +61,6 @@ fn main() -> CliResult {
     println!("Starting simulation...");
     let fbas = simulator.finalize();
     println!("Finished simulation, dumping FBAS...");
-    println!("{:?}", fbas);
+    println!("{}", fbas.to_json_string_pretty());
     Ok(())
 }

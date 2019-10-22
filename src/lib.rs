@@ -7,7 +7,8 @@ use types::*;
 pub use types::{Fbas, Organizations};
 
 pub use io::{
-    to_json_str_using_node_ids, to_json_str_using_organization_names, to_json_str_using_public_keys,
+    to_json_string_using_node_ids, to_json_string_using_organization_names,
+    to_json_string_using_public_keys,
 };
 
 pub use analyses::{

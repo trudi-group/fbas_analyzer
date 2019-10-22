@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json;
 
 use std::fs;
@@ -6,7 +6,7 @@ use std::path::Path;
 
 use crate::*;
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct RawFbas(Vec<RawNode>);
 impl RawFbas {
     fn from_json_str(json: &str) -> Self {
@@ -18,26 +18,33 @@ impl RawFbas {
         Self::from_json_str(&json)
     }
 }
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct RawNode {
     #[serde(rename = "publicKey")]
     public_key: PublicKey,
     #[serde(rename = "quorumSet", default)]
     quorum_set: RawQuorumSet,
 }
-#[derive(Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default)]
 struct RawQuorumSet {
     threshold: usize,
     validators: Vec<PublicKey>,
     #[serde(rename = "innerQuorumSets", default)]
     inner_quorum_sets: Vec<RawQuorumSet>,
 }
+
 impl Fbas {
     pub fn from_json_str(json: &str) -> Self {
         Self::from_raw(RawFbas::from_json_str(json))
     }
     pub fn from_json_file(path: &Path) -> Self {
         Self::from_raw(RawFbas::from_json_file(path))
+    }
+    pub fn to_json_string(&self) -> String {
+        serde_json::to_string(&self.to_raw()).expect("Error converting FBAS to JSON!")
+    }
+    pub fn to_json_string_pretty(&self) -> String {
+        serde_json::to_string_pretty(&self.to_raw()).expect("Error converting FBAS to JSON!")
     }
     fn from_raw(raw_fbas: RawFbas) -> Self {
         let raw_nodes = raw_fbas.0;
@@ -55,12 +62,21 @@ impl Fbas {
 
         Fbas { nodes, pk_to_id }
     }
+    fn to_raw(&self) -> RawFbas {
+        RawFbas(self.nodes.iter().map(|n| n.to_raw(&self)).collect())
+    }
 }
 impl Node {
     fn from_raw(raw_node: RawNode, pk_to_id: &HashMap<PublicKey, NodeId>) -> Self {
         Node {
             public_key: raw_node.public_key,
             quorum_set: QuorumSet::from_raw(raw_node.quorum_set, pk_to_id),
+        }
+    }
+    fn to_raw(&self, fbas: &Fbas) -> RawNode {
+        RawNode {
+            public_key: self.public_key.clone(),
+            quorum_set: self.quorum_set.to_raw(&fbas),
         }
     }
 }
@@ -78,6 +94,21 @@ impl QuorumSet {
                 .inner_quorum_sets
                 .into_iter()
                 .map(|x| QuorumSet::from_raw(x, pk_to_id))
+                .collect(),
+        }
+    }
+    fn to_raw(&self, fbas: &Fbas) -> RawQuorumSet {
+        RawQuorumSet {
+            threshold: self.threshold,
+            validators: self
+                .validators
+                .iter()
+                .map(|&v| fbas.nodes[v].public_key.clone())
+                .collect(),
+            inner_quorum_sets: self
+                .inner_quorum_sets
+                .iter()
+                .map(|iqs| iqs.to_raw(&fbas))
                 .collect(),
         }
     }
@@ -132,14 +163,14 @@ impl Organization {
 }
 
 /// Nodes represented by NodeIds (which should be equal to nodes' indices in the input JSON).
-pub fn to_json_str_using_node_ids(node_sets: &[NodeIdSet]) -> String {
+pub fn to_json_string_using_node_ids(node_sets: &[NodeIdSet]) -> String {
     let node_sets: Vec<Vec<NodeId>> = node_sets.iter().map(|x| x.iter().collect()).collect();
 
     serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
 }
 
 /// Nodes represented by their public keys.
-pub fn to_json_str_using_public_keys(node_sets: &[NodeIdSet], fbas: &Fbas) -> String {
+pub fn to_json_string_using_public_keys(node_sets: &[NodeIdSet], fbas: &Fbas) -> String {
     let node_sets: Vec<Vec<&PublicKey>> = node_sets
         .iter()
         .map(|x| x.iter().map(|x| &fbas.nodes[x].public_key).collect())
@@ -149,7 +180,7 @@ pub fn to_json_str_using_public_keys(node_sets: &[NodeIdSet], fbas: &Fbas) -> St
 }
 
 /// Nodes represented by their organization's name.
-pub fn to_json_str_using_organization_names(
+pub fn to_json_string_using_organization_names(
     node_sets: &[NodeIdSet],
     fbas: &Fbas,
     organizations: &Organizations,
@@ -274,6 +305,14 @@ mod tests {
             actual.nodes.into_iter().map(|x| x.quorum_set).collect();
 
         assert_eq!(expected_quorum_sets, actual_quorum_sets);
+    }
+
+    #[test]
+    fn to_json_and_back_results_in_identical_fbas() {
+        let original = Fbas::new_generic_unconfigured(7);
+        let json = original.to_json_string();
+        let recombined = Fbas::from_json_str(&json);
+        assert_eq!(original, recombined);
     }
 
     // broken since we also have "organizations" test files now
