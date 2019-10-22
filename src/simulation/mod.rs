@@ -16,8 +16,8 @@ pub struct Simulator {
 impl Simulator {
     pub fn new(
         fbas: Fbas,
-        qsc: Rc<impl QuorumSetConfigurator + 'static>,
-        monitor: Rc<impl SimulationMonitor + 'static>,
+        qsc: Rc<dyn QuorumSetConfigurator>,
+        monitor: Rc<dyn SimulationMonitor>,
     ) -> Self {
         Simulator { fbas, qsc, monitor }
     }
@@ -150,7 +150,11 @@ mod tests {
     #[test]
     fn monitoring_works() {
         let monitor = Rc::new(DebugMonitor::new());
-        let mut simulator = Simulator::new(Fbas::new(), Rc::new(DummyQsc), Rc::clone(&monitor));
+        let mut simulator = Simulator::new(
+            Fbas::new(),
+            Rc::new(DummyQsc),
+            Rc::clone(&monitor) as Rc<dyn SimulationMonitor>,
+        );
         assert!(monitor.events_ref().is_empty());
         simulator.simulate_growth(1);
         assert!(!monitor.events_ref().is_empty());
@@ -200,7 +204,7 @@ mod tests {
         let mut simulator = Simulator::new(
             Fbas::new_generic_unconfigured(128),
             Rc::new(SuperSafeQsc),
-            Rc::clone(&monitor),
+            Rc::clone(&monitor) as Rc<dyn SimulationMonitor>,
         );
         simulator.simulate_global_reevaluation(2);
 

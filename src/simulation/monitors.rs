@@ -1,4 +1,5 @@
 use super::*;
+use log::debug;
 use std::cell::{Ref, RefCell};
 
 /// Does nothing.
@@ -28,6 +29,7 @@ impl DebugMonitor {
 }
 impl SimulationMonitor for DebugMonitor {
     fn register_event(&self, event: Event) {
+        debug!("Event: {:?}", event);
         self.recorded_events.borrow_mut().push(event);
     }
 }

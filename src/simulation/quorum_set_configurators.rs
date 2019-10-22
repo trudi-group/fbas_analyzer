@@ -50,6 +50,9 @@ impl QuorumSetConfigurator for SuperSafeQsc {
     }
 }
 impl SuperSafeQsc {
+    pub fn new() -> Self {
+        SuperSafeQsc {}
+    }
     fn build_new_configuration(fbas: &Fbas) -> QuorumSet {
         let n = fbas.nodes.len();
         let threshold = n;
@@ -64,8 +67,16 @@ impl SuperSafeQsc {
 }
 
 pub struct SimpleRandomNoChangeQsc {
-    k: usize,
+    quorum_set_size: usize,
     threshold: usize,
+}
+impl SimpleRandomNoChangeQsc {
+    pub fn new(quorum_set_size: usize, threshold: usize) -> Self {
+        SimpleRandomNoChangeQsc {
+            quorum_set_size,
+            threshold,
+        }
+    }
 }
 impl QuorumSetConfigurator for SimpleRandomNoChangeQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
@@ -75,13 +86,13 @@ impl QuorumSetConfigurator for SimpleRandomNoChangeQsc {
         if *quorum_set == Default::default() {
             // an unconfigured quorum set
 
-            let k = cmp::min(self.k, n);
+            let quorum_set_size = cmp::min(self.quorum_set_size, n);
 
-            let threshold = cmp::min(k, self.threshold);
+            let threshold = cmp::min(quorum_set_size, self.threshold);
 
             let node_ids: Vec<NodeId> = (0..n).collect();
             let validators: Vec<NodeId> = node_ids
-                .choose_multiple(&mut thread_rng(), k)
+                .choose_multiple(&mut thread_rng(), quorum_set_size)
                 .copied()
                 .collect();
             *quorum_set = QuorumSet {
@@ -115,5 +126,16 @@ mod tests {
             Simulator::new(Fbas::new(), Rc::new(SuperSafeQsc), Rc::new(DummyMonitor));
         simulator.simulate_growth(8);
         assert!(simulator.fbas.has_quorum_intersection());
+    }
+
+    #[test]
+    fn random_fbas_has_a_quorum() {
+        let mut simulator = Simulator::new(
+            Fbas::new(),
+            Rc::new(SimpleRandomNoChangeQsc::new(2, 1)),
+            Rc::new(DummyMonitor),
+        );
+        simulator.simulate_growth(3);
+        assert!(simulator.fbas.is_quorum(&bitset![0, 1, 2]));
     }
 }

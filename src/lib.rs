@@ -15,4 +15,6 @@ pub use analyses::{
     involved_nodes, remove_non_minimal_node_sets,
 };
 
-pub use simulation::{monitors, quorum_set_configurators, Simulator};
+pub use simulation::{
+    monitors, quorum_set_configurators, QuorumSetConfigurator, SimulationMonitor, Simulator,
+};
