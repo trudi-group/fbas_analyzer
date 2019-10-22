@@ -11,7 +11,7 @@ use std::path::PathBuf;
 #[derive(Debug, StructOpt)]
 struct Cli {
     /// Path to JSON file describing the FBAS in stellarbeat.org "nodes" format
-    nodes_path: PathBuf,
+    nodes_path: Option<PathBuf>,
 
     /// Output (and find) minimal quorums
     #[structopt(short = "q", long = "get-minimal-quorums")]
@@ -52,7 +52,13 @@ fn main() -> CliResult {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
-    let fbas = Fbas::from_json_file(&args.nodes_path);
+    let fbas = if let Some(nodes_path) = args.nodes_path {
+        eprintln!("Reading FBAS JSON from file...");
+        Fbas::from_json_file(&nodes_path)
+    } else {
+        eprintln!("Reading FBAS JSON from STDIN...");
+        Fbas::from_json_stdin()
+    };
 
     let (q, b, c, i, a) = (
         args.minimal_quorums,

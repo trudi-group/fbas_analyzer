@@ -58,9 +58,9 @@ fn main() -> CliResult {
         Rc::clone(&monitor) as Rc<dyn SimulationMonitor>,
     );
     simulator.simulate_growth(args.number_of_nodes);
-    println!("Starting simulation...");
+    eprintln!("Starting simulation...");
     let fbas = simulator.finalize();
-    println!("Finished simulation, dumping FBAS...");
+    eprintln!("Finished simulation, dumping FBAS...");
     println!("{}", fbas.to_json_string_pretty());
     Ok(())
 }

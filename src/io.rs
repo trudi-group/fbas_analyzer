@@ -3,6 +3,7 @@ use serde_json;
 
 use std::fs;
 use std::path::Path;
+use std::io;
 
 use crate::*;
 
@@ -16,6 +17,9 @@ impl RawFbas {
         let json =
             fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
         Self::from_json_str(&json)
+    }
+    fn from_json_stdin() -> Self {
+        serde_json::from_reader(io::stdin()).expect("Error reading JSON from STDIN")
     }
 }
 #[derive(Serialize, Deserialize)]
@@ -39,6 +43,9 @@ impl Fbas {
     }
     pub fn from_json_file(path: &Path) -> Self {
         Self::from_raw(RawFbas::from_json_file(path))
+    }
+    pub fn from_json_stdin() -> Self {
+        Self::from_raw(RawFbas::from_json_stdin())
     }
     pub fn to_json_string(&self) -> String {
         serde_json::to_string(&self.to_raw()).expect("Error converting FBAS to JSON!")
