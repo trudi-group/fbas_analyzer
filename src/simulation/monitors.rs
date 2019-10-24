@@ -1,5 +1,4 @@
 use super::*;
-use log::debug;
 use std::cell::{Ref, RefCell};
 
 /// Does nothing.

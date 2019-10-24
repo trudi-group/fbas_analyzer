@@ -1,5 +1,4 @@
 use super::*;
-use log::{debug, info, warn};
 
 mod find_blocking_sets;
 mod find_intersections;

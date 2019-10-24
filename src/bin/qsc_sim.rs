@@ -28,8 +28,8 @@ enum QuorumSetConfiguratorConfig {
     SuperSafe,
     /// Creates random quorum sets of the given size and threshold, never adapts them
     SimpleRandomNoChange {
-        quorum_set_size: usize,
-        threshold: usize,
+        desired_quorum_set_size: usize,
+        desired_threshold: usize,
     },
 }
 
@@ -39,9 +39,12 @@ fn parse_qscc(qscc: QuorumSetConfiguratorConfig) -> Rc<dyn QuorumSetConfigurator
     match qscc {
         SuperSafe => Rc::new(SuperSafeQsc::new()),
         SimpleRandomNoChange {
-            quorum_set_size,
-            threshold,
-        } => Rc::new(SimpleRandomNoChangeQsc::new(quorum_set_size, threshold)),
+            desired_quorum_set_size,
+            desired_threshold,
+        } => Rc::new(SimpleRandomQsc::new(
+            desired_quorum_set_size,
+            desired_threshold,
+        )),
     }
 }
 

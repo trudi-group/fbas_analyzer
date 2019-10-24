@@ -66,40 +66,58 @@ impl SuperSafeQsc {
     }
 }
 
-pub struct SimpleRandomNoChangeQsc {
-    quorum_set_size: usize,
-    threshold: usize,
+pub struct SimpleRandomQsc {
+    desired_quorum_set_size: usize,
+    desired_threshold: usize,
+    adapt_until_satisfied: bool,
 }
-impl SimpleRandomNoChangeQsc {
-    pub fn new(quorum_set_size: usize, threshold: usize) -> Self {
-        SimpleRandomNoChangeQsc {
-            quorum_set_size,
-            threshold,
+impl SimpleRandomQsc {
+    pub fn new(desired_quorum_set_size: usize, desired_threshold: usize) -> Self {
+        if desired_threshold > desired_quorum_set_size {
+            warn!(
+                "Desired threshold higher than desired quorum set size; \
+                 will be set to equal quorum set size."
+            );
+        }
+        SimpleRandomQsc {
+            desired_quorum_set_size,
+            desired_threshold,
+            adapt_until_satisfied: true,
         }
     }
+    pub fn never_adapt(mut self) -> Self {
+        self.adapt_until_satisfied = false;
+        self
+    }
 }
-impl QuorumSetConfigurator for SimpleRandomNoChangeQsc {
+impl QuorumSetConfigurator for SimpleRandomQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
         let n = fbas.nodes.len();
-        let quorum_set = &mut fbas.nodes[node_id].quorum_set;
+        let existing_quorum_set = &mut fbas.nodes[node_id].quorum_set;
 
-        if *quorum_set == Default::default() {
-            // an unconfigured quorum set
+        if (self.adapt_until_satisfied
+            && (existing_quorum_set.validators.len() < self.desired_quorum_set_size))
+            || *existing_quorum_set == QuorumSet::new()
+        {
+            // we are not satisfied or it is an empty quorum set
+            let quorum_set_size = cmp::min(self.desired_quorum_set_size, n);
+            let threshold = cmp::min(quorum_set_size, self.desired_threshold);
 
-            let quorum_set_size = cmp::min(self.quorum_set_size, n);
+            let used_nodes: BitSet<NodeId> =
+                existing_quorum_set.validators.iter().copied().collect();
+            let available_nodes: Vec<NodeId> =
+                (0..n).filter(|&x| !used_nodes.contains(x)).collect();
 
-            let threshold = cmp::min(quorum_set_size, self.threshold);
-
-            let node_ids: Vec<NodeId> = (0..n).collect();
-            let validators: Vec<NodeId> = node_ids
+            let new_validators: Vec<NodeId> = available_nodes
                 .choose_multiple(&mut thread_rng(), quorum_set_size)
                 .copied()
                 .collect();
-            *quorum_set = QuorumSet {
-                threshold,
-                validators,
-                inner_quorum_sets: vec![],
-            };
+
+            existing_quorum_set.validators.extend(new_validators);
+            existing_quorum_set.threshold = threshold;
+
+            // for making comparisons easier (e.g., for debugging)
+            // existing_quorum_set.validators.sort();
             Change
         } else {
             NoChange
@@ -113,7 +131,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn super_safe_fbas_has_a_quorum() {
+    fn super_safe_qsc_makes_a_quorum() {
         let mut simulator =
             Simulator::new(Fbas::new(), Rc::new(SuperSafeQsc), Rc::new(DummyMonitor));
         simulator.simulate_growth(3);
@@ -121,7 +139,7 @@ mod tests {
     }
 
     #[test]
-    fn super_safe_fbas_has_quorum_intersection() {
+    fn super_safe_qsc_makes_quorum_intersection() {
         let mut simulator =
             Simulator::new(Fbas::new(), Rc::new(SuperSafeQsc), Rc::new(DummyMonitor));
         simulator.simulate_growth(8);
@@ -129,13 +147,38 @@ mod tests {
     }
 
     #[test]
-    fn random_fbas_has_a_quorum() {
+    fn simple_random_qsc_makes_a_quorum() {
         let mut simulator = Simulator::new(
             Fbas::new(),
-            Rc::new(SimpleRandomNoChangeQsc::new(2, 1)),
+            Rc::new(SimpleRandomQsc::new(2, 1)),
             Rc::new(DummyMonitor),
         );
         simulator.simulate_growth(3);
         assert!(simulator.fbas.is_quorum(&bitset![0, 1, 2]));
+    }
+
+    #[test]
+    fn simple_random_qsc_adapts_until_satisfied() {
+        let mut simulator_random = Simulator::new(
+            Fbas::new(),
+            Rc::new(SimpleRandomQsc::new(5, 3)),
+            Rc::new(DummyMonitor),
+        );
+        let mut simulator_safe = Simulator::new(
+            Fbas::new(),
+            Rc::new(SuperSafeQsc::new()),
+            Rc::new(DummyMonitor),
+        );
+        simulator_random.simulate_growth(2);
+        simulator_safe.simulate_growth(2);
+
+        assert_eq!(simulator_safe.fbas, simulator_random.fbas);
+        assert!(simulator_random.fbas.is_quorum(&bitset![0, 1]));
+
+        simulator_random.simulate_growth(10);
+        simulator_safe.simulate_growth(10);
+
+        assert_ne!(simulator_safe.fbas, simulator_random.fbas);
+        assert!(!simulator_random.fbas.is_quorum(&bitset![0, 1]));
     }
 }
