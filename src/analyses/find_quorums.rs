@@ -1,10 +1,11 @@
 use super::*;
+use log::debug;
 
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     let quorums = find_quorums(fbas);
-    info!("Found {} quorums.", quorums.len());
+    debug!("Found {} (not necessarily minimal) quorums.", quorums.len());
     let minimal_quorums = remove_non_minimal_node_sets(quorums);
-    info!("Reduced to {} minimal quorums.", minimal_quorums.len());
+    debug!("Reduced to {} minimal quorums.", minimal_quorums.len());
     minimal_quorums
 }
 
@@ -12,17 +13,17 @@ pub fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     let n = fbas.nodes.len();
     let mut unprocessed: Vec<NodeId> = (0..n).collect();
 
-    info!("Reducing to strongly connected components...");
+    debug!("Reducing to strongly connected components...");
     unprocessed = reduce_to_strongly_connected_components(unprocessed, fbas);
-    info!(
+    debug!(
         "Reducing removed {} of {} nodes...",
         n - unprocessed.len(),
         n
     );
 
-    info!("Sorting nodes by rank...");
+    debug!("Sorting nodes by rank...");
     unprocessed = sort_by_rank(unprocessed, fbas);
-    info!("Sorted.");
+    debug!("Sorted.");
 
     let mut selection = NodeIdSet::with_capacity(n);
     let mut available = unprocessed.iter().cloned().collect();

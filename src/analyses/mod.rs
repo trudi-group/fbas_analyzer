@@ -1,5 +1,5 @@
 use super::*;
-use log::info;
+use log::{info, warn};
 
 mod find_blocking_sets;
 mod find_intersections;
@@ -8,6 +8,74 @@ mod find_quorums;
 pub use find_blocking_sets::find_minimal_blocking_sets;
 pub use find_intersections::find_minimal_intersections;
 pub use find_quorums::find_minimal_quorums;
+
+/// Most methods require &mut because they cache intermediate results.
+pub struct Analysis {
+    fbas: Fbas,
+    minimal_quorums: Option<Vec<NodeIdSet>>,
+    minimal_blocking_sets: Option<Vec<NodeIdSet>>,
+    minimal_intersections: Option<Vec<NodeIdSet>>,
+    organizations: Option<Organizations>,
+}
+impl Analysis {
+    pub fn new(fbas: Fbas) -> Self {
+        Analysis {
+            fbas,
+            minimal_quorums: None,
+            minimal_blocking_sets: None,
+            minimal_intersections: None,
+            organizations: None,
+        }
+    }
+    pub fn new_with_collapsing_by_organization(fbas: Fbas, organizations: Organizations) -> Self {
+        Analysis {
+            fbas,
+            minimal_quorums: None,
+            minimal_blocking_sets: None,
+            minimal_intersections: None,
+            organizations: Some(organizations),
+        }
+    }
+    pub fn has_quorum_intersection(&mut self) -> bool {
+        info!("Checking for intersection of all minimal quorums...");
+        all_interesect(self.minimal_quorums())
+    }
+    pub fn minimal_quorums(&mut self) -> &[NodeIdSet] {
+        if self.minimal_quorums.is_none() {
+            warn!("Computing minimal quorums...");
+            self.minimal_quorums = Some(self.maybe_collapse(find_minimal_quorums(&self.fbas)));
+        } else {
+            info!("Using cached minimal quorums.");
+        }
+        self.minimal_quorums.as_ref().unwrap()
+    }
+    pub fn minimal_blocking_sets(&mut self) -> &[NodeIdSet] {
+        if self.minimal_blocking_sets.is_none() {
+            warn!("Computing minimal blocking sets...");
+            self.minimal_blocking_sets = Some(find_minimal_blocking_sets(self.minimal_quorums()));
+        } else {
+            info!("Using cached minimal blocking sets.");
+        }
+        self.minimal_blocking_sets.as_ref().unwrap()
+    }
+    pub fn minimal_intersections(&mut self) -> &[NodeIdSet] {
+        if self.minimal_intersections.is_none() {
+            warn!("Computing minimal intersections...");
+            self.minimal_intersections = Some(find_minimal_intersections(self.minimal_quorums()));
+        } else {
+            info!("Using cached minimal intersections.");
+        }
+        self.minimal_intersections.as_ref().unwrap()
+    }
+    fn maybe_collapse(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
+        if let Some(ref orgs) = self.organizations {
+            info!("Collapsing nodes by organization...");
+            remove_non_minimal_node_sets(orgs.collapse_node_sets(node_sets))
+        } else {
+            node_sets
+        }
+    }
+}
 
 impl Fbas {
     pub fn has_quorum_intersection(&self) -> bool {
@@ -100,7 +168,63 @@ mod tests {
     }
 
     #[test]
-    fn minimal_node_sets() {
+    fn has_quorum_intersection_if_just_one_quorum() {
+        let fbas = Fbas::from_json_str(r#"[
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            }
+        ]"#);
+        assert!(fbas.has_quorum_intersection());
+    }
+
+    #[test]
+    fn analysis_nontrivial() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let mut analysis = Analysis::new(fbas);
+
+        assert!(analysis.has_quorum_intersection());
+        assert_eq!(
+            analysis.minimal_quorums(),
+            &[bitset![0, 1], bitset![0, 10], bitset![1, 10]]
+        );
+        assert_eq!(
+            analysis.minimal_blocking_sets(),
+            &[bitset![0, 1], bitset![0, 10], bitset![1, 10]]
+        );
+        assert_eq!(
+            analysis.minimal_intersections(),
+            &[bitset![0], bitset![1], bitset![10]]
+        );
+    }
+
+    #[test]
+    fn analysis_with_collapsing_by_organization_nontrivial() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let organizations = Organizations::from_json_str(r#"[
+            {
+                "id": "266107f8966d45eedce41fee2581326d",
+                "name": "Stellar Development Foundation",
+                "validators": [
+                    "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK",
+                    "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+                    "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ"
+                ]
+            }]"#, &fbas);
+        let mut analysis = Analysis::new_with_collapsing_by_organization(fbas, organizations);
+
+        assert!(analysis.has_quorum_intersection());
+        assert_eq!( analysis.minimal_quorums().len(), 1);
+        assert_eq!( analysis.minimal_blocking_sets().len(), 1);
+        assert_eq!( analysis.minimal_intersections().len(), 0);
+    }
+
+    #[test]
+    fn minimize_node_sets() {
         let non_minimal = vec![bitset![0, 1, 2], bitset![0, 1], bitset![0, 2]];
 
         let expected = vec![bitset![0, 1], bitset![0, 2]];
