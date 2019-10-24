@@ -1,4 +1,6 @@
 use super::*;
+use log::log_enabled;
+use log::Level::Warn;
 
 mod find_blocking_sets;
 mod find_intersections;
@@ -46,6 +48,13 @@ impl<'a> Analysis<'a> {
         if self.minimal_quorums.is_none() {
             warn!("Computing minimal quorums...");
             self.minimal_quorums = Some(self.maybe_collapse(find_minimal_quorums(&self.fbas)));
+            if log_enabled!(Warn) {
+                if self.has_quorum_intersection() {
+                    debug!("FBAS enjoys quorum intersection.");
+                } else {
+                    warn!("FBAS doesn't enjoy quorum intersection!");
+                }
+            }
         } else {
             info!("Using cached minimal quorums.");
         }
