@@ -4,7 +4,7 @@ mod simulation;
 mod types;
 
 use types::*;
-pub use types::{Fbas, Organizations};
+pub use types::{Fbas, Organizations, NodeIdSet};
 
 pub use io::{
     to_json_string_using_node_ids, to_json_string_using_organization_names,

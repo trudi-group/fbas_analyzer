@@ -10,15 +10,15 @@ pub use find_intersections::find_minimal_intersections;
 pub use find_quorums::find_minimal_quorums;
 
 /// Most methods require &mut because they cache intermediate results.
-pub struct Analysis {
-    fbas: Fbas,
+pub struct Analysis<'a> {
+    fbas: &'a Fbas,
     minimal_quorums: Option<Vec<NodeIdSet>>,
     minimal_blocking_sets: Option<Vec<NodeIdSet>>,
     minimal_intersections: Option<Vec<NodeIdSet>>,
-    organizations: Option<Organizations>,
+    organizations: Option<&'a Organizations>,
 }
-impl Analysis {
-    pub fn new(fbas: Fbas) -> Self {
+impl<'a> Analysis<'a> {
+    pub fn new(fbas: &'a Fbas) -> Self {
         Analysis {
             fbas,
             minimal_quorums: None,
@@ -27,7 +27,7 @@ impl Analysis {
             organizations: None,
         }
     }
-    pub fn new_with_collapsing_by_organization(fbas: Fbas, organizations: Organizations) -> Self {
+    pub fn new_with_collapsing_by_organization(fbas: &'a Fbas, organizations: &'a Organizations) -> Self {
         Analysis {
             fbas,
             minimal_quorums: None,
@@ -67,6 +67,13 @@ impl Analysis {
         }
         self.minimal_intersections.as_ref().unwrap()
     }
+    pub fn involved_nodes(&self) -> NodeIdSet {
+        let mut all_sets: Vec<NodeIdSet> = vec![];
+        all_sets.extend_from_slice(self.minimal_quorums.as_ref().unwrap_or(&vec![]));
+        all_sets.extend_from_slice(self.minimal_blocking_sets.as_ref().unwrap_or(&vec![]));
+        all_sets.extend_from_slice(self.minimal_intersections.as_ref().unwrap_or(&vec![]));
+        involved_nodes(&all_sets)
+    }
     fn maybe_collapse(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         if let Some(ref orgs) = self.organizations {
             info!("Collapsing nodes by organization...");
@@ -91,7 +98,7 @@ pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, f64, usize) {
     } else {
         node_sets.iter().map(|s| s.len()).sum::<usize>() as f64 / (node_sets.len() as f64)
     };
-    let involved_nodes: Vec<NodeId> = involved_nodes(node_sets).into_iter().collect();
+    let involved_nodes = involved_nodes(node_sets);
     (min, max, mean, involved_nodes.len())
 }
 
@@ -199,7 +206,7 @@ mod tests {
     #[test]
     fn analysis_nontrivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let mut analysis = Analysis::new(fbas);
+        let mut analysis = Analysis::new(&fbas);
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(
@@ -232,7 +239,7 @@ mod tests {
             }]"#,
             &fbas,
         );
-        let mut analysis = Analysis::new_with_collapsing_by_organization(fbas, organizations);
+        let mut analysis = Analysis::new_with_collapsing_by_organization(&fbas, &organizations);
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(analysis.minimal_quorums().len(), 1);

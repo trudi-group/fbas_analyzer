@@ -47,7 +47,6 @@ struct Cli {
     verbosity: Verbosity,
 }
 
-#[allow(clippy::many_single_char_names)]
 fn main() -> CliResult {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
@@ -59,6 +58,18 @@ fn main() -> CliResult {
         eprintln!("Reading FBAS JSON from STDIN...");
         Fbas::from_json_stdin()
     };
+    let organizations = if let Some(organizations_path) = args.organizations_path {
+        eprintln!("Will collapse by organization, reading organizations JSON from file...");
+        Some(Organizations::from_json_file(&organizations_path, &fbas))
+    } else {
+        None
+    };
+
+    let mut analysis = if organizations.is_some() {
+        Analysis::new_with_collapsing_by_organization(&fbas, organizations.as_ref().unwrap())
+    } else {
+        Analysis::new(&fbas)
+    };
 
     let (q, b, c, i, a) = (
         args.minimal_quorums,
@@ -67,30 +78,16 @@ fn main() -> CliResult {
         args.minimal_intersections,
         args.all,
     );
-    // no flags set => output everything
+    // -a or no flags set => output everything
     let (q, b, c, i) = if a || (q, b, c, i) == (false, false, false, false) {
         (true, true, true, true)
     } else {
         (q, b, c, i)
     };
 
-    let organizations = if let Some(organizations_path) = args.organizations_path {
-        Some(Organizations::from_json_file(&organizations_path, &fbas))
-    } else {
-        None
-    };
-    let maybe_collapse = |x| {
-        if let Some(ref orgs) = organizations {
-            remove_non_minimal_node_sets(orgs.collapse_node_sets(x))
-        } else {
-            x
-        }
-    };
-
-    let p = args.output_pretty;
-
-    let format = |x| {
-        if p {
+    let output_pretty = args.output_pretty;
+    let format = |x: &[NodeIdSet]| {
+        if output_pretty {
             if let Some(ref orgs) = organizations {
                 to_json_string_using_organization_names(x, &fbas, &orgs)
             } else {
@@ -100,49 +97,36 @@ fn main() -> CliResult {
             to_json_string_using_node_ids(x)
         }
     };
-
-    if !p && (q || b) {
+    if !output_pretty && (q || b) {
         println!(
             "(In the following dumps, nodes are identified by their index in the input JSON.)\n"
         );
     }
     if q || b || c {
-        let minimal_quorums = maybe_collapse(find_minimal_quorums(&fbas));
-        let minimal_blocking_sets = if b {
-            maybe_collapse(find_minimal_blocking_sets(&minimal_quorums))
-        } else {
-            vec![]
-        };
-        let minimal_intersections = if i {
-            maybe_collapse(find_minimal_intersections(&minimal_quorums))
-        } else {
-            vec![]
-        };
-
         if q {
-            println!("We found {} minimal quorums:", minimal_quorums.len());
-            println!("\n{}\n", format(&minimal_quorums));
+            println!("We found {} minimal quorums:", analysis.minimal_quorums().len());
+            println!("\n{}\n", format(analysis.minimal_quorums()));
         }
         if b {
             println!(
                 "We found {} minimal blocking sets (minimal indispensable sets for global liveness):",
-                minimal_blocking_sets.len()
+                analysis.minimal_blocking_sets().len()
             );
-            println!("\n{}\n", format(&minimal_blocking_sets));
+            println!("\n{}\n", format(analysis.minimal_blocking_sets()));
             println!(
                 "Control over any of these sets is sufficient to compromise the liveness of all \
                  nodes and to censor future transactions.\n"
             );
         }
         if c {
-            if all_interesect(&minimal_quorums) {
+            if analysis.has_quorum_intersection() {
                 println!("All quorums intersect.\n");
                 if i {
                     println!(
                         "We found {} minimal quorum intersections (minimal indispensable sets for safety):",
-                        minimal_intersections.len()
+                        analysis.minimal_intersections().len()
                     );
-                    println!("\n{}\n", format(&minimal_intersections));
+                    println!("\n{}\n", format(analysis.minimal_intersections()));
                     println!(
                         "Control over any of these sets is sufficient to compromise safety by \
                          undermining the quorum intersection of at least two quorums.\n"
@@ -155,11 +139,7 @@ fn main() -> CliResult {
             }
         }
         if q || b || i {
-            let mut all_sets = vec![];
-            all_sets.extend_from_slice(&minimal_quorums);
-            all_sets.extend_from_slice(&minimal_blocking_sets);
-            all_sets.extend_from_slice(&minimal_intersections);
-            let all_nodes = involved_nodes(&all_sets);
+            let all_nodes = analysis.involved_nodes();
             println!(
                 "There is a total of {} distinct nodes involved in all of these sets:",
                 all_nodes.len()
