@@ -1,5 +1,5 @@
 use super::*;
-use log::{info, warn};
+use log::{debug, info, warn};
 
 mod find_blocking_sets;
 mod find_intersections;
@@ -27,7 +27,10 @@ impl<'a> Analysis<'a> {
             organizations: None,
         }
     }
-    pub fn new_with_collapsing_by_organization(fbas: &'a Fbas, organizations: &'a Organizations) -> Self {
+    pub fn new_with_collapsing_by_organization(
+        fbas: &'a Fbas,
+        organizations: &'a Organizations,
+    ) -> Self {
         Analysis {
             fbas,
             minimal_quorums: None,
@@ -76,8 +79,18 @@ impl<'a> Analysis<'a> {
     }
     fn maybe_collapse(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         if let Some(ref orgs) = self.organizations {
-            info!("Collapsing nodes by organization...");
-            remove_non_minimal_node_sets(orgs.collapse_node_sets(node_sets))
+            debug!("Collapsing nodes by organization...");
+            info!(
+                "{} involved nodes before collapsing by organization.",
+                involved_nodes(&node_sets).len()
+            );
+            let collapsed_node_sets =
+                remove_non_minimal_node_sets(orgs.collapse_node_sets(node_sets));
+            info!(
+                "{} involved nodes after collapsing by organization.",
+                involved_nodes(&collapsed_node_sets).len()
+            );
+            collapsed_node_sets
         } else {
             node_sets
         }
@@ -90,7 +103,7 @@ impl Fbas {
     }
 }
 
-pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, f64, usize) {
+pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, usize, f64, usize) {
     let min = node_sets.iter().map(|s| s.len()).min().unwrap_or(0);
     let max = node_sets.iter().map(|s| s.len()).max().unwrap_or(0);
     let mean = if node_sets.is_empty() {
@@ -99,7 +112,7 @@ pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, f64, usize) {
         node_sets.iter().map(|s| s.len()).sum::<usize>() as f64 / (node_sets.len() as f64)
     };
     let involved_nodes = involved_nodes(node_sets);
-    (min, max, mean, involved_nodes.len())
+    (node_sets.len(), min, max, mean, involved_nodes.len())
 }
 
 pub fn all_interesect(node_sets: &[NodeIdSet]) -> bool {
@@ -256,7 +269,7 @@ mod tests {
             bitset![1, 4],
         ];
         let actual = describe(&node_sets);
-        let expected = (2, 4, 2.5, 8);
+        let expected = (4, 2, 4, 2.5, 8);
         assert_eq!(expected, actual)
     }
 

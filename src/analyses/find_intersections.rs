@@ -1,7 +1,7 @@
 use super::*;
 
 pub fn find_minimal_intersections(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
-    info!("Getting pairwise intersections...");
+    debug!("Getting pairwise intersections...");
     let intersections = find_intersections(node_sets);
     info!("Found {} pairwise intersections.", intersections.len());
     let minimal_intersections = remove_non_minimal_node_sets(intersections);

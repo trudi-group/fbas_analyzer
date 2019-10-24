@@ -1,11 +1,10 @@
 use super::*;
-use log::debug;
 
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     let quorums = find_quorums(fbas);
-    debug!("Found {} (not necessarily minimal) quorums.", quorums.len());
+    info!("Found {} (not necessarily minimal) quorums.", quorums.len());
     let minimal_quorums = remove_non_minimal_node_sets(quorums);
-    debug!("Reduced to {} minimal quorums.", minimal_quorums.len());
+    info!("Reduced to {} minimal quorums.", minimal_quorums.len());
     minimal_quorums
 }
 
@@ -15,8 +14,8 @@ pub fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
 
     debug!("Reducing to strongly connected components...");
     unprocessed = reduce_to_strongly_connected_components(unprocessed, fbas);
-    debug!(
-        "Reducing removed {} of {} nodes...",
+    info!(
+        "Reducing to strongly connected components removed {} of {} nodes...",
         n - unprocessed.len(),
         n
     );

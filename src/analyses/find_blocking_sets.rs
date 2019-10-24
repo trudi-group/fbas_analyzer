@@ -4,7 +4,7 @@ use std::ops::Index;
 struct MembershipsMap(Vec<BitSet>);
 
 pub fn find_minimal_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
-    info!("Getting blocking sets...");
+    debug!("Getting blocking sets...");
     let blocking_sets = find_blocking_sets(node_sets);
     info!("Found {} blocking sets.", blocking_sets.len());
     let minimal_blocking_sets = remove_non_minimal_node_sets(blocking_sets);
@@ -18,9 +18,9 @@ pub fn find_minimal_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
 fn find_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
     let (mut unprocessed, memberships) = extract_nodes_and_node_set_memberships(node_sets);
 
-    info!("Sorting nodes by number of memberships...");
+    debug!("Sorting nodes by number of memberships...");
     unprocessed = sort_by_number_of_node_set_memberships(unprocessed, &memberships);
-    info!("Sorted.");
+    debug!("Sorted.");
 
     let mut unprocessed = NodeIdDeque::from(unprocessed);
     let mut selection = NodeIdSet::new();
