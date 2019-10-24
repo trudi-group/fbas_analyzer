@@ -8,6 +8,7 @@ use rand::thread_rng;
 pub mod monitors;
 pub mod quorum_set_configurators;
 
+#[derive(Clone)]
 pub struct Simulator {
     fbas: Fbas,
     qsc: Rc<dyn QuorumSetConfigurator>,

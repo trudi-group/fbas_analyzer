@@ -181,4 +181,18 @@ mod tests {
         assert_ne!(simulator_safe.fbas, simulator_random.fbas);
         assert!(!simulator_random.fbas.is_quorum(&bitset![0, 1]));
     }
+
+    #[test]
+    fn simple_random_qsc_is_random() {
+        let mut simulator_random_1 = Simulator::new(
+            Fbas::new(),
+            Rc::new(SimpleRandomQsc::new(5, 3)),
+            Rc::new(DummyMonitor),
+        );
+        let mut simulator_random_2 = simulator_random_1.clone();
+        simulator_random_1.simulate_growth(23);
+        simulator_random_2.simulate_growth(23);
+
+        assert_ne!(simulator_random_1.fbas, simulator_random_2.fbas);
+    }
 }
