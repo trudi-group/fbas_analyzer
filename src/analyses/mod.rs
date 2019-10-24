@@ -83,6 +83,18 @@ impl Fbas {
     }
 }
 
+pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, f64, usize) {
+    let min = node_sets.iter().map(|s| s.len()).min().unwrap_or(0);
+    let max = node_sets.iter().map(|s| s.len()).max().unwrap_or(0);
+    let mean = if node_sets.is_empty() {
+        0.0
+    } else {
+        node_sets.iter().map(|s| s.len()).sum::<usize>() as f64 / (node_sets.len() as f64)
+    };
+    let involved_nodes: Vec<NodeId> = involved_nodes(node_sets).into_iter().collect();
+    (min, max, mean, involved_nodes.len())
+}
+
 pub fn all_interesect(node_sets: &[NodeIdSet]) -> bool {
     node_sets
         .iter()
@@ -169,7 +181,8 @@ mod tests {
 
     #[test]
     fn has_quorum_intersection_if_just_one_quorum() {
-        let fbas = Fbas::from_json_str(r#"[
+        let fbas = Fbas::from_json_str(
+            r#"[
             {
                 "publicKey": "n1",
                 "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
@@ -178,7 +191,8 @@ mod tests {
                 "publicKey": "n2",
                 "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
             }
-        ]"#);
+        ]"#,
+        );
         assert!(fbas.has_quorum_intersection());
     }
 
@@ -205,7 +219,8 @@ mod tests {
     #[test]
     fn analysis_with_collapsing_by_organization_nontrivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let organizations = Organizations::from_json_str(r#"[
+        let organizations = Organizations::from_json_str(
+            r#"[
             {
                 "id": "266107f8966d45eedce41fee2581326d",
                 "name": "Stellar Development Foundation",
@@ -214,19 +229,33 @@ mod tests {
                     "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
                     "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ"
                 ]
-            }]"#, &fbas);
+            }]"#,
+            &fbas,
+        );
         let mut analysis = Analysis::new_with_collapsing_by_organization(fbas, organizations);
 
         assert!(analysis.has_quorum_intersection());
-        assert_eq!( analysis.minimal_quorums().len(), 1);
-        assert_eq!( analysis.minimal_blocking_sets().len(), 1);
-        assert_eq!( analysis.minimal_intersections().len(), 0);
+        assert_eq!(analysis.minimal_quorums().len(), 1);
+        assert_eq!(analysis.minimal_blocking_sets().len(), 1);
+        assert_eq!(analysis.minimal_intersections().len(), 0);
+    }
+
+    #[test]
+    fn describe_node_sets() {
+        let node_sets = vec![
+            bitset![0, 1],
+            bitset![2, 3],
+            bitset![4, 5, 6, 7],
+            bitset![1, 4],
+        ];
+        let actual = describe(&node_sets);
+        let expected = (2, 4, 2.5, 8);
+        assert_eq!(expected, actual)
     }
 
     #[test]
     fn minimize_node_sets() {
         let non_minimal = vec![bitset![0, 1, 2], bitset![0, 1], bitset![0, 2]];
-
         let expected = vec![bitset![0, 1], bitset![0, 2]];
         let actual = remove_non_minimal_node_sets(non_minimal);
         assert_eq!(expected, actual);
