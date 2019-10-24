@@ -17,13 +17,13 @@ struct Cli {
     #[structopt(short = "q", long = "get-minimal-quorums")]
     minimal_quorums: bool,
 
-    /// Output (and find) minimal blocking sets (minimal indispensable sets for global liveness)
-    #[structopt(short = "b", long = "get-minimal-blocking-sets")]
-    minimal_blocking_sets: bool,
-
     /// Check for quorum intersection, output result
     #[structopt(short = "c", long = "check-quorum-intersection")]
     check_quorum_intersection: bool,
+
+    /// Output (and find) minimal blocking sets (minimal indispensable sets for global liveness)
+    #[structopt(short = "b", long = "get-minimal-blocking-sets")]
+    minimal_blocking_sets: bool,
 
     /// Output minimal quorum intersections (minimal indispensable sets for safety)
     #[structopt(short = "i", long = "get-minimal-intersections")]
@@ -79,17 +79,17 @@ fn main() -> CliResult {
         Analysis::new(&fbas)
     };
 
-    let (q, b, c, i) = (
+    let (q, c, b, i) = (
         args.minimal_quorums,
-        args.minimal_blocking_sets,
         args.check_quorum_intersection || args.minimal_intersections,
+        args.minimal_blocking_sets,
         args.minimal_intersections,
     );
     // -a  => output everything
-    let (q, b, c, i) = if args.all {
+    let (q, c, b, i) = if args.all {
         (true, true, true, true)
     } else {
-        (q, b, c, i)
+        (q, c, b, i)
     };
 
     let silent = args.silent;
@@ -122,7 +122,7 @@ fn main() -> CliResult {
         println!("{}: {}", result_name, format(result));
     };
 
-    if (q, b, c, i) == (false, false, false, false) {
+    if (q, c, b, i) == (false, false, false, false) {
         eprintln!("Nothing to do... (try the -a flag?)");
     } else if !desc && !output_pretty {
         silprintln!(
@@ -142,6 +142,17 @@ fn main() -> CliResult {
         );
         resultprint("minimal_quorums", analysis.minimal_quorums());
     }
+    if c {
+        if analysis.has_quorum_intersection() {
+            silprintln!("\nAll quorums intersect 👍\n");
+            println!("has_quorum_intersection: true");
+        } else {
+            silprintln!(
+                "\nSome quorums don't intersect - safety severely threatened for some nodes!\n"
+            );
+            println!("quorum_intersection: false");
+        }
+    }
     if b {
         silprintln!(
             "\nWe found {} minimal blocking sets (minimal indispensable sets for global liveness). \
@@ -151,26 +162,15 @@ fn main() -> CliResult {
         );
         resultprint("minimal_blocking_sets", analysis.minimal_blocking_sets());
     }
-    if c {
-        if analysis.has_quorum_intersection() {
-            silprintln!("\nAll quorums intersect 👍\n");
-            println!("has_quorum_intersection: true");
-            if i {
-                silprintln!(
-                    "\nWe found {} minimal quorum intersections \
-                     (minimal indispensable sets for safety). \
-                     Control over any of these sets is sufficient to compromise safety by \
-                     undermining the quorum intersection of at least two quorums.\n",
-                    analysis.minimal_intersections().len()
-                );
-                resultprint("minimal_intersections", analysis.minimal_intersections());
-            }
-        } else {
-            silprintln!(
-                "\nSome quorums don't intersect - safety severely threatened for some nodes!\n"
-            );
-            println!("quorum_intersection: false");
-        }
+    if i {
+        silprintln!(
+            "\nWe found {} minimal quorum intersections \
+             (minimal indispensable sets for safety). \
+             Control over any of these sets is sufficient to compromise safety by \
+             undermining the quorum intersection of at least two quorums.\n",
+            analysis.minimal_intersections().len()
+        );
+        resultprint("minimal_intersections", analysis.minimal_intersections());
     }
     if q || b || i {
         let all_nodes = analysis.involved_nodes();
