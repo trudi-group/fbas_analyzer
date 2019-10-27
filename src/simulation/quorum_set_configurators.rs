@@ -116,8 +116,6 @@ impl QuorumSetConfigurator for SimpleRandomQsc {
             existing_quorum_set.validators.extend(new_validators);
             existing_quorum_set.threshold = threshold;
 
-            // for making comparisons easier (e.g., for debugging)
-            // existing_quorum_set.validators.sort();
             Change
         } else {
             NoChange
@@ -172,7 +170,6 @@ mod tests {
         simulator_random.simulate_growth(2);
         simulator_safe.simulate_growth(2);
 
-        assert_eq!(simulator_safe.fbas, simulator_random.fbas);
         assert!(simulator_random.fbas.is_quorum(&bitset![0, 1]));
 
         simulator_random.simulate_growth(10);
