@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json;
 
 use std::fs;
@@ -20,6 +20,12 @@ impl RawFbas {
     }
     fn from_json_stdin() -> Self {
         serde_json::from_reader(io::stdin()).expect("Error reading JSON from STDIN")
+    }
+    fn to_json_string(&self) -> String {
+        serde_json::to_string(&self).expect("Error converting FBAS to JSON!")
+    }
+    fn to_json_string_pretty(&self) -> String {
+        serde_json::to_string_pretty(&self).expect("Error converting FBAS to JSON!")
     }
 }
 #[derive(Serialize, Deserialize)]
@@ -48,10 +54,10 @@ impl Fbas {
         Self::from_raw(RawFbas::from_json_stdin())
     }
     pub fn to_json_string(&self) -> String {
-        serde_json::to_string(&self.to_raw()).expect("Error converting FBAS to JSON!")
+        self.to_raw().to_json_string()
     }
     pub fn to_json_string_pretty(&self) -> String {
-        serde_json::to_string_pretty(&self.to_raw()).expect("Error converting FBAS to JSON!")
+        self.to_raw().to_json_string_pretty()
     }
     fn from_raw(raw_fbas: RawFbas) -> Self {
         let raw_nodes = raw_fbas.0;
@@ -71,6 +77,23 @@ impl Fbas {
     }
     fn to_raw(&self) -> RawFbas {
         RawFbas(self.nodes.iter().map(|n| n.to_raw(&self)).collect())
+    }
+}
+impl Serialize for Fbas {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.to_raw().serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for Fbas {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw_fbas = RawFbas::deserialize(deserializer)?;
+        Ok(Fbas::from_raw(raw_fbas))
     }
 }
 impl Node {
@@ -121,7 +144,7 @@ impl QuorumSet {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct RawOrganizations(Vec<RawOrganization>);
 impl RawOrganizations {
     fn from_json_str(json: &str) -> Self {
@@ -133,7 +156,7 @@ impl RawOrganizations {
         Self::from_json_str(&json)
     }
 }
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct RawOrganization {
     name: String,
     validators: Vec<PublicKey>,
@@ -167,6 +190,12 @@ impl Organization {
                 .collect(),
         }
     }
+    // fn to_raw(&self, fbas: &Fbas) -> RawOrganization {
+    //     RawOrganization {
+    //         name: self.name.clone(),
+    //         validators: self.validators.iter().map(|&x| fbas.nodes[x].public_key.clone()).collect()
+    //     }
+    // }
 }
 
 /// Nodes represented by NodeIds (which should be equal to nodes' indices in the input JSON).
