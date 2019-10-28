@@ -30,6 +30,7 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct Graph {
     // connections per node
     connections: Vec<Vec<NodeId>>,
@@ -44,7 +45,10 @@ impl Graph {
     }
     /// Build a scale-free graph using the Barabási–Albert (BA) model
     pub fn new_random_scale_free(n: usize, m0: usize, m: usize) -> Self {
-        assert!(0 < m && m <= m0 && m <= n, "Parameters for Barabási–Albert don't make sense.");
+        assert!(
+            0 < m && m <= m0 && m <= n,
+            "Parameters for Barabási–Albert don't make sense."
+        );
 
         let mut rng = thread_rng();
 
@@ -85,6 +89,31 @@ impl Graph {
             }
         }
         Self::new(connections)
+    }
+    /// Shuffle the node IDs
+    pub fn shuffled(self) -> Self {
+        let n = self.connections.len();
+        let mut rng = thread_rng();
+
+        // mappings
+        let mut old_to_new: Vec<NodeId> = (0..n).collect();
+        old_to_new.shuffle(&mut rng);
+        let mut new_to_old = vec![0; n];
+        for (old, &new) in old_to_new.iter().enumerate() {
+            new_to_old[new] = old;
+        }
+        let (new_to_old, old_to_new) = (new_to_old, old_to_new);
+
+        let new_connections = new_to_old
+            .iter()
+            .map(|&oi| {
+                self.connections[oi]
+                    .iter()
+                    .map(|&oj| old_to_new[oj])
+                    .collect()
+            })
+            .collect();
+        Self::new(new_connections)
     }
 }
 
@@ -145,5 +174,27 @@ mod tests {
         assert!((0..n).all(|i| graph.connections[i]
             .iter()
             .all(|&j| graph.connections[j].iter().any(|&x| x == i))));
+    }
+
+    #[test]
+    fn graph_shuffle_shuffles() {
+        let (n, m0, m) = (23, 3, 2);
+        let graph = Graph::new_random_scale_free(n, m0, m);
+        let shuffled = graph.clone().shuffled();
+        assert_ne!(graph, shuffled);
+    }
+
+    #[test]
+    fn graph_shuffle_preserves_degrees() {
+        let (n, m0, m) = (23, 3, 2);
+        let graph = Graph::new_random_scale_free(n, m0, m);
+        let shuffled = graph.clone().shuffled();
+
+        fn degrees(graph: Graph) -> Vec<usize> {
+            let mut result: Vec<usize> = graph.connections.into_iter().map(|x| x.len()).collect();
+            result.sort();
+            result
+        }
+        assert_eq!(degrees(graph), degrees(shuffled));
     }
 }
