@@ -2,13 +2,16 @@ use super::*;
 
 /// Makes quorum slices based on his immediate graph neighbors, in total disregard for quorum
 /// intersection, which nodes exist, and anything else...
-struct SimpleGraphQsc {
+pub struct SimpleGraphQsc {
     graph: Graph,
     relative_threshold: f64,
 }
 impl SimpleGraphQsc {
-    fn new(graph: Graph, relative_threshold: f64) -> Self {
-        SimpleGraphQsc { graph, relative_threshold }
+    pub fn new(graph: Graph, relative_threshold: f64) -> Self {
+        SimpleGraphQsc {
+            graph,
+            relative_threshold,
+        }
     }
 }
 impl QuorumSetConfigurator for SimpleGraphQsc {
@@ -27,32 +30,71 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
     }
 }
 
-struct Graph {
+pub struct Graph {
     // connections per node
-    connections: Vec<Vec<NodeId>>
+    connections: Vec<Vec<NodeId>>,
 }
 impl Graph {
-    fn new(connections: Vec<Vec<NodeId>>) -> Self {
-        Graph{connections}
-    }
-    /// Build a scale-free graph using the Barabási–Albert (BA) model
-    fn new_scale_free() -> Self {
-        // TODO
-        Self::new(vec![])
+    pub fn new(connections: Vec<Vec<NodeId>>) -> Self {
+        Graph { connections }
     }
     /// Build a graph where every node is connected to every other node (including itself)
-    fn new_full_mesh(n: usize) -> Self {
-        Self::new((0..n).map(|_| (0..n).collect()).collect())
+    pub fn new_full_mesh(n: usize) -> Self {
+        Self::new(vec![(0..n).collect(); n])
+    }
+    /// Build a scale-free graph using the Barabási–Albert (BA) model
+    pub fn new_random_scale_free(n: usize, m0: usize, m: usize) -> Self {
+        assert!(0 < m && m <= m0 && m <= n, "Parameters for Barabási–Albert don't make sense.");
+
+        let mut rng = thread_rng();
+
+        let mut connections: Vec<Vec<NodeId>> = vec![vec![]; n];
+
+        macro_rules! connect {
+            ($a:expr, $b:expr) => {
+                let (a, b) = ($a, $b);
+                debug_assert_ne!(a, b);
+                connections[a].push(b);
+                connections[b].push(a);
+            };
+        }
+
+        // init
+        for i in 0..m0 {
+            for j in i + 1..m0 {
+                connect!(i, j);
+            }
+        }
+
+        // rest
+        for i in m0..n {
+            let mut possible_targets: Vec<NodeId> = (0..i).collect();
+            for _ in 0..m {
+                let j = possible_targets
+                    .choose_weighted(&mut rng, |&x| connections[x].len())
+                    .unwrap()
+                    .to_owned();
+                connect!(i, j);
+                // remove j from possible targets
+                if j == i - 1 {
+                    possible_targets.pop();
+                } else {
+                    possible_targets =
+                        [&possible_targets[..j], &possible_targets[j + 1..]].concat();
+                }
+            }
+        }
+        Self::new(connections)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::monitors::*;
+    use super::*;
 
     #[test]
-    fn full_mesh_can_be_like_super_safe() {
+    fn full_mesh_qsc_can_be_like_super_safe() {
         let n = 3;
         let mut simulator_full_mesh = Simulator::new(
             Fbas::new(),
@@ -68,5 +110,40 @@ mod tests {
         simulator_safe.simulate_growth(n);
 
         assert_eq!(simulator_safe.finalize(), simulator_full_mesh.finalize());
+    }
+
+    #[test]
+    fn scale_free_graph_interconnects_m0_fully() {
+        let (n, m0, m) = (23, 8, 2);
+        let graph = Graph::new_random_scale_free(n, m0, m);
+
+        assert!((0..m0).all(|i| (0..i)
+            .chain(i + 1..m0)
+            .all(|j| graph.connections[j].iter().any(|&x| x == i))));
+    }
+
+    #[test]
+    fn scale_free_graph_has_sane_amount_of_edges_overall() {
+        let (n, m0, m) = (23, 3, 2);
+        let graph = Graph::new_random_scale_free(n, m0, m);
+
+        let expected = (m0 * (m0 - 1)) / 2 + (n - m0) * m;
+        let actual: usize = graph
+            .connections
+            .into_iter()
+            .map(|x| x.len())
+            .sum::<usize>()
+            / 2;
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn scale_free_graph_is_undirected() {
+        let (n, m0, m) = (23, 3, 2);
+        let graph = Graph::new_random_scale_free(n, m0, m);
+
+        assert!((0..n).all(|i| graph.connections[i]
+            .iter()
+            .all(|&j| graph.connections[j].iter().any(|&x| x == i))));
     }
 }
