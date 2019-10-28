@@ -68,11 +68,13 @@ impl SuperSafeQsc {
 
 mod random;
 pub use random::*;
+mod graph;
+pub use graph::*;
 
 #[cfg(test)]
 mod tests {
-    use super::monitors::*;
     use super::*;
+    use super::monitors::*;
 
     #[test]
     fn super_safe_qsc_makes_a_quorum() {
