@@ -18,7 +18,12 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
         let existing_quorum_set = &mut fbas.nodes[node_id].quorum_set;
         if *existing_quorum_set == QuorumSet::new() {
-            let validators = self.graph.connections[node_id].clone();
+            let validators = self
+                .graph
+                .connections
+                .get(node_id)
+                .expect("Graph too small for this FBAS!")
+                .clone();
             let threshold = (self.relative_threshold * validators.len() as f64).ceil() as usize;
 
             existing_quorum_set.validators.extend(validators);

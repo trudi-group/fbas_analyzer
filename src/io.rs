@@ -16,7 +16,7 @@ struct RawNode {
     #[serde(rename = "quorumSet", default)]
     quorum_set: RawQuorumSet,
 }
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
 struct RawQuorumSet {
     threshold: usize,
     validators: Vec<PublicKey>,
@@ -116,7 +116,10 @@ impl QuorumSet {
             validators: self
                 .validators
                 .iter()
-                .map(|&v| fbas.nodes[v].public_key.clone())
+                .map(|&v| match fbas.nodes.get(v) {
+                    Some(node) => node.public_key.clone(),
+                    None => format!("missing #{}", v),
+                })
                 .collect(),
             inner_quorum_sets: self
                 .inner_quorum_sets
@@ -347,6 +350,23 @@ mod tests {
         let json = original.to_json_string();
         let recombined = Fbas::from_json_str(&json);
         assert_eq!(original, recombined);
+    }
+
+    #[test]
+    fn can_serizalize_quorum_sets_with_unknown_nodes() {
+        let fbas = Fbas::new();
+        let quorum_set = QuorumSet {
+            threshold: 2,
+            validators: vec![0, 1].into_iter().collect(),
+            inner_quorum_sets: Default::default(),
+        };
+        let expected = RawQuorumSet {
+            threshold: 2,
+            validators: vec![String::from("missing #0"), String::from("missing #1")],
+            inner_quorum_sets: vec![],
+        };
+        let actual = quorum_set.to_raw(&fbas);
+        assert_eq!(expected, actual);
     }
 
     // broken since we also have "organizations" test files now

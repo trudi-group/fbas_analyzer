@@ -27,9 +27,16 @@ enum QuorumSetConfiguratorConfig {
     /// Creates threshold=n quorum sets containing all n nodes in the FBAS
     SuperSafe,
     /// Creates random quorum sets of the given size and threshold, never adapts them
-    SimpleRandomNoChange {
+    SimpleRandom {
         desired_quorum_set_size: usize,
         desired_threshold: usize,
+    },
+    /// Chooses quorum sets based on a synthetic scale-free graph (BA with m0=m=2) and a relative
+    /// threshold. All graph neighbors are validators, independent of node existence, quorum
+    /// intersection or anything else.
+    SimpleGraph {
+        graph_size: usize,
+        relative_threshold: f64,
     },
 }
 
@@ -38,12 +45,20 @@ fn parse_qscc(qscc: QuorumSetConfiguratorConfig) -> Rc<dyn QuorumSetConfigurator
     use QuorumSetConfiguratorConfig::*;
     match qscc {
         SuperSafe => Rc::new(SuperSafeQsc::new()),
-        SimpleRandomNoChange {
+        SimpleRandom {
             desired_quorum_set_size,
             desired_threshold,
         } => Rc::new(SimpleRandomQsc::new(
             desired_quorum_set_size,
             desired_threshold,
+        )),
+        SimpleGraph {
+            graph_size,
+            relative_threshold,
+        } => Rc::new(SimpleGraphQsc::new(
+            Graph::new_random_scale_free(graph_size, 2, 2).shuffled(),
+            // shuffled because fbas join order shouldn't be correlated with importance in graph
+            relative_threshold,
         )),
     }
 }

@@ -59,8 +59,8 @@ impl QuorumSetConfigurator for SimpleRandomQsc {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::monitors::*;
+    use super::*;
 
     #[test]
     fn simple_random_qsc_makes_a_quorum() {

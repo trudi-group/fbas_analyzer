@@ -42,7 +42,7 @@ impl<'a> Analysis<'a> {
     }
     pub fn has_quorum_intersection(&mut self) -> bool {
         info!("Checking for intersection of all minimal quorums...");
-        all_interesect(self.minimal_quorums())
+        !self.minimal_quorums().is_empty() && all_interesect(self.minimal_quorums())
     }
     pub fn minimal_quorums(&mut self) -> &[NodeIdSet] {
         if self.minimal_quorums.is_none() {
@@ -102,12 +102,6 @@ impl<'a> Analysis<'a> {
         } else {
             node_sets
         }
-    }
-}
-
-impl Fbas {
-    pub fn has_quorum_intersection(&self) -> bool {
-        all_interesect(&find_minimal_quorums(&self))
     }
 }
 
@@ -175,6 +169,13 @@ impl<'fbas> Organizations<'fbas> {
     }
 }
 
+impl Fbas {
+    /// Comfort function; we recommend using `Analysis` directly
+    pub fn has_quorum_intersection(&self) -> bool {
+        Analysis::new(&self).has_quorum_intersection()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,8 +196,8 @@ mod tests {
         let correct = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
         let broken = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
 
-        assert!(correct.has_quorum_intersection());
-        assert!(!broken.has_quorum_intersection());
+        assert!(Analysis::new(&correct).has_quorum_intersection());
+        assert!(!Analysis::new(&broken).has_quorum_intersection());
     }
 
     #[test]
@@ -204,8 +205,8 @@ mod tests {
         let correct = Fbas::from_json_file(Path::new("test_data/correct.json"));
         let broken = Fbas::from_json_file(Path::new("test_data/broken.json"));
 
-        assert!(correct.has_quorum_intersection());
-        assert!(!broken.has_quorum_intersection());
+        assert!(Analysis::new(&correct).has_quorum_intersection());
+        assert!(!Analysis::new(&broken).has_quorum_intersection());
     }
 
     #[test]
@@ -222,7 +223,20 @@ mod tests {
             }
         ]"#,
         );
-        assert!(fbas.has_quorum_intersection());
+        assert!(Analysis::new(&fbas).has_quorum_intersection());
+    }
+
+    #[test]
+    fn no_has_quorum_intersection_if_there_is_no_quorum() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            }
+        ]"#,
+        );
+        assert!(!Analysis::new(&fbas).has_quorum_intersection());
     }
 
     #[test]
