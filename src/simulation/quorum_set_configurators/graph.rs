@@ -1,0 +1,4 @@
+use super::*;
+
+struct GraphQsc {
+}
