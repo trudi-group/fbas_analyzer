@@ -16,7 +16,7 @@ pub struct Analysis<'a> {
     minimal_quorums: Option<Vec<NodeIdSet>>,
     minimal_blocking_sets: Option<Vec<NodeIdSet>>,
     minimal_intersections: Option<Vec<NodeIdSet>>,
-    organizations: Option<&'a Organizations>,
+    organizations: Option<&'a Organizations<'a>>,
 }
 impl<'a> Analysis<'a> {
     pub fn new(fbas: &'a Fbas) -> Self {
@@ -111,6 +111,7 @@ impl Fbas {
     }
 }
 
+/// Returns (number_of_sets, min_set_size, max_set_size, mean_set_size, number_of_distinct_nodes)
 pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, usize, f64, usize) {
     let min = node_sets.iter().map(|s| s.len()).min().unwrap_or(0);
     let max = node_sets.iter().map(|s| s.len()).max().unwrap_or(0);
@@ -153,7 +154,7 @@ pub fn remove_non_minimal_node_sets(node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet>
     minimal_node_sets
 }
 
-impl Organizations {
+impl<'fbas> Organizations<'fbas> {
     /// Collapse a node ID so that all nodes by the same organization get the same ID.
     pub fn collapse_node(self: &Self, node_id: NodeId) -> NodeId {
         self.collapsed_ids[node_id]
