@@ -167,6 +167,7 @@ macro_rules! bitset {
     (@single $($x:tt)*) => (());
     (@count $($rest:expr),*) => (<[()]>::len(&[$(bitset!(@single $rest)),*]));
 
+    () => { ::bit_set::BitSet::new(); };
     ($($key:expr,)+) => { bitset!($($key),+) };
     ($($key:expr),*) => {
         {
