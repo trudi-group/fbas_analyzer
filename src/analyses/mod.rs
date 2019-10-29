@@ -83,12 +83,8 @@ impl<'a> Analysis<'a> {
         }
         self.minimal_intersections.as_ref().unwrap()
     }
-    pub fn involved_nodes(&self) -> NodeIdSet {
-        let mut all_sets: Vec<NodeIdSet> = vec![];
-        all_sets.extend_from_slice(self.minimal_quorums.as_ref().unwrap_or(&vec![]));
-        all_sets.extend_from_slice(self.minimal_blocking_sets.as_ref().unwrap_or(&vec![]));
-        all_sets.extend_from_slice(self.minimal_intersections.as_ref().unwrap_or(&vec![]));
-        involved_nodes(&all_sets)
+    pub fn involved_nodes(&mut self) -> Vec<NodeId> {
+        involved_nodes(self.minimal_quorums())
     }
     fn maybe_collapse(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         if let Some(ref orgs) = self.organizations {
@@ -130,12 +126,12 @@ pub fn all_interesect(node_sets: &[NodeIdSet]) -> bool {
         .all(|(i, x)| node_sets.iter().skip(i + 1).all(|y| !x.is_disjoint(y)))
 }
 
-pub fn involved_nodes(node_sets: &[NodeIdSet]) -> NodeIdSet {
+pub fn involved_nodes(node_sets: &[NodeIdSet]) -> Vec<NodeId> {
     let mut all_nodes: NodeIdSet = bitset![];
     for node_set in node_sets {
         all_nodes.union_with(node_set);
     }
-    all_nodes
+    all_nodes.into_iter().collect()
 }
 
 /// Reduce to minimal node sets, i.e. to a set of node sets so that no member set is a superset of another.

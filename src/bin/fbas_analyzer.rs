@@ -101,26 +101,26 @@ fn main() -> CliResult {
             }
         })
     }
-
     let output_pretty = args.output_pretty;
     let desc = args.describe;
-    // TODO this is too complex for an executable
-    let format = |x: &[NodeIdSet]| {
-        if desc {
-            format!("{:?}", describe(x))
-        } else if output_pretty {
-            if let Some(ref orgs) = organizations {
-                to_json_string_using_organization_names(x, &fbas, &orgs)
-            } else {
-                to_json_string_using_public_keys(x, &fbas)
-            }
-        } else {
-            to_json_string_using_node_ids(x)
-        }
-    };
-    let resultprint = |result_name: &str, result: &[NodeIdSet]| {
-        println!("{}: {}", result_name, format(result));
-    };
+    macro_rules! print_sets_result {
+        ($result_name:expr, $result:expr) => {
+            println!(
+                "{}: {}",
+                $result_name,
+                format_node_id_sets($result, &fbas, &organizations, desc, output_pretty)
+            );
+        };
+    }
+    macro_rules! print_ids_result {
+        ($result_name:expr, $result:expr) => {
+            println!(
+                "{}: {}",
+                $result_name,
+                format_node_ids($result, &fbas, &organizations, desc, output_pretty)
+            );
+        };
+    }
 
     if (q, c, b, i) == (false, false, false, false) {
         eprintln!("Nothing to do... (try the -a flag?)");
@@ -136,15 +136,18 @@ fn main() -> CliResult {
     }
 
     let unsatisfiable_nodes = analysis.unsatisfiable_nodes();
-    silprintln!("Found {} unsatisfiable nodes (will be ignored in the following).", unsatisfiable_nodes.len());
-    resultprint("unsatisfiable_nodes", &[unsatisfiable_nodes.into_iter().collect()]); // FIXME
+    silprintln!(
+        "Found {} unsatisfiable nodes (will be ignored in the following).",
+        unsatisfiable_nodes.len()
+    );
+    print_ids_result!("unsatisfiable_nodes", &unsatisfiable_nodes);
 
     if q {
         silprintln!(
             "\nWe found {} minimal quorums.\n",
             analysis.minimal_quorums().len()
         );
-        resultprint("minimal_quorums", analysis.minimal_quorums());
+        print_sets_result!("minimal_quorums", analysis.minimal_quorums());
     }
     if c {
         if analysis.has_quorum_intersection() {
@@ -164,7 +167,7 @@ fn main() -> CliResult {
             and to censor future transactions.\n",
             analysis.minimal_blocking_sets().len()
         );
-        resultprint("minimal_blocking_sets", analysis.minimal_blocking_sets());
+        print_sets_result!("minimal_blocking_sets", analysis.minimal_blocking_sets());
     }
     if i {
         silprintln!(
@@ -174,7 +177,7 @@ fn main() -> CliResult {
              undermining the quorum intersection of at least two quorums.\n",
             analysis.minimal_intersections().len()
         );
-        resultprint("minimal_intersections", analysis.minimal_intersections());
+        print_sets_result!("minimal_intersections", analysis.minimal_intersections());
     }
     if q || b || i {
         let all_nodes = analysis.involved_nodes();
@@ -185,8 +188,7 @@ fn main() -> CliResult {
         if desc {
             println!("involved_nodes: {}", all_nodes.len());
         } else {
-            // FIXME
-            resultprint("involved_nodes", &[all_nodes]);
+            print_ids_result!("involved_nodes", &all_nodes);
         }
     }
     silprintln!();
