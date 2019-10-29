@@ -135,6 +135,10 @@ fn main() -> CliResult {
         );
     }
 
+    let unsatisfiable_nodes = analysis.unsatisfiable_nodes();
+    silprintln!("Found {} unsatisfiable nodes (will be ignored in the following).", unsatisfiable_nodes.len());
+    resultprint("unsatisfiable_nodes", &[unsatisfiable_nodes.into_iter().collect()]); // FIXME
+
     if q {
         silprintln!(
             "\nWe found {} minimal quorums.\n",

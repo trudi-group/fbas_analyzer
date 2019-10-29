@@ -9,8 +9,25 @@ pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
 }
 
 pub fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
-    let n = fbas.nodes.len();
-    let mut unprocessed: Vec<NodeId> = (0..n).collect();
+    let mut unprocessed: Vec<NodeId> = (0..fbas.nodes.len()).collect();
+
+    debug!("Removing nodes not part of any quorum...");
+    let (satisfiable, unsatisfiable) = find_unsatisfiable_nodes(unprocessed, fbas);
+    if !unsatisfiable.is_empty() {
+        warn!(
+            "The quorum sets of nodes {:?} are not satisfiable at all in the given FBAS!",
+            unsatisfiable
+        );
+        info!(
+            "Ignoring {} unsatisfiable nodes ({} nodes left).",
+            unsatisfiable.len(),
+            satisfiable.len()
+        );
+    } else {
+        debug!("All nodes are satisfiable");
+    }
+    unprocessed = satisfiable;
+    let n = unprocessed.len();
 
     debug!("Reducing to strongly connected components...");
     unprocessed = reduce_to_strongly_connected_components(unprocessed, fbas);
@@ -89,6 +106,24 @@ pub fn sort_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
     nodes
 }
 
+pub fn find_unsatisfiable_nodes(nodes: Vec<NodeId>, fbas: &Fbas) -> (Vec<NodeId>, Vec<NodeId>) {
+    let (mut satisfiable, mut unsatisfiable) = (vec![], vec![]);
+    for node_id in nodes {
+        if fbas.is_satisfiable(&fbas.nodes[node_id].quorum_set) {
+            satisfiable.push(node_id);
+        } else {
+            unsatisfiable.push(node_id);
+        }
+    }
+    if !unsatisfiable.is_empty() {
+        // because more things might have changed now that we can't use some nodes
+        let (new_satisfiable, new_unsatisfiable) = find_unsatisfiable_nodes(satisfiable, fbas);
+        unsatisfiable.extend(new_unsatisfiable);
+        satisfiable = new_satisfiable;
+    }
+    (satisfiable, unsatisfiable)
+}
+
 fn reduce_to_strongly_connected_components(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
     // can probably be done faster
     let k = nodes.len();
@@ -145,6 +180,17 @@ mod tests {
 
         let expected = vec![bitset![2], bitset![0, 1]];
         let actual = find_minimal_quorums(&fbas);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_unsatisfiable_nodes_in_unconfigured_fbas() {
+        let fbas = Fbas::new_generic_unconfigured(10);
+        let all_nodes: Vec<NodeId> = (0..10).collect();
+
+        let expected = (vec![], all_nodes.clone());
+        let actual = find_unsatisfiable_nodes(all_nodes, &fbas);
 
         assert_eq!(expected, actual);
     }
