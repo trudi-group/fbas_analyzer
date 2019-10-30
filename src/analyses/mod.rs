@@ -45,9 +45,9 @@ impl<'a> Analysis<'a> {
         !self.minimal_quorums().is_empty() && all_interesect(self.minimal_quorums())
     }
     pub fn unsatisfiable_nodes(&self) -> Vec<NodeId> {
-        let all_nodes: Vec<NodeId> = (0..self.fbas.nodes.len()).collect();
-        let (_, unsatisfiable) = find_unsatisfiable_nodes(all_nodes, self.fbas);
-        unsatisfiable
+        let all_nodes: NodeIdSet = (0..self.fbas.nodes.len()).collect();
+        let (_, unsatisfiable) = find_unsatisfiable_nodes(&all_nodes, self.fbas);
+        unsatisfiable.into_iter().collect()
     }
     pub fn minimal_quorums(&mut self) -> &[NodeIdSet] {
         if self.minimal_quorums.is_none() {
@@ -174,10 +174,6 @@ impl Fbas {
     /// Comfort function; we recommend using `Analysis` directly
     pub fn has_quorum_intersection(&self) -> bool {
         Analysis::new(&self).has_quorum_intersection()
-    }
-    /// Check whether a quorum set can be satisfied at all
-    pub fn is_satisfiable(&self, quorum_set: &QuorumSet) -> bool {
-        quorum_set.is_quorum(&(0..self.nodes.len()).collect())
     }
 }
 
@@ -340,43 +336,5 @@ mod tests {
         let actual = organizations.collapse_node_sets(node_sets);
 
         assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn quorum_set_satisfiable() {
-        let fbas = Fbas::new_generic_unconfigured(5);
-
-        let broken_in_general_1 = QuorumSet::new();
-        let broken_in_general_2 = QuorumSet {
-            threshold: 3,
-            validators: vec![0, 1],
-            inner_quorum_sets: vec![],
-        };
-
-        let broken_for_fbas = QuorumSet {
-            threshold: 3,
-            validators: vec![0, 1, 23, 42],
-            inner_quorum_sets: vec![],
-        };
-
-        let satisfiable_1 = QuorumSet {
-            threshold: 3,
-            validators: vec![0, 1, 2, 4],
-            inner_quorum_sets: vec![],
-        };
-        let satisfiable_2 = QuorumSet {
-            threshold: 3,
-            validators: vec![0, 1, 23, 43],
-            inner_quorum_sets: vec![
-                satisfiable_1.clone(),
-                broken_for_fbas.clone(),
-                broken_in_general_1.clone(),
-            ],
-        };
-        assert!(!fbas.is_satisfiable(&broken_in_general_1));
-        assert!(!fbas.is_satisfiable(&broken_in_general_2));
-        assert!(!fbas.is_satisfiable(&broken_for_fbas));
-        assert!(fbas.is_satisfiable(&satisfiable_1));
-        assert!(fbas.is_satisfiable(&satisfiable_2));
     }
 }
