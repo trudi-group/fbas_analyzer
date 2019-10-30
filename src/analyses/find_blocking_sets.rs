@@ -1,8 +1,6 @@
 use super::*;
 use std::ops::Index;
 
-struct MembershipsMap(Vec<BitSet>);
-
 pub fn find_minimal_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
     debug!("Getting blocking sets...");
     let blocking_sets = find_blocking_sets(node_sets);
@@ -92,6 +90,7 @@ fn sort_by_number_of_node_set_memberships(
     nodes
 }
 
+struct MembershipsMap(Vec<BitSet>);
 impl Index<NodeId> for MembershipsMap {
     type Output = BitSet;
     fn index(&self, i: NodeId) -> &BitSet {
