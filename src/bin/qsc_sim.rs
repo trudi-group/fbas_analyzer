@@ -11,9 +11,13 @@ use std::rc::Rc;
 /// QSC strategies selected via SUBCOMMAND.
 #[derive(Debug, StructOpt)]
 struct Cli {
-    /// Nodes to spawn / final size of the simulated FBAS
-    #[structopt(short = "n")]
-    number_of_nodes: usize,
+    /// Initial size of the simulated FBAS. Default is 0.
+    #[structopt(short = "i", long = "initial", default_value = "0")]
+    initial_n: usize,
+
+    /// If set, adds the specified number of nodes via simulated organic growth.
+    #[structopt(short = "g", long = "grow-by", default_value = "0")]
+    grow_by_n: usize,
 
     /// Quorum set configuration strategy to simulate
     #[structopt(subcommand)]
@@ -71,12 +75,13 @@ fn main() -> CliResult {
     let monitor = Rc::new(monitors::DebugMonitor::new());
 
     let mut simulator = Simulator::new(
-        Fbas::new(),
+        Fbas::new_generic_unconfigured(args.initial_n),
         qsc,
         Rc::clone(&monitor) as Rc<dyn SimulationMonitor>,
     );
-    simulator.simulate_growth(args.number_of_nodes);
     eprintln!("Starting simulation...");
+    simulator.simulate_global_reevaluation(args.initial_n);
+    simulator.simulate_growth(args.grow_by_n);
     let fbas = simulator.finalize();
     eprintln!("Finished simulation, dumping FBAS...");
     println!("{}", fbas.to_json_string_pretty());
