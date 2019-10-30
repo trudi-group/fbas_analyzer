@@ -2,9 +2,39 @@ use super::*;
 use std::ops::Index;
 
 pub fn find_minimal_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
+    find_optionally_smallest_minimal_blocking_sets(node_sets, None)
+}
+
+pub fn find_smallest_minimal_blocking_sets(
+    node_sets: &[NodeIdSet],
+    epsilon: usize,
+) -> Vec<NodeIdSet> {
+    find_optionally_smallest_minimal_blocking_sets(node_sets, Some(epsilon))
+}
+
+pub fn find_optionally_smallest_minimal_blocking_sets(
+    node_sets: &[NodeIdSet],
+    o_epsilon: Option<usize>,
+) -> Vec<NodeIdSet> {
     debug!("Getting blocking sets...");
-    let blocking_sets = find_blocking_sets(node_sets);
+    let mut blocking_sets = find_blocking_sets(node_sets);
     info!("Found {} blocking sets.", blocking_sets.len());
+    if blocking_sets.is_empty() {
+        return blocking_sets;
+    } else if let Some(epsilon) = o_epsilon {
+        debug!(
+            "Reducing to smallest blocking sets, with epsilon {}.",
+            epsilon
+        );
+        blocking_sets = reduce_to_smallest(blocking_sets, epsilon);
+        let minimal_size = blocking_sets[0].len();
+        info!(
+            "Reduced to {} blocking sets with size between {} and {}.",
+            blocking_sets.len(),
+            minimal_size,
+            minimal_size + epsilon
+        );
+    }
     let minimal_blocking_sets = remove_non_minimal_node_sets(blocking_sets);
     info!(
         "Reduced to {} minimal blocking sets.",
@@ -124,14 +154,51 @@ mod tests {
     #[test]
     fn find_minimal_blocking_sets_less_simple() {
         let node_sets = vec![
-            bitset![0, 1],
-            bitset![0, 2],
-            bitset![1, 3],
-            bitset![0, 1, 2],
+            bitset![0, 2, 7],
+            bitset![1, 3, 8],
+            bitset![0, 1, 4, 9],
+            bitset![0, 1, 2, 5],
         ];
-
-        let expected = vec![bitset![0, 1], bitset![0, 3], bitset![1, 2]];
+        let expected = vec![
+            bitset![0, 1],
+            bitset![0, 3],
+            bitset![0, 8],
+            bitset![1, 2],
+            bitset![1, 7],
+            bitset![2, 3, 4],
+            bitset![2, 3, 9],
+            bitset![2, 4, 8],
+            bitset![2, 8, 9],
+            bitset![3, 4, 5, 7],
+            bitset![3, 5, 7, 9],
+            bitset![4, 5, 7, 8],
+            bitset![5, 7, 8, 9],
+        ];
         let actual = find_minimal_blocking_sets(&node_sets);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_smallest_minimal_blocking_sets_less_simple() {
+        let node_sets = vec![
+            bitset![0, 2, 7],
+            bitset![1, 3, 8],
+            bitset![0, 1, 4, 9],
+            bitset![0, 1, 2, 5],
+        ];
+        let expected = vec![
+            bitset![0, 1],
+            bitset![0, 3],
+            bitset![0, 8],
+            bitset![1, 2],
+            bitset![1, 7],
+            bitset![2, 3, 4],
+            bitset![2, 3, 9],
+            bitset![2, 4, 8],
+            bitset![2, 8, 9],
+        ];
+        let actual = find_smallest_minimal_blocking_sets(&node_sets, 1);
 
         assert_eq!(expected, actual);
     }

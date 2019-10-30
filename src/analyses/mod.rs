@@ -6,38 +6,44 @@ mod find_blocking_sets;
 mod find_intersections;
 mod find_quorums;
 
-pub use find_blocking_sets::find_minimal_blocking_sets;
-pub use find_intersections::find_minimal_intersections;
+pub use find_blocking_sets::{
+    find_minimal_blocking_sets, find_optionally_smallest_minimal_blocking_sets,
+    find_smallest_minimal_blocking_sets,
+};
+pub use find_intersections::{
+    find_minimal_intersections, find_optionally_smallest_minimal_intersections,
+    find_smallest_minimal_intersections,
+};
 pub use find_quorums::{find_minimal_quorums, find_unsatisfiable_nodes};
 
 /// Most methods require &mut because they cache intermediate results.
 pub struct Analysis<'a> {
     fbas: &'a Fbas,
+    organizations: Option<&'a Organizations<'a>>,
+    epsilon: Option<usize>,
     minimal_quorums: Option<Vec<NodeIdSet>>,
     minimal_blocking_sets: Option<Vec<NodeIdSet>>,
     minimal_intersections: Option<Vec<NodeIdSet>>,
-    organizations: Option<&'a Organizations<'a>>,
 }
 impl<'a> Analysis<'a> {
     pub fn new(fbas: &'a Fbas) -> Self {
         Analysis {
             fbas,
+            organizations: None,
+            epsilon: None,
             minimal_quorums: None,
             minimal_blocking_sets: None,
             minimal_intersections: None,
-            organizations: None,
         }
     }
-    pub fn new_with_collapsing_by_organization(
-        fbas: &'a Fbas,
-        organizations: &'a Organizations,
-    ) -> Self {
+    pub fn new_with_options(fbas: &'a Fbas, organizations: Option<&'a Organizations<'a>>, epsilon: Option<usize>) -> Self {
         Analysis {
             fbas,
+            organizations: organizations,
+            epsilon: epsilon,
             minimal_quorums: None,
             minimal_blocking_sets: None,
             minimal_intersections: None,
-            organizations: Some(organizations),
         }
     }
     pub fn has_quorum_intersection(&mut self) -> bool {
@@ -68,7 +74,11 @@ impl<'a> Analysis<'a> {
     pub fn minimal_blocking_sets(&mut self) -> &[NodeIdSet] {
         if self.minimal_blocking_sets.is_none() {
             warn!("Computing minimal blocking sets...");
-            self.minimal_blocking_sets = Some(find_minimal_blocking_sets(self.minimal_quorums()));
+            let o_epsilon = self.epsilon; // for the borrow checker
+            self.minimal_blocking_sets = Some(find_optionally_smallest_minimal_blocking_sets(
+                self.minimal_quorums(),
+                o_epsilon,
+            ));
         } else {
             info!("Using cached minimal blocking sets.");
         }
@@ -77,7 +87,11 @@ impl<'a> Analysis<'a> {
     pub fn minimal_intersections(&mut self) -> &[NodeIdSet] {
         if self.minimal_intersections.is_none() {
             warn!("Computing minimal intersections...");
-            self.minimal_intersections = Some(find_minimal_intersections(self.minimal_quorums()));
+            let o_epsilon = self.epsilon; // for the borrow checker
+            self.minimal_intersections = Some(find_optionally_smallest_minimal_intersections(
+                self.minimal_quorums(),
+                o_epsilon,
+            ));
         } else {
             info!("Using cached minimal intersections.");
         }
@@ -135,8 +149,7 @@ pub fn involved_nodes(node_sets: &[NodeIdSet]) -> Vec<NodeId> {
 }
 
 /// Reduce to minimal node sets, i.e. to a set of node sets so that no member set is a superset of another.
-pub fn remove_non_minimal_node_sets(node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
-    let mut node_sets = node_sets;
+pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
     let mut minimal_node_sets: Vec<NodeIdSet> = vec![];
 
     node_sets.sort_by(|x, y| x.len().cmp(&y.len()));
@@ -147,6 +160,21 @@ pub fn remove_non_minimal_node_sets(node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet>
         }
     }
     minimal_node_sets
+}
+
+/// Keep only the smallest node sets and node sets with up to `epsilon` more nodes.
+/// Helpful for avoiding lengthy computations.
+pub fn reduce_to_smallest(mut node_sets: Vec<NodeIdSet>, epsilon: usize) -> Vec<NodeIdSet> {
+    if !node_sets.is_empty() {
+        node_sets.sort_by(|x, y| x.len().cmp(&y.len()));
+        let minimal_size = node_sets[0].len();
+        node_sets = node_sets
+            .iter()
+            .cloned()
+            .take_while(|x| x.len() <= minimal_size + epsilon)
+            .collect();
+    }
+    node_sets
 }
 
 impl<'fbas> Organizations<'fbas> {
@@ -276,7 +304,7 @@ mod tests {
             }]"#,
             &fbas,
         );
-        let mut analysis = Analysis::new_with_collapsing_by_organization(&fbas, &organizations);
+        let mut analysis = Analysis::new_with_options(&fbas, Some(&organizations), None);
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(analysis.minimal_quorums().len(), 1);
@@ -335,6 +363,22 @@ mod tests {
         let expected = vec![bitset![0], bitset![0, 2]];
         let actual = organizations.collapse_node_sets(node_sets);
 
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn reduce_to_smallest_reduces_to_smallest_and_not_more() {
+        let node_sets = vec![
+            bitset![0],
+            bitset![1, 2, 3, 4, 5, 9],
+            bitset![0, 2],
+            bitset![1, 2, 5],
+            bitset![1, 2, 7, 9],
+            bitset![1, 2],
+        ];
+
+        let actual = reduce_to_smallest(node_sets, 1);
+        let expected = vec![bitset![0], bitset![0, 2], bitset![1, 2]];
         assert_eq!(expected, actual);
     }
 }

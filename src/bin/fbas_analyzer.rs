@@ -37,6 +37,12 @@ struct Cli {
     #[structopt(short = "d", long = "describe")]
     describe: bool,
 
+    /// For blocking sets and intersections discovery, keep only the smallest node sets and node
+    /// sets with up to `epsilon` more nodes. This is a simplification for avoiding lengthy
+    /// computations when we are only interested in the smaller sets anyway.
+    #[structopt(short = "e", long = "epsilon")]
+    epsilon: Option<usize>,
+
     /// Silence the commentary about what is what and what it means
     #[structopt(short = "s", long = "silent")]
     silent: bool,
@@ -73,11 +79,7 @@ fn main() -> CliResult {
         None
     };
 
-    let mut analysis = if organizations.is_some() {
-        Analysis::new_with_collapsing_by_organization(&fbas, organizations.as_ref().unwrap())
-    } else {
-        Analysis::new(&fbas)
-    };
+    let mut analysis = Analysis::new_with_options(&fbas, organizations.as_ref(), args.epsilon);
 
     let (q, c, b, i) = (
         args.minimal_quorums,
