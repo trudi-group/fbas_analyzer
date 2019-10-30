@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json;
 
 use std::fs;
@@ -9,19 +9,6 @@ use crate::*;
 
 #[derive(Serialize, Deserialize)]
 struct RawFbas(Vec<RawNode>);
-impl RawFbas {
-    fn from_json_str(json: &str) -> Self {
-        serde_json::from_str(json).expect("Error parsing JSON")
-    }
-    fn from_json_file(path: &Path) -> Self {
-        let json =
-            fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
-        Self::from_json_str(&json)
-    }
-    fn from_json_stdin() -> Self {
-        serde_json::from_reader(io::stdin()).expect("Error reading JSON from STDIN")
-    }
-}
 #[derive(Serialize, Deserialize)]
 struct RawNode {
     #[serde(rename = "publicKey")]
@@ -29,7 +16,7 @@ struct RawNode {
     #[serde(rename = "quorumSet", default)]
     quorum_set: RawQuorumSet,
 }
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
 struct RawQuorumSet {
     threshold: usize,
     validators: Vec<PublicKey>,
@@ -39,19 +26,21 @@ struct RawQuorumSet {
 
 impl Fbas {
     pub fn from_json_str(json: &str) -> Self {
-        Self::from_raw(RawFbas::from_json_str(json))
+        serde_json::from_str(json).expect("Error parsing FBAS JSON")
     }
     pub fn from_json_file(path: &Path) -> Self {
-        Self::from_raw(RawFbas::from_json_file(path))
+        let json =
+            fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
+        Self::from_json_str(&json)
     }
     pub fn from_json_stdin() -> Self {
-        Self::from_raw(RawFbas::from_json_stdin())
+        serde_json::from_reader(io::stdin()).expect("Error reading FBAS JSON from STDIN")
     }
     pub fn to_json_string(&self) -> String {
-        serde_json::to_string(&self.to_raw()).expect("Error converting FBAS to JSON!")
+        serde_json::to_string(&self).expect("Error converting FBAS to JSON!")
     }
     pub fn to_json_string_pretty(&self) -> String {
-        serde_json::to_string_pretty(&self.to_raw()).expect("Error converting FBAS to JSON!")
+        serde_json::to_string_pretty(&self).expect("Error converting FBAS to pretty JSON!")
     }
     fn from_raw(raw_fbas: RawFbas) -> Self {
         let raw_nodes = raw_fbas.0;
@@ -71,6 +60,23 @@ impl Fbas {
     }
     fn to_raw(&self) -> RawFbas {
         RawFbas(self.nodes.iter().map(|n| n.to_raw(&self)).collect())
+    }
+}
+impl Serialize for Fbas {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.to_raw().serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for Fbas {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw_fbas = RawFbas::deserialize(deserializer)?;
+        Ok(Fbas::from_raw(raw_fbas))
     }
 }
 impl Node {
@@ -110,7 +116,10 @@ impl QuorumSet {
             validators: self
                 .validators
                 .iter()
-                .map(|&v| fbas.nodes[v].public_key.clone())
+                .map(|&v| match fbas.nodes.get(v) {
+                    Some(node) => node.public_key.clone(),
+                    None => format!("missing #{}", v),
+                })
                 .collect(),
             inner_quorum_sets: self
                 .inner_quorum_sets
@@ -121,31 +130,26 @@ impl QuorumSet {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct RawOrganizations(Vec<RawOrganization>);
-impl RawOrganizations {
-    fn from_json_str(json: &str) -> Self {
-        serde_json::from_str(json).expect("Error parsing JSON")
-    }
-    fn from_json_file(path: &Path) -> Self {
-        let json =
-            fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
-        Self::from_json_str(&json)
-    }
-}
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct RawOrganization {
     name: String,
     validators: Vec<PublicKey>,
 }
-impl Organizations {
-    pub fn from_json_str(json: &str, fbas: &Fbas) -> Self {
-        Self::from_raw(RawOrganizations::from_json_str(json), fbas)
+impl<'fbas> Organizations<'fbas> {
+    pub fn from_json_str(json: &str, fbas: &'fbas Fbas) -> Self {
+        Self::from_raw(
+            serde_json::from_str(json).expect("Error parsing Organizations JSON"),
+            fbas,
+        )
     }
-    pub fn from_json_file(path: &Path, fbas: &Fbas) -> Self {
-        Self::from_raw(RawOrganizations::from_json_file(path), fbas)
+    pub fn from_json_file(path: &Path, fbas: &'fbas Fbas) -> Self {
+        let json =
+            fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
+        Self::from_json_str(&json, fbas)
     }
-    fn from_raw(raw_organizations: RawOrganizations, fbas: &Fbas) -> Self {
+    fn from_raw(raw_organizations: RawOrganizations, fbas: &'fbas Fbas) -> Self {
         let organizations: Vec<Organization> = raw_organizations
             .0
             .into_iter()
@@ -153,6 +157,22 @@ impl Organizations {
             .collect();
 
         Organizations::new(organizations, fbas)
+    }
+    fn to_raw(&self) -> RawOrganizations {
+        RawOrganizations(
+            self.organizations
+                .iter()
+                .map(|org| org.to_raw(self.fbas))
+                .collect(),
+        )
+    }
+}
+impl<'fbas> Serialize for Organizations<'fbas> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.to_raw().serialize(serializer)
     }
 }
 impl Organization {
@@ -167,44 +187,108 @@ impl Organization {
                 .collect(),
         }
     }
+    fn to_raw(&self, fbas: &Fbas) -> RawOrganization {
+        RawOrganization {
+            name: self.name.clone(),
+            validators: self
+                .validators
+                .iter()
+                .map(|&x| fbas.nodes[x].public_key.clone())
+                .collect(),
+        }
+    }
 }
 
-/// Nodes represented by NodeIds (which should be equal to nodes' indices in the input JSON).
-pub fn to_json_string_using_node_ids(node_sets: &[NodeIdSet]) -> String {
-    let node_sets: Vec<Vec<NodeId>> = node_sets.iter().map(|x| x.iter().collect()).collect();
-
-    serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
+macro_rules! json_format {
+    ($x:expr) => {
+        serde_json::to_string(&$x).expect("Error formatting as JSON")
+    };
 }
-
-/// Nodes represented by their public keys.
-pub fn to_json_string_using_public_keys(node_sets: &[NodeIdSet], fbas: &Fbas) -> String {
-    let node_sets: Vec<Vec<&PublicKey>> = node_sets
-        .iter()
-        .map(|x| x.iter().map(|x| &fbas.nodes[x].public_key).collect())
-        .collect();
-
-    serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
-}
-
-/// Nodes represented by their organization's name.
-pub fn to_json_string_using_organization_names(
+/// Smart format. If `output_description`, only statistics are output. If `output_pretty`,
+/// public keys or organization IDs (if available) are used instead of node IDs.
+pub fn format_node_id_sets(
     node_sets: &[NodeIdSet],
     fbas: &Fbas,
-    organizations: &Organizations,
+    organizations: &Option<Organizations>,
+    output_description: bool,
+    output_pretty: bool,
 ) -> String {
-    let node_sets: Vec<Vec<&String>> = node_sets
+    if output_description {
+        format!("{:?}", describe(node_sets))
+    } else if output_pretty {
+        if let Some(ref orgs) = organizations {
+            json_format!(to_organization_names_vecs(node_sets, &fbas, &orgs))
+        } else {
+            json_format!(to_public_keys_vecs(node_sets, &fbas))
+        }
+    } else {
+        json_format!(to_node_ids_vecs(node_sets))
+    }
+}
+/// Smart format. If `output_description`, only their count is output. If `output_pretty`,
+/// public keys or organization IDs (if available) are used instead of node IDs.
+pub fn format_node_ids(
+    node_ids: &[NodeId],
+    fbas: &Fbas,
+    organizations: &Option<Organizations>,
+    output_description: bool,
+    output_pretty: bool,
+) -> String {
+    if output_description {
+        format!("{}", node_ids.len())
+    } else if output_pretty {
+        if let Some(ref orgs) = organizations {
+            json_format!(to_organization_names(node_ids.iter().copied(), fbas, orgs))
+        } else {
+            json_format!(to_public_keys(node_ids.iter().copied(), fbas))
+        }
+    } else {
+        json_format!(node_ids)
+    }
+}
+fn to_node_ids_vecs(node_sets: &[NodeIdSet]) -> Vec<Vec<NodeId>> {
+    node_sets.iter().map(|x| x.iter().collect()).collect()
+}
+fn to_public_keys_vecs<'fbas>(
+    node_sets: &[NodeIdSet],
+    fbas: &'fbas Fbas,
+) -> Vec<Vec<&'fbas PublicKey>> {
+    node_sets
         .iter()
-        .map(|x| {
-            x.iter()
-                .map(|x| match &organizations.get_by_member(x) {
-                    Some(org) => &org.name,
-                    None => &fbas.nodes[x].public_key,
-                })
-                .collect()
+        .map(|node_set| to_public_keys(node_set, fbas))
+        .collect()
+}
+fn to_public_keys<'fbas>(
+    node_ids: impl IntoIterator<Item = NodeId>,
+    fbas: &'fbas Fbas,
+) -> Vec<&'fbas PublicKey> {
+    node_ids
+        .into_iter()
+        .map(|id| &fbas.nodes[id].public_key)
+        .collect()
+}
+fn to_organization_names_vecs<'a>(
+    node_sets: &[NodeIdSet],
+    fbas: &'a Fbas,
+    organizations: &'a Organizations,
+) -> Vec<Vec<&'a PublicKey>> {
+    node_sets
+        .iter()
+        .map(|node_set| to_organization_names(node_set, fbas, organizations))
+        .collect()
+}
+fn to_organization_names<'a>(
+    node_ids: impl IntoIterator<Item = NodeId>,
+    fbas: &'a Fbas,
+    organizations: &'a Organizations,
+) -> Vec<&'a PublicKey> {
+    node_ids
+        .into_iter()
+        .map(|id| match &organizations.get_by_member(id) {
+            Some(org) => &org.name,
+            None => &fbas.nodes[id].public_key,
         })
-        .collect();
-
-    serde_json::to_string(&node_sets).expect("Error converting node set to JSON!")
+        .collect()
 }
 
 #[cfg(test)]
@@ -320,6 +404,23 @@ mod tests {
         let json = original.to_json_string();
         let recombined = Fbas::from_json_str(&json);
         assert_eq!(original, recombined);
+    }
+
+    #[test]
+    fn can_serizalize_quorum_sets_with_unknown_nodes() {
+        let fbas = Fbas::new();
+        let quorum_set = QuorumSet {
+            threshold: 2,
+            validators: vec![0, 1].into_iter().collect(),
+            inner_quorum_sets: Default::default(),
+        };
+        let expected = RawQuorumSet {
+            threshold: 2,
+            validators: vec![String::from("missing #0"), String::from("missing #1")],
+            inner_quorum_sets: vec![],
+        };
+        let actual = quorum_set.to_raw(&fbas);
+        assert_eq!(expected, actual);
     }
 
     // broken since we also have "organizations" test files now

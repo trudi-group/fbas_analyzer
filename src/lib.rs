@@ -6,10 +6,7 @@ mod types;
 use types::*;
 pub use types::{Fbas, NodeIdSet, Organizations};
 
-pub use io::{
-    to_json_string_using_node_ids, to_json_string_using_organization_names,
-    to_json_string_using_public_keys,
-};
+pub use io::{format_node_id_sets, format_node_ids};
 
 pub use analyses::{
     all_interesect, describe, find_minimal_blocking_sets, find_minimal_intersections,

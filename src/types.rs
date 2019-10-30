@@ -108,38 +108,41 @@ impl QuorumSet {
     }
 }
 
-pub struct Organizations {
+pub struct Organizations<'fbas> {
     pub(crate) organizations: Vec<Organization>,
     pub(crate) collapsed_ids: Vec<NodeId>,
-    id_to_org_idx: HashMap<NodeId, usize>,
+    node_id_to_org_idx: HashMap<NodeId, usize>,
+    // for ensuring fbas remains stable + serializeability via Serialize trait
+    pub(crate) fbas: &'fbas Fbas,
 }
 pub struct Organization {
     pub(crate) name: String,
     pub(crate) validators: Vec<NodeId>,
 }
-impl Organizations {
-    pub fn new(organizations: Vec<Organization>, fbas: &Fbas) -> Self {
+impl<'fbas> Organizations<'fbas> {
+    pub fn new(organizations: Vec<Organization>, fbas: &'fbas Fbas) -> Self {
         let mut collapsed_ids: Vec<NodeId> = (0..fbas.nodes.len()).collect();
-        let mut id_to_org_idx: HashMap<NodeId, usize> = HashMap::new();
+        let mut node_id_to_org_idx: HashMap<NodeId, usize> = HashMap::new();
 
         for (org_idx, org) in organizations.iter().enumerate() {
             let mut validator_it = org.validators.iter().copied();
             if let Some(collapsed_id) = validator_it.next() {
-                id_to_org_idx.insert(collapsed_id, org_idx);
+                node_id_to_org_idx.insert(collapsed_id, org_idx);
                 for validator in validator_it {
                     collapsed_ids[validator] = collapsed_id;
-                    id_to_org_idx.insert(validator, org_idx);
+                    node_id_to_org_idx.insert(validator, org_idx);
                 }
             }
         }
         Organizations {
             organizations,
             collapsed_ids,
-            id_to_org_idx,
+            node_id_to_org_idx,
+            fbas,
         }
     }
     pub fn get_by_member(self: &Self, node_id: NodeId) -> Option<&Organization> {
-        if let Some(&org_idx) = self.id_to_org_idx.get(&node_id) {
+        if let Some(&org_idx) = self.node_id_to_org_idx.get(&node_id) {
             Some(&self.organizations[org_idx])
         } else {
             None
@@ -164,6 +167,7 @@ macro_rules! bitset {
     (@single $($x:tt)*) => (());
     (@count $($rest:expr),*) => (<[()]>::len(&[$(bitset!(@single $rest)),*]));
 
+    () => { ::bit_set::BitSet::new(); };
     ($($key:expr,)+) => { bitset!($($key),+) };
     ($($key:expr),*) => {
         {

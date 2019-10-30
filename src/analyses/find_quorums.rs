@@ -8,23 +8,40 @@ pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     minimal_quorums
 }
 
-pub fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
-    let n = fbas.nodes.len();
-    let mut unprocessed: Vec<NodeId> = (0..n).collect();
+fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
+    let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
+
+    debug!("Removing nodes not part of any quorum...");
+    let (satisfiable, unsatisfiable) = find_unsatisfiable_nodes(&all_nodes, fbas);
+    if !unsatisfiable.is_empty() {
+        warn!(
+            "The quorum sets of nodes {:?} are not satisfiable at all in the given FBAS!",
+            unsatisfiable
+        );
+        info!(
+            "Ignoring {} unsatisfiable nodes ({} nodes left).",
+            unsatisfiable.len(),
+            satisfiable.len()
+        );
+    } else {
+        debug!("All nodes are satisfiable");
+    }
 
     debug!("Reducing to strongly connected components...");
-    unprocessed = reduce_to_strongly_connected_components(unprocessed, fbas);
+    let (strongly_connected, not_strongly_connected) =
+        reduce_to_strongly_connected_components(satisfiable, fbas);
     info!(
-        "Reducing to strongly connected components removed {} of {} nodes...",
-        n - unprocessed.len(),
-        n
+        "Ignoring {} not strongly connected nodes ({} nodes left).",
+        not_strongly_connected.len(),
+        strongly_connected.len(),
     );
 
     debug!("Sorting nodes by rank...");
-    unprocessed = sort_by_rank(unprocessed, fbas);
+    let sorted = sort_by_rank(strongly_connected.into_iter().collect(), fbas);
     debug!("Sorted.");
 
-    let mut selection = NodeIdSet::with_capacity(n);
+    let unprocessed = sorted;
+    let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
     let mut available = unprocessed.iter().cloned().collect();
 
     fn step(
@@ -65,8 +82,48 @@ pub fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     )
 }
 
+pub fn find_unsatisfiable_nodes(nodes: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
+    let (mut satisfiable, mut unsatisfiable) = (bitset![], bitset![]);
+    for node_id in nodes.iter() {
+        if fbas.nodes[node_id].quorum_set.is_quorum(&nodes) {
+            satisfiable.insert(node_id);
+        } else {
+            unsatisfiable.insert(node_id);
+        }
+    }
+    if !unsatisfiable.is_empty() {
+        // because more things might have changed now that we can't use some nodes
+        let (new_satisfiable, new_unsatisfiable) = find_unsatisfiable_nodes(&satisfiable, fbas);
+        unsatisfiable.union_with(&new_unsatisfiable);
+        satisfiable = new_satisfiable;
+    }
+    (satisfiable, unsatisfiable)
+}
+
+fn reduce_to_strongly_connected_components(
+    mut nodes: NodeIdSet,
+    fbas: &Fbas,
+) -> (NodeIdSet, NodeIdSet) {
+    // can probably be done faster, all of this
+    let mut removed_nodes = nodes.clone();
+    for node_id in nodes.iter() {
+        let node = &fbas.nodes[node_id];
+        for included_node in node.quorum_set.contained_nodes().into_iter() {
+            removed_nodes.remove(included_node);
+        }
+    }
+    if !removed_nodes.is_empty() {
+        nodes.difference_with(&removed_nodes);
+        let (reduced_nodes, new_removed_nodes) =
+            reduce_to_strongly_connected_components(nodes, fbas);
+        nodes = reduced_nodes;
+        removed_nodes.union_with(&new_removed_nodes);
+    }
+    (nodes, removed_nodes)
+}
+
 /// A quick and dirty something resembling page rank
-pub fn sort_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
+fn sort_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
     // TODO not protected against overflows ...
     let mut scores: Vec<u64> = vec![1; fbas.nodes.len()];
 
@@ -87,30 +144,6 @@ pub fn sort_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
     // sort by "highest score first"
     nodes.sort_by(|x, y| scores[*y].cmp(&scores[*x]));
     nodes
-}
-
-fn reduce_to_strongly_connected_components(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
-    // can probably be done faster
-    let k = nodes.len();
-    let reduced_once = remove_nodes_not_included_in_quorum_slices(nodes, fbas);
-
-    if reduced_once.len() < k {
-        reduce_to_strongly_connected_components(reduced_once, fbas)
-    } else {
-        reduced_once
-    }
-}
-
-fn remove_nodes_not_included_in_quorum_slices(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
-    let mut included_nodes = NodeIdSet::with_capacity(fbas.nodes.len());
-
-    for node_id in nodes {
-        let node = &fbas.nodes[node_id];
-        for included_node in node.quorum_set.contained_nodes().into_iter() {
-            included_nodes.insert(included_node);
-        }
-    }
-    included_nodes.into_iter().collect()
 }
 
 #[cfg(test)]
@@ -147,5 +180,73 @@ mod tests {
         let actual = find_minimal_quorums(&fbas);
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_unsatisfiable_nodes_in_unconfigured_fbas() {
+        let fbas = Fbas::new_generic_unconfigured(10);
+        let all_nodes: NodeIdSet = (0..10).collect();
+
+        let actual = find_unsatisfiable_nodes(&all_nodes, &fbas);
+        let expected = (bitset![], all_nodes);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_transitivel_unsatisfiable_nodes() {
+        let mut fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
+
+        let directly_unsatisfiable = fbas.add_generic_node(QuorumSet::new());
+        let transitively_unsatisfiable = fbas.add_generic_node(QuorumSet {
+            threshold: 1,
+            validators: vec![directly_unsatisfiable],
+            inner_quorum_sets: vec![],
+        });
+
+        fbas.nodes[0]
+            .quorum_set
+            .validators
+            .push(directly_unsatisfiable);
+        fbas.nodes[1]
+            .quorum_set
+            .validators
+            .push(transitively_unsatisfiable);
+
+        let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
+        let (_, unsatisfiable) = find_unsatisfiable_nodes(&all_nodes, &fbas);
+
+        assert!(unsatisfiable.contains(directly_unsatisfiable));
+        assert!(unsatisfiable.contains(transitively_unsatisfiable));
+    }
+
+    #[test]
+    fn unsatisfiable_nodes_dont_end_up_in_strongly_connected_components() {
+        let mut fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
+
+        let directly_unsatisfiable = fbas.add_generic_node(QuorumSet::new());
+        let transitively_unsatisfiable = fbas.add_generic_node(QuorumSet {
+            threshold: 1,
+            validators: vec![directly_unsatisfiable],
+            inner_quorum_sets: vec![],
+        });
+
+        fbas.nodes[0]
+            .quorum_set
+            .validators
+            .push(directly_unsatisfiable);
+        fbas.nodes[1]
+            .quorum_set
+            .validators
+            .push(transitively_unsatisfiable);
+
+        let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
+        let (satisfiable, _) = find_unsatisfiable_nodes(&all_nodes, &fbas);
+        let (strongly_connected, _) = reduce_to_strongly_connected_components(satisfiable, &fbas);
+
+        assert!(strongly_connected.contains(0));
+        assert!(strongly_connected.contains(1));
+        assert!(!strongly_connected.contains(directly_unsatisfiable));
+        assert!(!strongly_connected.contains(transitively_unsatisfiable));
     }
 }

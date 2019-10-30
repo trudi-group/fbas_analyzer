@@ -8,7 +8,7 @@ mod find_quorums;
 
 pub use find_blocking_sets::find_minimal_blocking_sets;
 pub use find_intersections::find_minimal_intersections;
-pub use find_quorums::find_minimal_quorums;
+pub use find_quorums::{find_minimal_quorums, find_unsatisfiable_nodes};
 
 /// Most methods require &mut because they cache intermediate results.
 pub struct Analysis<'a> {
@@ -16,7 +16,7 @@ pub struct Analysis<'a> {
     minimal_quorums: Option<Vec<NodeIdSet>>,
     minimal_blocking_sets: Option<Vec<NodeIdSet>>,
     minimal_intersections: Option<Vec<NodeIdSet>>,
-    organizations: Option<&'a Organizations>,
+    organizations: Option<&'a Organizations<'a>>,
 }
 impl<'a> Analysis<'a> {
     pub fn new(fbas: &'a Fbas) -> Self {
@@ -42,7 +42,12 @@ impl<'a> Analysis<'a> {
     }
     pub fn has_quorum_intersection(&mut self) -> bool {
         info!("Checking for intersection of all minimal quorums...");
-        all_interesect(self.minimal_quorums())
+        !self.minimal_quorums().is_empty() && all_interesect(self.minimal_quorums())
+    }
+    pub fn unsatisfiable_nodes(&self) -> Vec<NodeId> {
+        let all_nodes: NodeIdSet = (0..self.fbas.nodes.len()).collect();
+        let (_, unsatisfiable) = find_unsatisfiable_nodes(&all_nodes, self.fbas);
+        unsatisfiable.into_iter().collect()
     }
     pub fn minimal_quorums(&mut self) -> &[NodeIdSet] {
         if self.minimal_quorums.is_none() {
@@ -78,12 +83,8 @@ impl<'a> Analysis<'a> {
         }
         self.minimal_intersections.as_ref().unwrap()
     }
-    pub fn involved_nodes(&self) -> NodeIdSet {
-        let mut all_sets: Vec<NodeIdSet> = vec![];
-        all_sets.extend_from_slice(self.minimal_quorums.as_ref().unwrap_or(&vec![]));
-        all_sets.extend_from_slice(self.minimal_blocking_sets.as_ref().unwrap_or(&vec![]));
-        all_sets.extend_from_slice(self.minimal_intersections.as_ref().unwrap_or(&vec![]));
-        involved_nodes(&all_sets)
+    pub fn involved_nodes(&mut self) -> Vec<NodeId> {
+        involved_nodes(self.minimal_quorums())
     }
     fn maybe_collapse(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         if let Some(ref orgs) = self.organizations {
@@ -105,12 +106,7 @@ impl<'a> Analysis<'a> {
     }
 }
 
-impl Fbas {
-    pub fn has_quorum_intersection(&self) -> bool {
-        all_interesect(&find_minimal_quorums(&self))
-    }
-}
-
+/// Returns (number_of_sets, min_set_size, max_set_size, mean_set_size, number_of_distinct_nodes)
 pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, usize, f64, usize) {
     let min = node_sets.iter().map(|s| s.len()).min().unwrap_or(0);
     let max = node_sets.iter().map(|s| s.len()).max().unwrap_or(0);
@@ -130,12 +126,12 @@ pub fn all_interesect(node_sets: &[NodeIdSet]) -> bool {
         .all(|(i, x)| node_sets.iter().skip(i + 1).all(|y| !x.is_disjoint(y)))
 }
 
-pub fn involved_nodes(node_sets: &[NodeIdSet]) -> NodeIdSet {
+pub fn involved_nodes(node_sets: &[NodeIdSet]) -> Vec<NodeId> {
     let mut all_nodes: NodeIdSet = bitset![];
     for node_set in node_sets {
         all_nodes.union_with(node_set);
     }
-    all_nodes
+    all_nodes.into_iter().collect()
 }
 
 /// Reduce to minimal node sets, i.e. to a set of node sets so that no member set is a superset of another.
@@ -153,7 +149,7 @@ pub fn remove_non_minimal_node_sets(node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet>
     minimal_node_sets
 }
 
-impl Organizations {
+impl<'fbas> Organizations<'fbas> {
     /// Collapse a node ID so that all nodes by the same organization get the same ID.
     pub fn collapse_node(self: &Self, node_id: NodeId) -> NodeId {
         self.collapsed_ids[node_id]
@@ -171,6 +167,13 @@ impl Organizations {
             .into_iter()
             .map(|x| self.collapse_node_set(x))
             .collect()
+    }
+}
+
+impl Fbas {
+    /// Comfort function; we recommend using `Analysis` directly
+    pub fn has_quorum_intersection(&self) -> bool {
+        Analysis::new(&self).has_quorum_intersection()
     }
 }
 
@@ -194,8 +197,8 @@ mod tests {
         let correct = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
         let broken = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
 
-        assert!(correct.has_quorum_intersection());
-        assert!(!broken.has_quorum_intersection());
+        assert!(Analysis::new(&correct).has_quorum_intersection());
+        assert!(!Analysis::new(&broken).has_quorum_intersection());
     }
 
     #[test]
@@ -203,8 +206,8 @@ mod tests {
         let correct = Fbas::from_json_file(Path::new("test_data/correct.json"));
         let broken = Fbas::from_json_file(Path::new("test_data/broken.json"));
 
-        assert!(correct.has_quorum_intersection());
-        assert!(!broken.has_quorum_intersection());
+        assert!(Analysis::new(&correct).has_quorum_intersection());
+        assert!(!Analysis::new(&broken).has_quorum_intersection());
     }
 
     #[test]
@@ -221,7 +224,20 @@ mod tests {
             }
         ]"#,
         );
-        assert!(fbas.has_quorum_intersection());
+        assert!(Analysis::new(&fbas).has_quorum_intersection());
+    }
+
+    #[test]
+    fn no_has_quorum_intersection_if_there_is_no_quorum() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            }
+        ]"#,
+        );
+        assert!(!Analysis::new(&fbas).has_quorum_intersection());
     }
 
     #[test]
