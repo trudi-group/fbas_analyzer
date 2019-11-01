@@ -156,28 +156,29 @@ pub fn involved_nodes(node_sets: &[NodeIdSet]) -> Vec<NodeId> {
 pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
     let mut minimal_node_sets: Vec<NodeIdSet> = vec![];
 
-    node_sets.sort_by(|x, y| x.len().cmp(&y.len()));
+    debug!("Sorting node sets by length...");
+    node_sets.sort_by_cached_key(|x| x.len());
+    debug!("Sorting done.");
 
+    debug!("Filtering non-minimal node sets...");
     for node_set in node_sets.into_iter() {
         if minimal_node_sets.iter().all(|x| !x.is_subset(&node_set)) {
             minimal_node_sets.push(node_set);
         }
     }
+    debug!("Filtering done.");
     minimal_node_sets
 }
 
 /// Keep only the smallest node sets and node sets with up to `epsilon` more nodes.
 /// Helpful for avoiding lengthy computations.
 pub fn reduce_to_smallest(mut node_sets: Vec<NodeIdSet>, epsilon: usize) -> Vec<NodeIdSet> {
-    if !node_sets.is_empty() {
-        node_sets.sort_by(|x, y| x.len().cmp(&y.len()));
-        let minimal_size = node_sets[0].len();
-        node_sets = node_sets
-            .iter()
-            .cloned()
-            .take_while(|x| x.len() <= minimal_size + epsilon)
-            .collect();
-    }
+    let min = node_sets.iter().map(|x| x.len()).min().unwrap_or(0);
+    node_sets = node_sets
+        .iter()
+        .filter(|x| x.len() <= min + epsilon)
+        .cloned()
+        .collect();
     node_sets
 }
 
