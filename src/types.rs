@@ -181,6 +181,30 @@ macro_rules! bitset {
     };
 }
 
+/// Create a **Vec<BitSet>** from a list of sets.
+///
+/// ## Example
+///
+/// ```
+/// #[macro_use] extern crate fbas_analyzer;
+///
+/// let actual = bitsetvec![[0, 1], [23, 42]];
+/// let expected = vec![bitset![0, 1], bitset![23, 42]];
+/// assert_eq!(expected, actual);
+/// ```
+#[macro_export]
+macro_rules! bitsetvec {
+    ($($setcontent:tt),*) => {
+        {
+            vec![
+            $(
+                bitset!$setcontent
+            ),*
+            ]
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
