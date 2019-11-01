@@ -54,6 +54,7 @@ fn find_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
     let mut selection = NodeIdSet::new();
     let missing_node_sets: BitSet = (0..node_sets.len()).collect();
 
+    debug!("Collecting blocking sets...");
     fn step(
         unprocessed: &mut NodeIdDeque,
         selection: &mut NodeIdSet,

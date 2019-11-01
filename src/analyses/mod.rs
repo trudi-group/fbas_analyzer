@@ -36,11 +36,15 @@ impl<'a> Analysis<'a> {
             minimal_intersections: None,
         }
     }
-    pub fn new_with_options(fbas: &'a Fbas, organizations: Option<&'a Organizations<'a>>, epsilon: Option<usize>) -> Self {
+    pub fn new_with_options(
+        fbas: &'a Fbas,
+        organizations: Option<&'a Organizations<'a>>,
+        epsilon: Option<usize>,
+    ) -> Self {
         Analysis {
             fbas,
-            organizations: organizations,
-            epsilon: epsilon,
+            organizations,
+            epsilon,
             minimal_quorums: None,
             minimal_blocking_sets: None,
             minimal_intersections: None,

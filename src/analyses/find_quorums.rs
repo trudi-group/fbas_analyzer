@@ -44,6 +44,7 @@ fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
     let mut available = unprocessed.iter().cloned().collect();
 
+    debug!("Collecting quorums...");
     fn step(
         unprocessed: &mut NodeIdDeque,
         selection: &mut NodeIdSet,
