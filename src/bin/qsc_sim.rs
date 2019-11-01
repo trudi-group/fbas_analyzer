@@ -30,6 +30,9 @@ struct Cli {
 enum QuorumSetConfiguratorConfig {
     /// Creates threshold=n quorum sets containing all n nodes in the FBAS
     SuperSafe,
+    /// Builds quorum sets containing all n nodes in the FBAS, with thresholds chosen such that
+    /// a maximum of f nodes can fail, where (n-1) < (3f+1) <= n
+    Ideal,
     /// Creates random quorum sets of the given size and threshold, never adapts them
     SimpleRandom {
         desired_quorum_set_size: usize,
@@ -49,6 +52,7 @@ fn parse_qscc(qscc: QuorumSetConfiguratorConfig) -> Rc<dyn QuorumSetConfigurator
     use QuorumSetConfiguratorConfig::*;
     match qscc {
         SuperSafe => Rc::new(SuperSafeQsc::new()),
+        Ideal => Rc::new(IdealQsc::new()),
         SimpleRandom {
             desired_quorum_set_size,
             desired_threshold,
