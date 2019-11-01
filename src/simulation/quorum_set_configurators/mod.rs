@@ -67,7 +67,7 @@ impl SuperSafeQsc {
     }
 }
 
-/// Simple Quorum Set Configurator that build an optimal global configuration
+/// Simple Quorum Set Configurator that builds an optimal global configuration
 /// (if everybody plays along and there are no sybils attackers).
 ///
 /// Builds quorum sets containing all n nodes in the FBAS, with thresholds chosen such that

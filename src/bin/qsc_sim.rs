@@ -41,13 +41,21 @@ enum QuorumSetConfiguratorConfig {
     /// Chooses quorum sets based on a synthetic scale-free graph (BA with m0=m=2) and a relative
     /// threshold. All graph neighbors are validators, independent of node existence, quorum
     /// intersection or anything else.
-    SimpleGraph {
-        graph_size: usize,
+    SimpleScaleFree {
         relative_threshold: f64,
+        graph_size: Option<usize>,
+    },
+    /// Chooses quorum sets based on a synthetic small world graph (Watts-Strogatz with beta = 0.05)
+    /// and a relative threshold. All graph neighbors are validators, independent of node
+    /// existence, quorum intersection or anything else.
+    SimpleSmallWorld {
+        mean_degree: usize,
+        relative_threshold: f64,
+        graph_size: Option<usize>,
     },
 }
 
-fn parse_qscc(qscc: QuorumSetConfiguratorConfig) -> Rc<dyn QuorumSetConfigurator> {
+fn parse_qscc(qscc: QuorumSetConfiguratorConfig, fbas_size: usize) -> Rc<dyn QuorumSetConfigurator> {
     use quorum_set_configurators::*;
     use QuorumSetConfiguratorConfig::*;
     match qscc {
@@ -60,11 +68,20 @@ fn parse_qscc(qscc: QuorumSetConfiguratorConfig) -> Rc<dyn QuorumSetConfigurator
             desired_quorum_set_size,
             desired_threshold,
         )),
-        SimpleGraph {
+        SimpleScaleFree {
             graph_size,
             relative_threshold,
         } => Rc::new(SimpleGraphQsc::new(
-            Graph::new_random_scale_free(graph_size, 2, 2).shuffled(),
+            Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size), 2, 2).shuffled(),
+            // shuffled because fbas join order shouldn't be correlated with importance in graph
+            relative_threshold,
+        )),
+        SimpleSmallWorld {
+            graph_size,
+            mean_degree,
+            relative_threshold,
+        } => Rc::new(SimpleGraphQsc::new(
+            Graph::new_random_small_world(graph_size.unwrap_or(fbas_size), mean_degree, 0.05).shuffled(),
             // shuffled because fbas join order shouldn't be correlated with importance in graph
             relative_threshold,
         )),
@@ -75,7 +92,9 @@ fn main() -> CliResult {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
-    let qsc = parse_qscc(args.qscc);
+    let n = args.initial_n + args.grow_by_n;
+
+    let qsc = parse_qscc(args.qscc, n);
     let monitor = Rc::new(monitors::DebugMonitor::new());
 
     let mut simulator = Simulator::new(
