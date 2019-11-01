@@ -15,8 +15,11 @@ pub fn find_optionally_smallest_minimal_intersections(
     node_sets: &[NodeIdSet],
     o_epsilon: Option<usize>,
 ) -> Vec<NodeIdSet> {
-    debug!("Getting pairwise intersections...");
-    let mut intersections = find_intersections(node_sets);
+    debug!("Collecting pairwise intersections...");
+    let mut intersections = match o_epsilon {
+        None => find_intersections(node_sets),
+        Some(epsilon) => find_small_intersections(node_sets, epsilon),
+    };
     info!("Found {} pairwise intersections.", intersections.len());
     if intersections.is_empty() {
         return intersections;
@@ -48,9 +51,28 @@ fn find_intersections(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
 
     for (i, ns1) in node_sets.iter().enumerate() {
         for ns2 in node_sets.iter().skip(i + 1) {
-            let mut intersection_tmp = ns1.clone();
-            intersection_tmp.intersect_with(ns2);
-            intersections.push(intersection_tmp);
+            let mut intersection = ns1.clone();
+            intersection.intersect_with(ns2);
+            intersections.push(intersection);
+        }
+    }
+    intersections
+}
+
+fn find_small_intersections(node_sets: &[NodeIdSet], epsilon: usize) -> Vec<NodeIdSet> {
+    let mut intersections: Vec<NodeIdSet> = vec![];
+    let mut smallest_intersection_size = node_sets.first().unwrap_or(&bitset![]).len();
+
+    for (i, ns1) in node_sets.iter().enumerate() {
+        for ns2 in node_sets.iter().skip(i + 1) {
+            let mut intersection = ns1.clone();
+            intersection.intersect_with(ns2);
+            if intersection.len() <= smallest_intersection_size + epsilon {
+                if intersection.len() < smallest_intersection_size {
+                    smallest_intersection_size = intersection.len();
+                }
+                intersections.push(intersection);
+            }
         }
     }
     intersections

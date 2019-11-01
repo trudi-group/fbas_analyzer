@@ -55,7 +55,10 @@ enum QuorumSetConfiguratorConfig {
     },
 }
 
-fn parse_qscc(qscc: QuorumSetConfiguratorConfig, fbas_size: usize) -> Rc<dyn QuorumSetConfigurator> {
+fn parse_qscc(
+    qscc: QuorumSetConfiguratorConfig,
+    fbas_size: usize,
+) -> Rc<dyn QuorumSetConfigurator> {
     use quorum_set_configurators::*;
     use QuorumSetConfiguratorConfig::*;
     match qscc {
@@ -81,7 +84,8 @@ fn parse_qscc(qscc: QuorumSetConfiguratorConfig, fbas_size: usize) -> Rc<dyn Quo
             mean_degree,
             relative_threshold,
         } => Rc::new(SimpleGraphQsc::new(
-            Graph::new_random_small_world(graph_size.unwrap_or(fbas_size), mean_degree, 0.05).shuffled(),
+            Graph::new_random_small_world(graph_size.unwrap_or(fbas_size), mean_degree, 0.05)
+                .shuffled(),
             // shuffled because fbas join order shouldn't be correlated with importance in graph
             relative_threshold,
         )),
