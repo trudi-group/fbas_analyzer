@@ -72,9 +72,12 @@ fn main() -> CliResult {
         eprintln!("Reading FBAS JSON from STDIN...");
         Fbas::from_json_stdin()
     };
+    eprintln!("Loaded FBAS with {} nodes.", fbas.number_of_nodes());
     let organizations = if let Some(organizations_path) = args.organizations_path {
         eprintln!("Will collapse by organization; reading organizations JSON from file...");
-        Some(Organizations::from_json_file(&organizations_path, &fbas))
+        let orgs = Organizations::from_json_file(&organizations_path, &fbas);
+        eprintln!("Loaded {} organizations.", orgs.number_of_organizations());
+        Some(orgs)
     } else {
         None
     };
@@ -187,9 +190,7 @@ fn main() -> CliResult {
             "\nThere is a total of {} distinct nodes involved in all of these sets.\n",
             all_nodes.len()
         );
-        if desc {
-            println!("involved_nodes: {}", all_nodes.len());
-        } else {
+        if !desc {
             print_ids_result!("involved_nodes", &all_nodes);
         }
     }

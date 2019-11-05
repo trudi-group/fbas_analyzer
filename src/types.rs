@@ -148,6 +148,9 @@ impl<'fbas> Organizations<'fbas> {
             None
         }
     }
+    pub fn number_of_organizations(&self) -> usize {
+        self.organizations.len()
+    }
 }
 
 /// Create a **BitSet** from a list of elements.
