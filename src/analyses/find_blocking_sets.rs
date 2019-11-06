@@ -52,19 +52,19 @@ fn find_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
 
     let mut unprocessed = NodeIdDeque::from(unprocessed);
     let mut selection = NodeIdSet::new();
+    let mut found_blocking_sets: Vec<NodeIdSet> = vec![];
     let missing_node_sets: BitSet = (0..node_sets.len()).collect();
 
     debug!("Collecting blocking sets...");
     fn step(
         unprocessed: &mut NodeIdDeque,
         selection: &mut NodeIdSet,
+        found_blocking_sets: &mut Vec<NodeIdSet>,
         missing_node_sets: BitSet,
         memberships: &MembershipsMap,
-    ) -> Vec<NodeIdSet> {
-        let mut result: Vec<NodeIdSet> = vec![];
-
+    ) {
         if missing_node_sets.is_empty() {
-            result.push(selection.clone());
+            found_blocking_sets.push(selection.clone());
         } else if let Some(current_candidate) = unprocessed.pop_front() {
             let useful = !missing_node_sets.is_disjoint(&memberships[current_candidate]);
 
@@ -72,25 +72,33 @@ fn find_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
                 selection.insert(current_candidate);
                 let mut updated_missing_node_sets = missing_node_sets.clone();
                 updated_missing_node_sets.difference_with(&memberships[current_candidate]);
-                result.extend(step(
+                step(
                     unprocessed,
                     selection,
+                    found_blocking_sets,
                     updated_missing_node_sets,
                     memberships,
-                ));
+                );
                 selection.remove(current_candidate);
             }
-            result.extend(step(unprocessed, selection, missing_node_sets, memberships));
+            step(
+                unprocessed,
+                selection,
+                found_blocking_sets,
+                missing_node_sets,
+                memberships,
+            );
             unprocessed.push_front(current_candidate);
         }
-        result
     }
     step(
         &mut unprocessed,
         &mut selection,
+        &mut found_blocking_sets,
         missing_node_sets,
         &memberships,
-    )
+    );
+    found_blocking_sets
 }
 
 fn extract_nodes_and_node_set_memberships(

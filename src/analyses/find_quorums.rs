@@ -43,34 +43,32 @@ fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     let unprocessed = sorted;
     let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
     let mut available = unprocessed.iter().cloned().collect();
+    let mut found_quorums: Vec<NodeIdSet> = vec![];
 
     debug!("Collecting quorums...");
     fn step(
         unprocessed: &mut NodeIdDeque,
         selection: &mut NodeIdSet,
         available: &mut NodeIdSet,
+        found_quorums: &mut Vec<NodeIdSet>,
         fbas: &Fbas,
-    ) -> Vec<NodeIdSet> {
-        let mut result: Vec<NodeIdSet> = vec![];
-
+    ) {
         if fbas.is_quorum(selection) {
-            result.push(selection.clone());
+            found_quorums.push(selection.clone());
         } else if let Some(current_candidate) = unprocessed.pop_front() {
             selection.insert(current_candidate);
 
-            result.extend(step(unprocessed, selection, available, fbas));
+            step(unprocessed, selection, available, found_quorums, fbas);
 
             selection.remove(current_candidate);
             available.remove(current_candidate);
 
             if quorums_possible(selection, available, fbas) {
-                result.extend(step(unprocessed, selection, available, fbas));
+                step(unprocessed, selection, available, found_quorums, fbas);
             }
-
             unprocessed.push_front(current_candidate);
             available.insert(current_candidate);
         }
-        result
     }
     fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
         selection.iter().all(|x| fbas.nodes[x].is_quorum(available))
@@ -79,8 +77,10 @@ fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
         &mut unprocessed.into(),
         &mut selection,
         &mut available,
+        &mut found_quorums,
         fbas,
-    )
+    );
+    found_quorums
 }
 
 pub fn find_unsatisfiable_nodes(nodes: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
