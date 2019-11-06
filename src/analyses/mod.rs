@@ -160,6 +160,11 @@ pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeId
     node_sets.sort_by_cached_key(|x| x.len());
     debug!("Sorting done.");
 
+    debug!("Removing duplicates...");
+    let len_before = node_sets.len();
+    node_sets.dedup();
+    debug!("Done; removed {} duplicates.", len_before - node_sets.len());
+
     debug!("Filtering non-minimal node sets...");
     for node_set in node_sets.into_iter() {
         if minimal_node_sets.iter().all(|x| !x.is_subset(&node_set)) {

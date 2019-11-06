@@ -71,9 +71,7 @@ fn find_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
             if useful {
                 selection.insert(current_candidate);
                 let mut updated_missing_node_sets = missing_node_sets.clone();
-                for node_set in memberships[current_candidate].iter() {
-                    updated_missing_node_sets.remove(node_set);
-                }
+                updated_missing_node_sets.difference_with(&memberships[current_candidate]);
                 result.extend(step(
                     unprocessed,
                     selection,

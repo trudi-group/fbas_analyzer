@@ -47,7 +47,8 @@ pub fn find_optionally_smallest_minimal_intersections(
 }
 
 fn find_intersections(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
-    let mut intersections: Vec<NodeIdSet> = vec![];
+    let expected_len = node_sets.len() * (node_sets.len() - 1) / 2;
+    let mut intersections: Vec<NodeIdSet> = Vec::with_capacity(expected_len);
 
     for (i, ns1) in node_sets.iter().enumerate() {
         for ns2 in node_sets.iter().skip(i + 1) {
