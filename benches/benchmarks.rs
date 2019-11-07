@@ -21,8 +21,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
     let minimal_quorums = find_minimal_quorums(&fbas);
 
-    c.bench_function("all_interesect", |b| {
-        b.iter(|| all_interesect(black_box(&minimal_quorums)))
+    c.bench_function("all_intersect", |b| {
+        b.iter(|| all_intersect(black_box(&minimal_quorums)))
     });
 
     c.bench_function("collapse_by_organization", |b| {

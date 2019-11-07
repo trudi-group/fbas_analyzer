@@ -52,7 +52,7 @@ impl<'a> Analysis<'a> {
     }
     pub fn has_quorum_intersection(&mut self) -> bool {
         info!("Checking for intersection of all minimal quorums...");
-        !self.minimal_quorums().is_empty() && all_interesect(self.minimal_quorums())
+        !self.minimal_quorums().is_empty() && all_intersect(self.minimal_quorums())
     }
     pub fn unsatisfiable_nodes(&self) -> Vec<NodeId> {
         let all_nodes: NodeIdSet = (0..self.fbas.nodes.len()).collect();
@@ -137,7 +137,7 @@ pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, usize, f64, usize) {
     (node_sets.len(), min, max, mean, involved_nodes.len())
 }
 
-pub fn all_interesect(node_sets: &[NodeIdSet]) -> bool {
+pub fn all_intersect(node_sets: &[NodeIdSet]) -> bool {
     node_sets
         .iter()
         .enumerate()
@@ -221,13 +221,13 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn node_set_interesections() {
-        assert!(all_interesect(&vec![
+    fn node_set_intersections() {
+        assert!(all_intersect(&vec![
             bitset![0, 1],
             bitset![0, 2],
             bitset![1, 2]
         ]));
-        assert!(!all_interesect(&vec![bitset![0], bitset![1, 2]]));
+        assert!(!all_intersect(&vec![bitset![0], bitset![1, 2]]));
     }
 
     #[test]
