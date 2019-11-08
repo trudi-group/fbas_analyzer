@@ -33,10 +33,17 @@ enum QuorumSetConfiguratorConfig {
     /// Builds quorum sets containing all n nodes in the FBAS, with thresholds chosen such that
     /// a maximum of f nodes can fail, where (n-1) < (3f+1) <= n
     Ideal,
-    /// Creates random quorum sets of the given size and threshold, never adapts them
+    /// Creates random quorum sets of the given size and threshold
     SimpleRandom {
         desired_quorum_set_size: usize,
         desired_threshold: usize,
+    },
+    /// Creates random quorum sets of the given size and threshold. Validators are picked based on
+    /// their node degree in a scale free graph ("famousness")
+    FameWeightedRandom {
+        desired_quorum_set_size: usize,
+        desired_threshold: usize,
+        graph_size: Option<usize>,
     },
     /// Chooses quorum sets based on a synthetic scale-free graph (BA with m0=m=2) and a relative
     /// threshold. All graph neighbors are validators, independent of node existence, quorum
@@ -70,6 +77,17 @@ fn parse_qscc(
         } => Rc::new(RandomQsc::new_simple(
             desired_quorum_set_size,
             desired_threshold,
+        )),
+        FameWeightedRandom {
+            desired_quorum_set_size,
+            desired_threshold,
+            graph_size,
+        } => Rc::new(RandomQsc::new(
+            desired_quorum_set_size,
+            desired_threshold,
+            Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size * 100), 2, 2)
+                .shuffled()
+                .get_node_degrees(),
         )),
         SimpleScaleFree {
             graph_size,

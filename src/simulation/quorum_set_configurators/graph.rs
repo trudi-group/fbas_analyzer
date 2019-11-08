@@ -184,6 +184,15 @@ impl Graph {
                 .all(|cons_j| cons_j.iter().any(|&x| x == i))
         })
     }
+    pub fn get_node_degrees(&self) -> Vec<usize> {
+        let mut result: Vec<usize> = vec![0; self.connections.len()];
+        for connections in self.connections.iter() {
+            for &in_node in connections.iter() {
+                result[in_node] = result[in_node].checked_add(1).unwrap();
+            }
+        }
+        result
+    }
 }
 
 #[cfg(test)]
@@ -278,5 +287,16 @@ mod tests {
             result
         }
         assert_eq!(degrees(graph), degrees(shuffled));
+    }
+
+    #[test]
+    fn node_degrees_reported_correctly() {
+        let (n, m0, m) = (23, 3, 2);
+        let graph = Graph::new_random_scale_free(n, m0, m);
+
+        let actual = graph.get_node_degrees();
+        let expected: Vec<usize> = graph.connections.into_iter().map(|x| x.len()).collect();
+
+        assert_eq!(expected, actual);
     }
 }
