@@ -67,7 +67,7 @@ fn parse_qscc(
         SimpleRandom {
             desired_quorum_set_size,
             desired_threshold,
-        } => Rc::new(SimpleRandomQsc::new(
+        } => Rc::new(RandomQsc::new_simple(
             desired_quorum_set_size,
             desired_threshold,
         )),
