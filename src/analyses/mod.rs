@@ -6,21 +6,14 @@ mod find_blocking_sets;
 mod find_intersections;
 mod find_quorums;
 
-pub use find_blocking_sets::{
-    find_minimal_blocking_sets, find_optionally_smallest_minimal_blocking_sets,
-    find_smallest_minimal_blocking_sets,
-};
-pub use find_intersections::{
-    find_minimal_intersections, find_optionally_smallest_minimal_intersections,
-    find_smallest_minimal_intersections,
-};
+pub use find_blocking_sets::find_minimal_blocking_sets;
+pub use find_intersections::find_minimal_intersections;
 pub use find_quorums::{find_minimal_quorums, find_unsatisfiable_nodes};
 
 /// Most methods require &mut because they cache intermediate results.
 pub struct Analysis<'a> {
     fbas: &'a Fbas,
     organizations: Option<&'a Organizations<'a>>,
-    epsilon: Option<usize>,
     minimal_quorums: Option<Vec<NodeIdSet>>,
     minimal_blocking_sets: Option<Vec<NodeIdSet>>,
     minimal_intersections: Option<Vec<NodeIdSet>>,
@@ -30,21 +23,15 @@ impl<'a> Analysis<'a> {
         Analysis {
             fbas,
             organizations: None,
-            epsilon: None,
             minimal_quorums: None,
             minimal_blocking_sets: None,
             minimal_intersections: None,
         }
     }
-    pub fn new_with_options(
-        fbas: &'a Fbas,
-        organizations: Option<&'a Organizations<'a>>,
-        epsilon: Option<usize>,
-    ) -> Self {
+    pub fn new_with_options(fbas: &'a Fbas, organizations: Option<&'a Organizations<'a>>) -> Self {
         Analysis {
             fbas,
             organizations,
-            epsilon,
             minimal_quorums: None,
             minimal_blocking_sets: None,
             minimal_intersections: None,
@@ -78,11 +65,7 @@ impl<'a> Analysis<'a> {
     pub fn minimal_blocking_sets(&mut self) -> &[NodeIdSet] {
         if self.minimal_blocking_sets.is_none() {
             warn!("Computing minimal blocking sets...");
-            let o_epsilon = self.epsilon; // for the borrow checker
-            self.minimal_blocking_sets = Some(find_optionally_smallest_minimal_blocking_sets(
-                self.minimal_quorums(),
-                o_epsilon,
-            ));
+            self.minimal_blocking_sets = Some(find_minimal_blocking_sets(self.minimal_quorums()));
         } else {
             info!("Using cached minimal blocking sets.");
         }
@@ -91,11 +74,7 @@ impl<'a> Analysis<'a> {
     pub fn minimal_intersections(&mut self) -> &[NodeIdSet] {
         if self.minimal_intersections.is_none() {
             warn!("Computing minimal intersections...");
-            let o_epsilon = self.epsilon; // for the borrow checker
-            self.minimal_intersections = Some(find_optionally_smallest_minimal_intersections(
-                self.minimal_quorums(),
-                o_epsilon,
-            ));
+            self.minimal_intersections = Some(find_minimal_intersections(self.minimal_quorums()));
         } else {
             info!("Using cached minimal intersections.");
         }
@@ -173,18 +152,6 @@ pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeId
     }
     debug!("Filtering done.");
     minimal_node_sets
-}
-
-/// Keep only the smallest node sets and node sets with up to `epsilon` more nodes.
-/// Helpful for avoiding lengthy computations.
-pub fn reduce_to_smallest(mut node_sets: Vec<NodeIdSet>, epsilon: usize) -> Vec<NodeIdSet> {
-    let min = node_sets.iter().map(|x| x.len()).min().unwrap_or(0);
-    node_sets = node_sets
-        .iter()
-        .filter(|x| x.len() <= min + epsilon)
-        .cloned()
-        .collect();
-    node_sets
 }
 
 impl<'fbas> Organizations<'fbas> {
@@ -314,7 +281,7 @@ mod tests {
             }]"#,
             &fbas,
         );
-        let mut analysis = Analysis::new_with_options(&fbas, Some(&organizations), None);
+        let mut analysis = Analysis::new_with_options(&fbas, Some(&organizations));
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(analysis.minimal_quorums().len(), 1);
@@ -373,22 +340,6 @@ mod tests {
         let expected = vec![bitset![0], bitset![0, 2]];
         let actual = organizations.collapse_node_sets(node_sets);
 
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn reduce_to_smallest_reduces_to_smallest_and_not_more() {
-        let node_sets = vec![
-            bitset![0],
-            bitset![1, 2, 3, 4, 5, 9],
-            bitset![0, 2],
-            bitset![1, 2, 5],
-            bitset![1, 2, 7, 9],
-            bitset![1, 2],
-        ];
-
-        let actual = reduce_to_smallest(node_sets, 1);
-        let expected = vec![bitset![0], bitset![0, 2], bitset![1, 2]];
         assert_eq!(expected, actual);
     }
 }
