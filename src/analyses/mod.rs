@@ -41,15 +41,31 @@ impl<'a> Analysis<'a> {
         info!("Checking for intersection of all minimal quorums...");
         !self.minimal_quorums().is_empty() && all_intersect(self.minimal_quorums())
     }
+    pub fn all_nodes_uncollapsed(&self) -> Vec<NodeId> {
+        (0..self.fbas.nodes.len()).collect()
+    }
+    pub fn all_nodes_collapsed(&self) -> Vec<NodeId> {
+        self.maybe_collapse_node_ids(self.all_nodes_uncollapsed())
+    }
+    pub fn satisfiable_nodes(&self) -> Vec<NodeId> {
+        let (satisfiable, _) = find_unsatisfiable_nodes(
+            &self.all_nodes_uncollapsed().into_iter().collect(),
+            self.fbas,
+        );
+        self.maybe_collapse_node_ids(satisfiable.into_iter())
+    }
     pub fn unsatisfiable_nodes(&self) -> Vec<NodeId> {
-        let all_nodes: NodeIdSet = (0..self.fbas.nodes.len()).collect();
-        let (_, unsatisfiable) = find_unsatisfiable_nodes(&all_nodes, self.fbas);
-        unsatisfiable.into_iter().collect()
+        let (_, unsatisfiable) = find_unsatisfiable_nodes(
+            &self.all_nodes_uncollapsed().into_iter().collect(),
+            self.fbas,
+        );
+        self.maybe_collapse_node_ids(unsatisfiable.into_iter())
     }
     pub fn minimal_quorums(&mut self) -> &[NodeIdSet] {
         if self.minimal_quorums.is_none() {
             warn!("Computing minimal quorums...");
-            self.minimal_quorums = Some(self.maybe_collapse(find_minimal_quorums(&self.fbas)));
+            self.minimal_quorums =
+                Some(self.maybe_collapse_minimal_node_sets(find_minimal_quorums(&self.fbas)));
             if log_enabled!(Warn) {
                 if self.has_quorum_intersection() {
                     debug!("FBAS enjoys quorum intersection.");
@@ -83,7 +99,16 @@ impl<'a> Analysis<'a> {
     pub fn involved_nodes(&mut self) -> Vec<NodeId> {
         involved_nodes(self.minimal_quorums())
     }
-    fn maybe_collapse(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
+    fn maybe_collapse_node_ids(&self, node_ids: impl IntoIterator<Item = NodeId>) -> Vec<NodeId> {
+        if let Some(ref orgs) = self.organizations {
+            orgs.collapse_node_set(node_ids.into_iter().collect())
+                .into_iter()
+                .collect()
+        } else {
+            node_ids.into_iter().collect()
+        }
+    }
+    fn maybe_collapse_minimal_node_sets(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         if let Some(ref orgs) = self.organizations {
             debug!("Collapsing nodes by organization...");
             info!(

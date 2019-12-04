@@ -68,7 +68,7 @@ fn main() -> CliResult {
     };
     eprintln!("Loaded FBAS with {} nodes.", fbas.number_of_nodes());
     let organizations = if let Some(organizations_path) = args.organizations_path {
-        eprintln!("Will collapse by organization; reading organizations JSON from file...");
+        eprintln!("Will collapse nodes by organization; reading organizations JSON from file...");
         let orgs = Organizations::from_json_file(&organizations_path, &fbas);
         eprintln!("Loaded {} organizations.", orgs.number_of_organizations());
         Some(orgs)
@@ -134,12 +134,27 @@ fn main() -> CliResult {
         );
     }
 
+    let all_nodes = &analysis.all_nodes_collapsed();
+    if organizations.is_some() {
+        silprintln!(
+            "\nThere are {} nodes in the FBAS (nodes belonging to the same organization are collapsed to count as one).\n",
+            all_nodes.len()
+        );
+    } else {
+        silprintln!("\nThere are {} nodes in the FBAS.\n", all_nodes.len());
+    }
+    print_ids_result!("all_nodes", &all_nodes);
+
     let unsatisfiable_nodes = analysis.unsatisfiable_nodes();
     silprintln!(
-        "Found {} unsatisfiable nodes (will be ignored in the following).",
+        "\n{} nodes are unsatisfiable (broken configuration?).\n",
         unsatisfiable_nodes.len()
     );
     print_ids_result!("unsatisfiable_nodes", &unsatisfiable_nodes);
+
+    let satisfiable_nodes = analysis.satisfiable_nodes();
+    silprintln!("\n{} nodes are satisfiable.\n", satisfiable_nodes.len());
+    print_ids_result!("satisfiable_nodes", &satisfiable_nodes);
 
     if q {
         silprintln!(
