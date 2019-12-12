@@ -123,6 +123,12 @@ impl IdealQsc {
     }
 }
 
+/// t = ceil((2n+1)/3) => n >= 3f+1
+fn get_67p_threshold(n: usize) -> usize {
+    // reformed for more robustness against floating point errors
+    n - ((n as f64 - 1.) / 3.).floor() as usize
+}
+
 mod random;
 pub use random::*;
 mod graph;
@@ -132,6 +138,16 @@ pub use graph::*;
 mod tests {
     use super::monitors::*;
     use super::*;
+
+    #[test]
+    fn get_67p_threshold_test() {
+        for n in 1..20 {
+            assert!(
+                3 * get_67p_threshold(n) >= 2 * n + 1,
+                "Not a 67% threshold!"
+            );
+        }
+    }
 
     #[test]
     fn super_safe_qsc_makes_a_quorum() {

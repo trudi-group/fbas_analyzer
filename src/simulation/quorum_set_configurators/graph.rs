@@ -1,6 +1,6 @@
 use super::*;
 
-/// Makes quorum slices based on his immediate graph neighbors, in total disregard for quorum
+/// Makes quorum sets based on his immediate graph neighbors, in total disregard for quorum
 /// intersection, which nodes exist, and anything else...
 pub struct SimpleGraphQsc {
     graph: Graph,
@@ -35,6 +35,92 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
     }
 }
 
+/// Makes 67% quorum sets based on immediate graph neighbors,
+/// putting lower quality nodes into a 67% inner quorum set.
+/// Node degree used as a proxy for quality.
+pub struct QualityAwareGraphQsc {
+    graph: Graph,
+    quality_scores: Vec<usize>,
+}
+impl QualityAwareGraphQsc {
+    pub fn new(graph: Graph) -> Self {
+        let quality_scores = graph.get_in_degrees();
+        QualityAwareGraphQsc {
+            graph,
+            quality_scores,
+        }
+    }
+    fn quality(&self, node_id: NodeId) -> usize {
+        self.quality_scores[node_id]
+    }
+}
+impl QuorumSetConfigurator for QualityAwareGraphQsc {
+    fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
+        let existing_quorum_set = &mut fbas.nodes[node_id].quorum_set;
+        let neighbors = self
+            .graph
+            .connections
+            .get(node_id)
+            .expect("Graph too small for this FBAS!")
+            .clone();
+
+        let average_quality: usize = (neighbors.iter().map(|&id| self.quality(id)).sum::<usize>()
+            as f64
+            / neighbors.len() as f64)
+            .round() as usize;
+
+        let mut higher_quality_validators: Vec<NodeId> = vec![];
+        let mut lower_quality_validators: Vec<NodeId> = vec![];
+        let mut unprocessed = neighbors;
+        unprocessed.sort_by_key(|&id| self.quality(id));
+
+        while let Some(next) = unprocessed.pop() {
+            if higher_quality_validators.len() < 3
+                || self.quality(higher_quality_validators[2]) == self.quality(next)
+                || self.quality(next) >= average_quality
+            {
+                higher_quality_validators.push(next);
+            } else {
+                lower_quality_validators.push(next);
+            }
+        }
+        let new_quorum_set = if lower_quality_validators.len() > 1 {
+            higher_quality_validators.sort(); // for easier comparability
+            lower_quality_validators.sort(); // for easier comparability
+            let validators = higher_quality_validators;
+            let threshold = get_67p_threshold(validators.len() + 1);
+            let inner_quorum_sets = vec![QuorumSet {
+                threshold: get_67p_threshold(lower_quality_validators.len()),
+                validators: lower_quality_validators,
+                inner_quorum_sets: vec![],
+            }];
+            QuorumSet {
+                validators,
+                threshold,
+                inner_quorum_sets,
+            }
+        } else {
+            let mut validators = higher_quality_validators;
+            validators.extend(lower_quality_validators.into_iter());
+            validators.sort(); // for easier comparability
+            let threshold = get_67p_threshold(validators.len());
+            let inner_quorum_sets = vec![];
+            QuorumSet {
+                validators,
+                threshold,
+                inner_quorum_sets,
+            }
+        };
+
+        if *existing_quorum_set != new_quorum_set {
+            *existing_quorum_set = new_quorum_set;
+            Change
+        } else {
+            NoChange
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Graph {
     // connections per node
@@ -44,9 +130,9 @@ impl Graph {
     pub fn new(connections: Vec<Vec<NodeId>>) -> Self {
         Graph { connections }
     }
-    /// Build a graph where every node is connected to every other node (including itself)
+    /// Build a graph where every node is connected to every other node
     pub fn new_full_mesh(n: usize) -> Self {
-        Self::new(vec![(0..n).collect(); n])
+        Self::new((0..n).map(|i| (0..i).chain(i + 1..n).collect()).collect())
     }
     /// Build a scale-free graph using the Barabási–Albert (BA) model
     pub fn new_random_scale_free(n: usize, m0: usize, m: usize) -> Self {
@@ -184,7 +270,7 @@ impl Graph {
                 .all(|cons_j| cons_j.iter().any(|&x| x == i))
         })
     }
-    pub fn get_node_degrees(&self) -> Vec<usize> {
+    pub fn get_in_degrees(&self) -> Vec<usize> {
         let mut result: Vec<usize> = vec![0; self.connections.len()];
         for connections in self.connections.iter() {
             for &in_node in connections.iter() {
@@ -192,6 +278,9 @@ impl Graph {
             }
         }
         result
+    }
+    pub fn get_out_degrees(&self) -> Vec<usize> {
+        self.connections.iter().map(|x| x.len()).collect()
     }
 }
 
@@ -201,22 +290,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn full_mesh_qsc_can_be_like_super_safe() {
-        let n = 3;
-        let mut simulator_full_mesh = Simulator::new(
-            Fbas::new(),
-            Rc::new(SimpleGraphQsc::new(Graph::new_full_mesh(n), 1.0)),
-            Rc::new(DummyMonitor),
-        );
-        let mut simulator_safe = Simulator::new(
-            Fbas::new(),
-            Rc::new(SuperSafeQsc::new()),
-            Rc::new(DummyMonitor),
-        );
-        simulator_full_mesh.simulate_growth(n);
-        simulator_safe.simulate_growth(n);
-
-        assert_eq!(simulator_safe.finalize(), simulator_full_mesh.finalize());
+    fn full_mesh() {
+        let expected = Graph {
+            connections: vec![vec![1, 2, 3], vec![0, 2, 3], vec![0, 1, 3], vec![0, 1, 2]],
+        };
+        let actual = Graph::new_full_mesh(4);
+        assert_eq!(expected, actual);
     }
 
     #[test]
@@ -290,13 +369,244 @@ mod tests {
     }
 
     #[test]
-    fn node_degrees_reported_correctly() {
+    fn node_degrees_undirected() {
         let (n, m0, m) = (23, 3, 2);
         let graph = Graph::new_random_scale_free(n, m0, m);
+        assert!(graph.is_undirected());
 
-        let actual = graph.get_node_degrees();
-        let expected: Vec<usize> = graph.connections.into_iter().map(|x| x.len()).collect();
+        let expected: Vec<usize> = graph.connections.iter().map(|x| x.len()).collect();
 
+        assert_eq!(expected, graph.get_in_degrees());
+        assert_eq!(expected, graph.get_out_degrees());
+    }
+
+    #[test]
+    fn node_degrees_directed() {
+        // TODO
+    }
+
+    macro_rules! assert_has_67p_threshold {
+        ($qset:expr) => {
+            assert!(
+                3 * $qset.threshold
+                    >= 2 * ($qset.validators.len() + $qset.inner_quorum_sets.len()) + 1,
+                "Not a 67% threshold!"
+            )
+        };
+    }
+    macro_rules! assert_eq_when_sorted {
+        ($left:expr, $right:expr) => (
+            let mut left = $left.clone();
+            let mut right = $right.clone();
+            left.sort();
+            right.sort();
+            assert_eq!(left, right)
+        );
+        ($left:expr, $right:expr, $($arg:tt)+) => (
+            let mut left = $left.clone();
+            let mut right = $right.clone();
+            left.sort();
+            right.sort();
+            assert_eq!(left, right, $($arg)*)
+        );
+    }
+
+    macro_rules! simulate {
+        ($qsc:expr, $n:expr) => {{
+            let mut simulator = Simulator::new(Fbas::new(), Rc::new($qsc), Rc::new(DummyMonitor));
+            simulator.simulate_growth($n);
+            simulator.finalize()
+        }};
+    }
+
+    #[test]
+    fn quality_aware_qsc_like_simple_when_nodes_all_same() {
+        let n = 30;
+        let graph = Graph::new_random_small_world(n, 4, 0.);
+        let simple = simulate!(SimpleGraphQsc::new(graph.clone(), 0.67), n);
+        let quality_aware = simulate!(QualityAwareGraphQsc::new(graph), n);
+        assert_eq!(simple, quality_aware);
+    }
+
+    #[test]
+    fn quality_aware_qsc_uses_in_degrees_as_quality() {
+        let (n, m0, m) = (23, 3, 2);
+        let graph = Graph::new_random_scale_free(n, m0, m);
+        let qsc = QualityAwareGraphQsc::new(graph.clone());
+        let actual = graph.get_in_degrees();
+        let expected = qsc.quality_scores;
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn quality_aware_qsc_no_inner_set_if_few_friends() {
+        let n = 8;
+        let mut graph = Graph::new_full_mesh(n);
+        graph.connections[0] = vec![1, 2, 3, 4];
+        let mut qsc = QualityAwareGraphQsc::new(graph.clone());
+        qsc.quality_scores[1] = 30;
+        qsc.quality_scores[2] = 50;
+
+        let fbas = simulate!(qsc, n);
+
+        let expected = &QuorumSet {
+            validators: vec![1, 2, 3, 4],
+            threshold: 3,
+            inner_quorum_sets: vec![],
+        };
+        let actual = &fbas.nodes[0].quorum_set;
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn quality_aware_qsc_no_inner_set_if_same_quality() {
+        let n = 8;
+        let graph = Graph::new_full_mesh(n);
+        let qsc = QualityAwareGraphQsc::new(graph.clone());
+
+        let fbas = simulate!(qsc, n);
+
+        let expected = &QuorumSet {
+            validators: vec![1, 2, 3, 4, 5, 6, 7],
+            threshold: 5,
+            inner_quorum_sets: vec![],
+        };
+        let actual = &fbas.nodes[0].quorum_set;
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn quality_aware_qsc_top_3_neighbors_remain_validators() {
+        let n = 8;
+        let graph = Graph::new_full_mesh(n);
+        let mut qsc = QualityAwareGraphQsc::new(graph.clone());
+        qsc.quality_scores[1] = 70;
+        qsc.quality_scores[2] = 8;
+        qsc.quality_scores[3] = 8;
+        qsc.quality_scores[4] = 7;
+        qsc.quality_scores[5] = 7;
+        qsc.quality_scores[6] = 7;
+        qsc.quality_scores[7] = 7;
+
+        let fbas = simulate!(qsc, n);
+
+        let expected = &QuorumSet {
+            validators: vec![1, 2, 3],
+            threshold: 3,
+            inner_quorum_sets: vec![QuorumSet {
+                validators: vec![4, 5, 6, 7],
+                threshold: 3,
+                inner_quorum_sets: vec![],
+            }],
+        };
+        let actual = &fbas.nodes[0].quorum_set;
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn quality_aware_qsc_top_4_neighbors_remain_validators_if_same_quality() {
+        let n = 8;
+        let graph = Graph::new_full_mesh(n);
+        let mut qsc = QualityAwareGraphQsc::new(graph.clone());
+        qsc.quality_scores[1] = 79;
+        qsc.quality_scores[2] = 8;
+        qsc.quality_scores[3] = 8;
+        qsc.quality_scores[4] = 8;
+        qsc.quality_scores[5] = 7;
+        qsc.quality_scores[6] = 7;
+        qsc.quality_scores[7] = 7;
+
+        let fbas = simulate!(qsc, n);
+
+        let expected = &QuorumSet {
+            validators: vec![1, 2, 3, 4],
+            threshold: 4,
+            inner_quorum_sets: vec![QuorumSet {
+                validators: vec![5, 6, 7],
+                threshold: 3,
+                inner_quorum_sets: vec![],
+            }],
+        };
+        let actual = &fbas.nodes[0].quorum_set;
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn quality_aware_qsc_make_inner_qorum_set_for_lower_quality() {
+        // FIXME way too long and ugly
+        let n = 50;
+        let graph = Graph::new_random_scale_free(n, 2, 2);
+        let degrees = graph.get_in_degrees();
+
+        let mut simulator = Simulator::new(
+            Fbas::new(),
+            Rc::new(QualityAwareGraphQsc::new(graph.clone())),
+            Rc::new(DummyMonitor),
+        );
+        simulator.simulate_growth(n);
+        let fbas = simulator.finalize();
+
+        for (node_id, node) in fbas.nodes.into_iter().enumerate() {
+            let qset = node.quorum_set;
+            assert_has_67p_threshold!(qset);
+
+            if degrees[node_id] > 4 {
+                let mut neighbor_degrees: Vec<usize> = (&graph).connections[node_id]
+                    .iter()
+                    .map(|&nid| degrees[nid])
+                    .collect();
+                neighbor_degrees.sort();
+                neighbor_degrees.reverse();
+
+                if qset.inner_quorum_sets.is_empty() {
+                    assert!(
+                        neighbor_degrees[2] <= neighbor_degrees[neighbor_degrees.len() - 2],
+                        "Should have put lower-degree nodes in inner quorum set."
+                    );
+                } else {
+                    assert_eq!(
+                        qset.inner_quorum_sets.len(),
+                        1,
+                        "Why more than one inner quorum set?"
+                    );
+                    let iqset = &qset.inner_quorum_sets[0];
+                    assert_has_67p_threshold!(iqset);
+                    assert!(
+                        iqset.inner_quorum_sets.is_empty(),
+                        "Why a second nested quroum set?"
+                    );
+
+                    let average_neighbor_degree = (neighbor_degrees.iter().sum::<usize>() as f64
+                        / neighbor_degrees.len() as f64)
+                        .round() as usize;
+                    let cut_off_degree = cmp::min(average_neighbor_degree, neighbor_degrees[2]);
+
+                    for &validator_id in qset.validators.iter() {
+                        assert!(
+                            degrees[validator_id] >= cut_off_degree,
+                            format!(
+                                "Quality threshold too low? {:?} vs {:?}; average is {:?}",
+                                degrees[validator_id], cut_off_degree, average_neighbor_degree
+                            )
+                        );
+                    }
+                    for &ivalidator_id in iqset.validators.iter() {
+                        assert!(
+                            degrees[ivalidator_id] < cut_off_degree,
+                            format!(
+                                "Quality threshold too high? {:?} vs {:?}; average is {:?}",
+                                degrees[ivalidator_id], cut_off_degree, average_neighbor_degree
+                            )
+                        );
+                    }
+                }
+            } else {
+                assert!(
+                    qset.inner_quorum_sets.is_empty(),
+                    "Too few nodes for using an inner quorum set."
+                );
+                assert_eq_when_sorted!(qset.validators, (&graph).connections[node_id]);
+            }
+        }
     }
 }

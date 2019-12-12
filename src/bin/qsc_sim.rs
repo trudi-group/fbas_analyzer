@@ -87,7 +87,7 @@ fn parse_qscc(
             desired_threshold,
             Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size * 100), 2, 2)
                 .shuffled()
-                .get_node_degrees(),
+                .get_in_degrees(),
         )),
         SimpleScaleFree {
             graph_size,
