@@ -18,12 +18,21 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
         let existing_quorum_set = &mut fbas.nodes[node_id].quorum_set;
         if *existing_quorum_set == QuorumSet::new() {
-            let validators = self
+            let mut validators = self
                 .graph
                 .connections
                 .get(node_id)
                 .expect("Graph too small for this FBAS!")
                 .clone();
+
+            if !validators.contains(&node_id) {
+                // we add nodes to their own quorum sets because
+                // 1. nodes in the Stellar network often do it.
+                // 2. it makes sense for threshold calculation (for achieving global n=3f+1)
+                validators.push(node_id);
+            }
+            validators.sort(); // for easier comparability
+
             let threshold = (self.relative_threshold * validators.len() as f64).ceil() as usize;
 
             existing_quorum_set.validators.extend(validators);
@@ -71,6 +80,14 @@ impl QuorumSetConfigurator for QualityAwareGraphQsc {
 
         let mut higher_quality_validators: Vec<NodeId> = vec![];
         let mut lower_quality_validators: Vec<NodeId> = vec![];
+
+        if !neighbors.contains(&node_id) {
+            // we add nodes to their own quorum sets because
+            // 1. nodes in the Stellar network often do it.
+            // 2. it makes sense for threshold calculation (for achieving global n=3f+1)
+            higher_quality_validators.push(node_id);
+        }
+
         let mut unprocessed = neighbors;
         unprocessed.sort_by_key(|&id| self.quality(id));
 
@@ -84,6 +101,7 @@ impl QuorumSetConfigurator for QualityAwareGraphQsc {
                 lower_quality_validators.push(next);
             }
         }
+
         let new_quorum_set = if lower_quality_validators.len() > 1 {
             higher_quality_validators.sort(); // for easier comparability
             lower_quality_validators.sort(); // for easier comparability
@@ -394,23 +412,6 @@ mod tests {
             )
         };
     }
-    macro_rules! assert_eq_when_sorted {
-        ($left:expr, $right:expr) => (
-            let mut left = $left.clone();
-            let mut right = $right.clone();
-            left.sort();
-            right.sort();
-            assert_eq!(left, right)
-        );
-        ($left:expr, $right:expr, $($arg:tt)+) => (
-            let mut left = $left.clone();
-            let mut right = $right.clone();
-            left.sort();
-            right.sort();
-            assert_eq!(left, right, $($arg)*)
-        );
-    }
-
     macro_rules! simulate {
         ($qsc:expr, $n:expr) => {{
             let mut simulator = Simulator::new(Fbas::new(), Rc::new($qsc), Rc::new(DummyMonitor));
@@ -442,7 +443,7 @@ mod tests {
     fn quality_aware_qsc_no_inner_set_if_few_friends() {
         let n = 8;
         let mut graph = Graph::new_full_mesh(n);
-        graph.connections[0] = vec![1, 2, 3, 4];
+        graph.connections[0] = vec![1, 2, 3];
         let mut qsc = QualityAwareGraphQsc::new(graph.clone());
         qsc.quality_scores[1] = 30;
         qsc.quality_scores[2] = 50;
@@ -450,7 +451,7 @@ mod tests {
         let fbas = simulate!(qsc, n);
 
         let expected = &QuorumSet {
-            validators: vec![1, 2, 3, 4],
+            validators: vec![0, 1, 2, 3],
             threshold: 3,
             inner_quorum_sets: vec![],
         };
@@ -467,8 +468,8 @@ mod tests {
         let fbas = simulate!(qsc, n);
 
         let expected = &QuorumSet {
-            validators: vec![1, 2, 3, 4, 5, 6, 7],
-            threshold: 5,
+            validators: vec![0, 1, 2, 3, 4, 5, 6, 7],
+            threshold: 6,
             inner_quorum_sets: vec![],
         };
         let actual = &fbas.nodes[0].quorum_set;
@@ -476,13 +477,13 @@ mod tests {
     }
 
     #[test]
-    fn quality_aware_qsc_top_3_neighbors_remain_validators() {
+    fn quality_aware_qsc_top_2_neighbors_remain_validators() {
         let n = 8;
         let graph = Graph::new_full_mesh(n);
         let mut qsc = QualityAwareGraphQsc::new(graph.clone());
         qsc.quality_scores[1] = 70;
         qsc.quality_scores[2] = 8;
-        qsc.quality_scores[3] = 8;
+        qsc.quality_scores[3] = 7;
         qsc.quality_scores[4] = 7;
         qsc.quality_scores[5] = 7;
         qsc.quality_scores[6] = 7;
@@ -491,11 +492,11 @@ mod tests {
         let fbas = simulate!(qsc, n);
 
         let expected = &QuorumSet {
-            validators: vec![1, 2, 3],
+            validators: vec![0, 1, 2],
             threshold: 3,
             inner_quorum_sets: vec![QuorumSet {
-                validators: vec![4, 5, 6, 7],
-                threshold: 3,
+                validators: vec![3, 4, 5, 6, 7],
+                threshold: 4,
                 inner_quorum_sets: vec![],
             }],
         };
@@ -519,8 +520,8 @@ mod tests {
         let fbas = simulate!(qsc, n);
 
         let expected = &QuorumSet {
-            validators: vec![1, 2, 3, 4],
-            threshold: 4,
+            validators: vec![0, 1, 2, 3, 4],
+            threshold: 5,
             inner_quorum_sets: vec![QuorumSet {
                 validators: vec![5, 6, 7],
                 threshold: 3,
@@ -532,81 +533,31 @@ mod tests {
     }
 
     #[test]
-    fn quality_aware_qsc_make_inner_qorum_set_for_lower_quality() {
-        // FIXME way too long and ugly
+    fn quality_aware_qsc_uses_67p_thresholds() {
         let n = 50;
         let graph = Graph::new_random_scale_free(n, 2, 2);
-        let degrees = graph.get_in_degrees();
+        let qsc = QualityAwareGraphQsc::new(graph);
 
-        let mut simulator = Simulator::new(
-            Fbas::new(),
-            Rc::new(QualityAwareGraphQsc::new(graph.clone())),
-            Rc::new(DummyMonitor),
-        );
-        simulator.simulate_growth(n);
-        let fbas = simulator.finalize();
+        let fbas = simulate!(qsc, n);
+
+        for node in fbas.nodes.into_iter() {
+            assert_has_67p_threshold!(node.quorum_set);
+        }
+    }
+
+    #[test]
+    fn quality_aware_qsc_uses_all_neighbors_and_node_itself() {
+        let n = 50;
+        let graph = Graph::new_random_scale_free(n, 2, 2);
+        let qsc = QualityAwareGraphQsc::new(graph.clone());
+
+        let fbas = simulate!(qsc, n);
 
         for (node_id, node) in fbas.nodes.into_iter().enumerate() {
-            let qset = node.quorum_set;
-            assert_has_67p_threshold!(qset);
-
-            if degrees[node_id] > 4 {
-                let mut neighbor_degrees: Vec<usize> = (&graph).connections[node_id]
-                    .iter()
-                    .map(|&nid| degrees[nid])
-                    .collect();
-                neighbor_degrees.sort();
-                neighbor_degrees.reverse();
-
-                if qset.inner_quorum_sets.is_empty() {
-                    assert!(
-                        neighbor_degrees[2] <= neighbor_degrees[neighbor_degrees.len() - 2],
-                        "Should have put lower-degree nodes in inner quorum set."
-                    );
-                } else {
-                    assert_eq!(
-                        qset.inner_quorum_sets.len(),
-                        1,
-                        "Why more than one inner quorum set?"
-                    );
-                    let iqset = &qset.inner_quorum_sets[0];
-                    assert_has_67p_threshold!(iqset);
-                    assert!(
-                        iqset.inner_quorum_sets.is_empty(),
-                        "Why a second nested quroum set?"
-                    );
-
-                    let average_neighbor_degree = (neighbor_degrees.iter().sum::<usize>() as f64
-                        / neighbor_degrees.len() as f64)
-                        .round() as usize;
-                    let cut_off_degree = cmp::min(average_neighbor_degree, neighbor_degrees[2]);
-
-                    for &validator_id in qset.validators.iter() {
-                        assert!(
-                            degrees[validator_id] >= cut_off_degree,
-                            format!(
-                                "Quality threshold too low? {:?} vs {:?}; average is {:?}",
-                                degrees[validator_id], cut_off_degree, average_neighbor_degree
-                            )
-                        );
-                    }
-                    for &ivalidator_id in iqset.validators.iter() {
-                        assert!(
-                            degrees[ivalidator_id] < cut_off_degree,
-                            format!(
-                                "Quality threshold too high? {:?} vs {:?}; average is {:?}",
-                                degrees[ivalidator_id], cut_off_degree, average_neighbor_degree
-                            )
-                        );
-                    }
-                }
-            } else {
-                assert!(
-                    qset.inner_quorum_sets.is_empty(),
-                    "Too few nodes for using an inner quorum set."
-                );
-                assert_eq_when_sorted!(qset.validators, (&graph).connections[node_id]);
-            }
+            let mut expected: NodeIdSet = graph.connections[node_id].iter().cloned().collect();
+            expected.insert(node_id);
+            let actual = node.quorum_set.contained_nodes();
+            assert_eq!(expected, actual);
         }
     }
 }
