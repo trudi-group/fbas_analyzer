@@ -60,6 +60,8 @@ enum QuorumSetConfiguratorConfig {
         relative_threshold: f64,
         graph_size: Option<usize>,
     },
+    /// TODO
+    QualityAware { graph_size: Option<usize> },
 }
 
 fn parse_qscc(
@@ -93,8 +95,8 @@ fn parse_qscc(
             graph_size,
             relative_threshold,
         } => Rc::new(SimpleGraphQsc::new(
-            Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size), 2, 2).shuffled(),
             // shuffled because fbas join order shouldn't be correlated with importance in graph
+            Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size), 2, 2).shuffled(),
             relative_threshold,
         )),
         SimpleSmallWorld {
@@ -102,10 +104,14 @@ fn parse_qscc(
             mean_degree,
             relative_threshold,
         } => Rc::new(SimpleGraphQsc::new(
+            // shuffled because fbas join order shouldn't be correlated with importance in graph
             Graph::new_random_small_world(graph_size.unwrap_or(fbas_size), mean_degree, 0.05)
                 .shuffled(),
-            // shuffled because fbas join order shouldn't be correlated with importance in graph
             relative_threshold,
+        )),
+        QualityAware { graph_size } => Rc::new(QualityAwareGraphQsc::new(
+            // shuffled because fbas join order shouldn't be correlated with importance in graph
+            Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size), 2, 2).shuffled(),
         )),
     }
 }
