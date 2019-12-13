@@ -54,12 +54,7 @@ impl Graph {
                     .to_owned();
                 connect!(i, j);
                 // remove j from possible targets
-                if j == i - 1 {
-                    possible_targets.pop();
-                } else {
-                    possible_targets =
-                        [&possible_targets[..j], &possible_targets[j + 1..]].concat();
-                }
+                possible_targets = possible_targets.into_iter().filter(|&x| x != j).collect();
             }
         }
         let result = Self::new(connections);
@@ -204,6 +199,12 @@ mod tests {
             .sum::<usize>()
             / 2;
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn scale_free_graph_doesnt_panic_on_exotic_m_values() {
+        let (n, m0, m) = (40, 4, 4);
+        Graph::new_random_scale_free(n, m0, m);
     }
 
     #[test]
