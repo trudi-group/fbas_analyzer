@@ -2,6 +2,11 @@ use super::*;
 
 use std::cmp;
 
+mod random;
+pub use random::*;
+mod graph;
+pub use graph::*;
+
 /// Dummy Quorum Set Configurator.
 ///
 /// Creates empty quorum sets.
@@ -112,7 +117,7 @@ impl IdealQsc {
     }
     fn build_new_configuration(fbas: &Fbas) -> QuorumSet {
         let n = fbas.nodes.len();
-        let threshold: usize = ((2 * n + 1) as f64 / 3.0).ceil() as usize;
+        let threshold: usize = get_67p_threshold(n);
         let validators = (0..n).collect();
         let inner_quorum_sets = vec![];
         QuorumSet {
@@ -129,49 +134,65 @@ fn get_67p_threshold(n: usize) -> usize {
     n - ((n as f64 - 1.) / 3.).floor() as usize
 }
 
-mod random;
-pub use random::*;
-mod graph;
-pub use graph::*;
-
 #[cfg(test)]
 mod tests {
-    use super::monitors::*;
     use super::*;
+
+    #[macro_export]
+    macro_rules! assert_is_67p_threshold {
+        ($t:expr, $n:expr) => {
+            assert!(3 * $t >= 2 * $n + 1, "Not a 67% threshold!")
+        };
+    }
+    #[macro_export]
+    macro_rules! assert_has_67p_threshold {
+        ($qset:expr) => {
+            assert_is_67p_threshold!(
+                $qset.threshold,
+                $qset.validators.len() + $qset.inner_quorum_sets.len()
+            );
+        };
+    }
+    #[macro_export]
+    macro_rules! simulate {
+        ($qsc:expr, $n:expr) => {{
+            let mut simulator =
+                Simulator::new(Fbas::new(), Rc::new($qsc), Rc::new(monitors::DummyMonitor));
+            simulator.simulate_growth($n);
+            simulator.finalize()
+        }};
+    }
 
     #[test]
     fn get_67p_threshold_test() {
         for n in 1..20 {
-            assert!(
-                3 * get_67p_threshold(n) >= 2 * n + 1,
-                "Not a 67% threshold!"
-            );
+            assert_is_67p_threshold!(get_67p_threshold(n), n);
         }
     }
 
     #[test]
     fn super_safe_qsc_makes_a_quorum() {
-        let mut simulator =
-            Simulator::new(Fbas::new(), Rc::new(SuperSafeQsc), Rc::new(DummyMonitor));
-        simulator.simulate_growth(3);
-        assert!(simulator.fbas.is_quorum(&bitset![0, 1, 2]));
+        let fbas = simulate!(SuperSafeQsc::new(), 5);
+        assert!(fbas.is_quorum(&bitset![0, 1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn super_safe_qsc_makes_no_small_quorum() {
+        let fbas = simulate!(SuperSafeQsc::new(), 5);
+        assert!(!fbas.is_quorum(&bitset![0, 1, 2, 3]));
     }
 
     #[test]
     fn super_safe_qsc_makes_quorum_intersection() {
-        let mut simulator =
-            Simulator::new(Fbas::new(), Rc::new(SuperSafeQsc), Rc::new(DummyMonitor));
-        simulator.simulate_growth(8);
-        assert!(simulator.fbas.has_quorum_intersection());
+        let fbas = simulate!(SuperSafeQsc::new(), 8);
+        assert!(fbas.has_quorum_intersection());
     }
 
     #[test]
     fn ideal_qsc_makes_ideal_fbas() {
         let f = 1;
         let n = 3 * f + 1;
-        let mut simulator = Simulator::new(Fbas::new(), Rc::new(IdealQsc), Rc::new(DummyMonitor));
-        simulator.simulate_growth(n);
-        let fbas = simulator.finalize();
+        let fbas = simulate!(IdealQsc::new(), n);
 
         let mut analysis = Analysis::new(&fbas);
         let actual = analysis.minimal_quorums();
