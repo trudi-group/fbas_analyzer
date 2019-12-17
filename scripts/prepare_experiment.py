@@ -34,6 +34,7 @@ def main():
 
 def config(name, sim_template, parameters, folder_path, nruns):
     result = dict()
+    result['name'] = name
     result['sim_template'] = qsc_sim + " " + sim_template
     result['analyzer'] = fbas_analyzer
     result['fbas_json_template'] = fbas_json_template(name, parameters)
