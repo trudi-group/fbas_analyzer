@@ -1,17 +1,22 @@
 use super::*;
 
-/// Makes quorum sets based on his immediate graph neighbors, in total disregard for quorum
-/// intersection, which nodes exist, and anything else...
+/// Makes non-nested quorum sets containing all immediate graph neighbors
 pub struct SimpleGraphQsc {
     graph: Graph,
-    relative_threshold: f64,
+    relative_threshold: Option<f64>,
 }
 impl SimpleGraphQsc {
-    pub fn new(graph: Graph, relative_threshold: f64) -> Self {
+    pub fn new(graph: Graph, relative_threshold: Option<f64>) -> Self {
         SimpleGraphQsc {
             graph,
             relative_threshold,
         }
+    }
+    pub fn new_67p(graph: Graph) -> Self {
+        Self::new(graph, None)
+    }
+    pub fn new_relative(graph: Graph, relative_threshold: f64) -> Self {
+        Self::new(graph, Some(relative_threshold))
     }
 }
 impl QuorumSetConfigurator for SimpleGraphQsc {
@@ -33,7 +38,11 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
             }
             validators.sort(); // for easier comparability
 
-            let threshold = (self.relative_threshold * validators.len() as f64).ceil() as usize;
+            let threshold = if let Some(relative_threshold) = self.relative_threshold {
+                (relative_threshold * validators.len() as f64).ceil() as usize
+            } else {
+                get_67p_threshold(validators.len())
+            };
 
             existing_quorum_set.validators.extend(validators);
             existing_quorum_set.threshold = threshold;
@@ -51,7 +60,7 @@ mod tests {
     #[test]
     fn simple_qsc_can_be_like_super_safe() {
         let n = 10;
-        let simple_qsc = SimpleGraphQsc::new(Graph::new_full_mesh(n), 1.0);
+        let simple_qsc = SimpleGraphQsc::new_relative(Graph::new_full_mesh(n), 1.0);
         let super_safe_qsc = SuperSafeQsc::new();
 
         let actual = simulate!(simple_qsc, n);
@@ -62,7 +71,7 @@ mod tests {
     #[test]
     fn simple_qsc_can_be_like_ideal_safe() {
         let n = 10;
-        let simple_qsc = SimpleGraphQsc::new(Graph::new_full_mesh(n), 0.67);
+        let simple_qsc = SimpleGraphQsc::new_67p(Graph::new_full_mesh(n));
         let ideal_qsc = IdealQsc::new();
 
         let actual = simulate!(simple_qsc, n);

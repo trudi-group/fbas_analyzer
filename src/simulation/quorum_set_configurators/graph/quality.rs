@@ -103,7 +103,7 @@ mod tests {
     fn quality_aware_qsc_like_simple_when_nodes_all_same() {
         let n = 30;
         let graph = Graph::new_random_small_world(n, 4, 0.);
-        let simple = simulate!(SimpleGraphQsc::new(graph.clone(), 0.67), n);
+        let simple = simulate!(SimpleGraphQsc::new_67p(graph.clone()), n);
         let quality_aware = simulate!(QualityAwareGraphQsc::new(graph), n);
         assert_eq!(simple, quality_aware);
     }
