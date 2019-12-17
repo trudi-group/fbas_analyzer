@@ -10,8 +10,8 @@ from pathlib import Path
 from string import Template
 
 
-qsc_sim = "target/release/qsc_sim -vv"
-fbas_analyzer = "target/release/fbas_analyzer -asd -vvvv"
+qsc_sim = "../../target/release/qsc_sim -vv"
+fbas_analyzer = "../../target/release/fbas_analyzer -asd -vvvv"
 
 
 def main():
@@ -26,7 +26,8 @@ def main():
         config('smallworld', '-g $n SimpleSmallWorld $k', dict(n=[20, 30], k=[4, 10]), folder_path, nruns),
     ]
 
-    dump('generate.sh', generate_sh(configs, folder_path), folder_path)
+    dump('generate.sh', build_generate_sh(configs), folder_path)
+    dump('Makefile', build_analysis_makefile(configs), folder_path)
 
     dump('configs.json', json.dumps(configs, indent=2), folder_path)
 
@@ -50,29 +51,52 @@ def dump(filename, data, folder_path):
         f.write(data)
 
 
-def generate_sh(configs, folder_path):
-    lines = ['DIR=' + folder_path, '']
-    for config in configs:
-        fixated_parameters = {}
-        remaining_parameters = sorted(config['parameters'].keys())
-        lines.extend(generate_sh_lines(config, fixated_parameters, remaining_parameters))
-    return "\n".join(lines)
-
-
-def generate_sh_lines(config, fixated_parameters, remaining_parameters):
+def build_generate_sh(configs):
     lines = []
-    if remaining_parameters:
-        parameter = remaining_parameters.pop()
-        for value in config['parameters'][parameter]:
-            fixated_parameters[parameter] = value
-            lines.extend(generate_sh_lines(config, fixated_parameters, remaining_parameters))
-    else:
-        for run in range(config['nruns']):
-            fixated_parameters['run'] = run
-            command = Template(config['sim_template']).substitute(fixated_parameters)
-            outfile = os.path.join('$DIR', Template(config['fbas_json_template']).substitute(fixated_parameters))
+    for config in configs:
+        for combination in get_combinations(config):
+            command = Template(config['sim_template']).substitute(combination)
+            outfile = Template(config['fbas_json_template']).substitute(combination)
             lines.append(command + ' > ' + outfile)
-    return lines
+    return "\n".join(lines) + "\n"
+
+
+def build_analysis_makefile(configs):
+    targets = " ".join(map(
+        lambda config: " ".join(map(
+            lambda combination: Template(config['result_out_template']).substitute(combination),
+            get_combinations(config))),
+        configs))
+
+    return \
+"""ANALYZER := ../../target/release/fbas_analyzer -asd -vvvv
+
+TARGETS := {0}
+
+all: $(TARGETS)
+
+clean:
+\trm -f $(TARGETS)
+
+$(TARGETS): %.result.out : %.fbas.json
+\t$(ANALYZER) $< > $@
+""".format(targets)
+
+
+def get_combinations(config):
+    def unroll(config, current_combination, remaining_parameters):
+        combinations = []
+        if remaining_parameters:
+            parameter = remaining_parameters[-1]
+            for value in config['parameters'][parameter]:
+                current_combination[parameter] = value
+                combinations.extend(unroll(config, current_combination, remaining_parameters[:-1]))
+        else:
+            for run in range(config['nruns']):
+                current_combination['run'] = run
+                combinations.append(current_combination.copy())
+        return combinations
+    return unroll(config, {}, sorted(config['parameters'].keys()))
 
 
 def fbas_json_template(name, parameters):
