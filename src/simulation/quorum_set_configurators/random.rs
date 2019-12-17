@@ -25,6 +25,12 @@ impl QuorumSetConfigurator for RandomQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
         let n = fbas.nodes.len();
         let existing_quorum_set = &mut fbas.nodes[node_id].quorum_set;
+
+        // we add nodes to their own quorum sets, for better comparability with other Qsc
+        if existing_quorum_set.validators.is_empty() {
+            existing_quorum_set.validators = vec![node_id];
+        }
+
         let current_quorum_set_size = existing_quorum_set.validators.len();
 
         if current_quorum_set_size < self.desired_quorum_set_size {
