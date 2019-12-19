@@ -13,23 +13,24 @@ from string import Template
 qsc_sim = "../../target/release/qsc_sim -vv"
 fbas_analyzer = "../../target/release/fbas_analyzer -asd -vvvv"
 
+results_to_csv = "../../scripts/results_to_csv.py"
+csv_to_plots = "../../scripts/csv_to_plots.py"
+
 
 def main():
     folder_path = sys.argv[1]
-    nruns = 4
+    nruns = 10
 
     if not Path(folder_path).is_dir():
         os.mkdir(folder_path)
 
     configs = [
         config('random-g', '-g $n SimpleRandom $k', dict(n=[10, 20, 40, 80, 160], k=[4, 10]), folder_path, nruns),
-        config('smallworld', '-g $n SimpleSmallWorld $k', dict(n=[20, 30], k=[4, 10]), folder_path, nruns),
+        config('smallworld', '-g $n SimpleSmallWorld $k', dict(n=[20, 30], k=[4]), folder_path, nruns),
     ]
 
-    dump('generate.sh', build_generate_sh(configs), folder_path)
-    dump('Makefile', build_analysis_makefile(configs), folder_path)
-
     dump('configs.json', json.dumps(configs, indent=2), folder_path)
+    dump('Makefile', build_makefile(configs), folder_path)
 
 
 def config(name, sim_template, parameters, folder_path, nruns):
@@ -52,29 +53,26 @@ def dump(filename, data, folder_path):
         f.write(data)
 
 
-def build_generate_sh(configs):
-    lines = []
-    for config in configs:
-        for combination in get_combinations(config):
-            command = Template(config['sim_template']).substitute(combination)
-            outfile = Template(config['fbas_json_template']).substitute(combination)
-            lines.append(command + ' > ' + outfile)
-    return "\n".join(lines) + "\n"
+def build_makefile(configs):
+    return '\n'.join([
+        build_makefile_analysis_part(configs),
+        build_makefile_plots_part(),
+        build_makefile_simulation_part(configs),  # last for better Makefile readability
+        ])
 
 
-def build_analysis_makefile(configs):
+def build_makefile_analysis_part(configs):
     targets = " ".join(map(
         lambda config: " ".join(map(
             lambda combination: Template(config['result_out_template']).substitute(combination),
             get_combinations(config))),
         configs))
-
     return \
 """ANALYZER := ../../target/release/fbas_analyzer -asd -vvvv
 
 TARGETS := {0}
 
-all: $(TARGETS)
+analysis: $(TARGETS)
 
 clean:
 \trm -f $(TARGETS)
@@ -82,6 +80,31 @@ clean:
 $(TARGETS): %.result.out : %.fbas.json
 \t$(ANALYZER) $< > $@
 """.format(targets)
+
+
+def build_makefile_plots_part():
+    lines = [
+            'plots:',
+            '\t' + results_to_csv + ' ' + 'configs.json' + ' > results.csv',
+            '\t' + csv_to_plots + ' ' + 'results.csv',
+            ]
+    return "\n".join(lines) + "\n"
+
+
+def build_makefile_simulation_part(configs):
+    lines = [
+            'simulation:',
+            '\tif [ `find . -name "*.fbas.json" | wc -l` -gt 0 ]; then \\',
+            '\techo "There are already fbas.json files present; stopping here to avoid overwrites."; \\',
+            '\texit 1; \\',
+            '\tfi'
+            ]
+    for config in configs:
+        for combination in get_combinations(config):
+            command = Template(config['sim_template']).substitute(combination)
+            outfile = Template(config['fbas_json_template']).substitute(combination)
+            lines.append('\t' + command + ' > ' + outfile)
+    return "\n".join(lines) + "\n"
 
 
 def get_combinations(config):
