@@ -33,9 +33,13 @@ struct Cli {
     #[structopt(short = "a", long = "all")]
     all: bool,
 
-    /// Output metrics instead of node lists
+    /// Output metrics instead of lists of node lists
     #[structopt(short = "d", long = "describe")]
     describe: bool,
+
+    /// Output a histogram of sizes instead of lists of node lists
+    #[structopt(short = "H", long = "histogram")]
+    histogram: bool,
 
     /// Silence the commentary about what is what and what it means
     #[structopt(short = "s", long = "silent")]
@@ -102,12 +106,13 @@ fn main() -> CliResult {
     }
     let output_pretty = args.output_pretty;
     let desc = args.describe;
+    let hist = args.histogram;
     macro_rules! print_sets_result {
         ($result_name:expr, $result:expr) => {
             println!(
                 "{}: {}",
                 $result_name,
-                format_node_id_sets($result, &fbas, &organizations, desc, output_pretty)
+                format_node_id_sets($result, &fbas, &organizations, desc, hist, output_pretty)
             );
         };
     }
@@ -116,7 +121,7 @@ fn main() -> CliResult {
             println!(
                 "{}: {}",
                 $result_name,
-                format_node_ids($result, &fbas, &organizations, desc, output_pretty)
+                format_node_ids($result, &fbas, &organizations, desc || hist, output_pretty)
             );
         };
     }

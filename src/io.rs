@@ -217,9 +217,12 @@ pub fn format_node_id_sets(
     fbas: &Fbas,
     organizations: &Option<Organizations>,
     output_description: bool,
+    output_histogram: bool,
     output_pretty: bool,
 ) -> String {
-    if output_description {
+    if output_histogram {
+        format!("{:?}", describe_with_histogram(node_sets))
+    } else if output_description {
         format!("{:?}", describe(node_sets))
     } else if output_pretty {
         if let Some(ref orgs) = organizations {

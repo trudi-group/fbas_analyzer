@@ -1,5 +1,5 @@
-use super::*;
 use log::log_enabled;
+use super::*;
 use log::Level::Warn;
 
 mod find_blocking_sets;
@@ -128,8 +128,22 @@ impl<'a> Analysis<'a> {
     }
 }
 
-/// Returns (number_of_sets, min_set_size, max_set_size, mean_set_size, number_of_distinct_nodes)
-pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, usize, f64, usize) {
+/// Returns (number_of_sets, number_of_distinct_nodes, <minmaxmean_set_size>)
+pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, usize, usize, f64) {
+    let (min, max, mean) = minmaxmean(node_sets);
+    let involved_nodes = involved_nodes(node_sets);
+    (node_sets.len(), involved_nodes.len(), min, max, mean)
+}
+
+/// Returns (number_of_sets, number_of_distinct_nodes, <histogram>)
+pub fn describe_with_histogram(node_sets: &[NodeIdSet]) -> (usize, usize, Vec<usize>) {
+    let histogram = histogram(node_sets);
+    let involved_nodes = involved_nodes(node_sets);
+    (node_sets.len(), involved_nodes.len(), histogram)
+}
+
+/// Returns (min_set_size, max_set_size, mean_set_size)
+pub fn minmaxmean(node_sets: &[NodeIdSet]) -> (usize, usize, f64) {
     let min = node_sets.iter().map(|s| s.len()).min().unwrap_or(0);
     let max = node_sets.iter().map(|s| s.len()).max().unwrap_or(0);
     let mean = if node_sets.is_empty() {
@@ -137,8 +151,18 @@ pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, usize, f64, usize) {
     } else {
         node_sets.iter().map(|s| s.len()).sum::<usize>() as f64 / (node_sets.len() as f64)
     };
-    let involved_nodes = involved_nodes(node_sets);
-    (node_sets.len(), min, max, mean, involved_nodes.len())
+    (min, max, mean)
+}
+
+/// Returns [ #members with size 0, #members with size 1, ... , #members with maximum size ]
+pub fn histogram(node_sets: &[NodeIdSet]) -> Vec<usize> {
+    let max = node_sets.iter().map(|s| s.len()).max().unwrap_or(0);
+    let mut histogram: Vec<usize> = vec![0; max + 1];
+    for node_set in node_sets.iter() {
+        let size = node_set.len();
+        histogram[size] = histogram[size].checked_add(1).unwrap();
+    }
+    histogram
 }
 
 pub fn all_intersect(node_sets: &[NodeIdSet]) -> bool {
@@ -315,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn describe_node_sets() {
+    fn node_sets_describe() {
         let node_sets = vec![
             bitset![0, 1],
             bitset![2, 3],
@@ -323,7 +347,20 @@ mod tests {
             bitset![1, 4],
         ];
         let actual = describe(&node_sets);
-        let expected = (4, 2, 4, 2.5, 8);
+        let expected = (4, 8, 2, 4, 2.5);
+        assert_eq!(expected, actual)
+    }
+
+    #[test]
+    fn node_sets_histogram() {
+        let node_sets = vec![
+            bitset![0, 1],
+            bitset![2, 3],
+            bitset![4, 5, 6, 7],
+            bitset![1, 4],
+        ];
+        let actual = histogram(&node_sets);
+        let expected = vec![0, 0, 3, 0, 1];
         assert_eq!(expected, actual)
     }
 

@@ -1,7 +1,7 @@
 use super::*;
 
 pub fn find_minimal_intersections(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
-    let max_len_upper_bound = node_sets.iter().map(|x| x.len()).max().unwrap_or(0);
+    let max_len_upper_bound = node_sets.iter().map(|x| x.len()).max().unwrap_or(0) + 1;
     let mut buckets_by_len: Vec<Vec<(usize, usize)>> = vec![vec![]; max_len_upper_bound];
 
     // we don't store intersections themselves at this stage to save memory
