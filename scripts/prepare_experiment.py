@@ -11,7 +11,7 @@ from string import Template
 
 
 qsc_sim = "../../target/release/qsc_sim -vv"
-fbas_analyzer = "../../target/release/fbas_analyzer -asd -vvvv"
+fbas_analyzer = "../../target/release/fbas_analyzer -asH -vvvv"
 
 results_to_csv = "../../scripts/results_to_csv.py"
 csv_to_plots = "../../scripts/csv_to_plots.py"
@@ -24,9 +24,12 @@ def main():
     if not Path(folder_path).is_dir():
         os.mkdir(folder_path)
 
+    # comment all but the first one for quick workflow checks
     configs = [
-        config('random-g', '-g $n SimpleRandom $k', dict(n=[10, 20, 40, 80, 160], k=[4, 10]), folder_path, nruns),
-        config('smallworld', '-g $n SimpleSmallWorld $k', dict(n=[20, 30], k=[4]), folder_path, nruns),
+        config('random-g', '-g $n SimpleRandom $k', dict(n=[20, 40, 80, 160], k=[4, 10]), folder_path, nruns),
+        config('scalefree', '-g $n SimpleScaleFree $k',   dict(n=[20, 30, 40], k=[4, 10]), folder_path, nruns),
+        config('smallworld', '-g $n SimpleSmallWorld $k', dict(n=[20, 30, 40], k=[4, 10]), folder_path, nruns),
+        config('random-i', '-i $n SimpleRandom $k',       dict(n=[20, 30, 40], k=[4, 10]), folder_path, nruns),
     ]
 
     dump('configs.json', json.dumps(configs, indent=2), folder_path)
@@ -68,9 +71,9 @@ def build_makefile_analysis_part(configs):
             get_combinations(config))),
         configs))
     return \
-"""ANALYZER := ../../target/release/fbas_analyzer -asd -vvvv
+"""ANALYZER := {0}
 
-TARGETS := {0}
+TARGETS := {1}
 
 analysis: $(TARGETS)
 
@@ -79,7 +82,7 @@ clean:
 
 $(TARGETS): %.result.out : %.fbas.json
 \t$(ANALYZER) $< > $@
-""".format(targets)
+""".format(fbas_analyzer, targets)
 
 
 def build_makefile_plots_part():

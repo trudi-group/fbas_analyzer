@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 import sys
 from os import path
 
+plt.style.use('default')
+plt.rcParams['errorbar.capsize'] = 2
+
 configname_key = 'configname'
 p1_key = 'k'
 p2_key = 'n'
@@ -31,14 +34,21 @@ for configname_value in configname_values:
 
         subsubdf = subdf.xs(p1_value)
 
-        if subsubdf.empty:
+        if len(subsubdf) < 2:
+            print('%s, %s=%d: skipping plot with only one entry (strange error otherwise...).'
+                  % (configname_value, p1_key, p1_value))
             continue
 
-        means = subsubdf[['mbmean', 'mimean', 'ttn']]
+        means = subsubdf[['mbmean', 'mimean', 'ttn']].copy()
+
+        # if we only have upper and lower bounds for the minimal intersections
+        if means['mimean'].isnull().all():
+            means['mimean'] = means['mimean'].fillna(0)
+
         errors = [
-                [subsubdf['mbmean'] - subsubdf['mbmin'], subsubdf['mbmax'] - subsubdf['mbmean']],
-                [subsubdf['mimean'] - subsubdf['mimin'], subsubdf['mimax'] - subsubdf['mimean']],
-                [subsubdf['ttn'] - subsubdf['ttn'], subsubdf['ttn'] - subsubdf['ttn']],
+                [means['mbmean'] - subsubdf['mbmin'], subsubdf['mbmax'] - means['mbmean']],
+                [means['mimean'] - subsubdf['mimin'], subsubdf['mimax'] - means['mimean']],
+                [means['ttn'] - means['ttn'], means['ttn'] - means['ttn']],
                 ]
 
         means.plot(kind='bar', yerr=errors)
