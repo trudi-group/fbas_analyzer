@@ -1,5 +1,5 @@
-use log::log_enabled;
 use super::*;
+use log::log_enabled;
 use log::Level::Warn;
 
 mod find_blocking_sets;

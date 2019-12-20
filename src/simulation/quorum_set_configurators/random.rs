@@ -14,7 +14,7 @@ impl RandomQsc {
         RandomQsc {
             desired_quorum_set_size,
             desired_threshold,
-            weights: weights.unwrap_or(vec![]),
+            weights: weights.unwrap_or_else(|| vec![]),
         }
     }
     pub fn new_simple(desired_quorum_set_size: usize) -> Self {
@@ -36,7 +36,9 @@ impl QuorumSetConfigurator for RandomQsc {
         if current_quorum_set_size < self.desired_quorum_set_size {
             let target_quorum_set_size = cmp::min(self.desired_quorum_set_size, n);
 
-            let threshold = self.desired_threshold.unwrap_or(get_67p_threshold(target_quorum_set_size));
+            let threshold = self
+                .desired_threshold
+                .unwrap_or_else(|| get_67p_threshold(target_quorum_set_size));
 
             let used_nodes: BitSet<NodeId> =
                 existing_quorum_set.validators.iter().copied().collect();
@@ -121,7 +123,11 @@ mod tests {
     fn random_qsc_honors_weights() {
         let mut simulator = Simulator::new(
             Fbas::new_generic_unconfigured(10),
-            Rc::new(RandomQsc::new(5, Some(3), Some(vec![0, 0, 0, 0, 0, 1, 1, 1, 1, 1]))),
+            Rc::new(RandomQsc::new(
+                5,
+                Some(3),
+                Some(vec![0, 0, 0, 0, 0, 1, 1, 1, 1, 1]),
+            )),
             Rc::new(DummyMonitor),
         );
         simulator.simulate_global_reevaluation(2);

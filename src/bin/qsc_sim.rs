@@ -34,9 +34,7 @@ enum QuorumSetConfiguratorConfig {
     /// a maximum of f nodes can fail, where (n-1) < (3f+1) <= n
     Ideal,
     /// Creates random quorum sets of the given size, using 67% thresholds as in "Ideal".
-    SimpleRandom {
-        desired_quorum_set_size: usize,
-    },
+    SimpleRandom { desired_quorum_set_size: usize },
     /// Creates random quorum sets of the given size and threshold. The probability of picking a
     /// node as a validator is weighted by that node's degree in a scale free graph ("famousness")
     /// If threshold is ommitted, uses as 67% threshold as in "Ideal".
@@ -78,9 +76,7 @@ fn parse_qscc(
         Ideal => Rc::new(IdealQsc::new()),
         SimpleRandom {
             desired_quorum_set_size,
-        } => Rc::new(RandomQsc::new_simple(
-            desired_quorum_set_size,
-        )),
+        } => Rc::new(RandomQsc::new_simple(desired_quorum_set_size)),
         FameWeightedRandom {
             desired_quorum_set_size,
             desired_threshold,
@@ -88,9 +84,11 @@ fn parse_qscc(
         } => Rc::new(RandomQsc::new(
             desired_quorum_set_size,
             desired_threshold,
-            Some(Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size * 100), 2, 2)
-                .shuffled()
-                .get_in_degrees()),
+            Some(
+                Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size * 100), 2, 2)
+                    .shuffled()
+                    .get_in_degrees(),
+            ),
         )),
         SimpleScaleFree {
             mean_degree,
@@ -103,7 +101,7 @@ fn parse_qscc(
             // shuffled because fbas join order shouldn't be correlated with importance in graph
             let graph = Graph::new_random_scale_free(n, m, m0).shuffled();
             Rc::new(SimpleGraphQsc::new(graph, relative_threshold))
-        },
+        }
         SimpleSmallWorld {
             mean_degree,
             relative_threshold,
@@ -114,7 +112,7 @@ fn parse_qscc(
             // shuffled because fbas join order shouldn't be correlated with importance in graph
             let graph = Graph::new_random_small_world(n, k, 0.05).shuffled();
             Rc::new(SimpleGraphQsc::new(graph, relative_threshold))
-        },
+        }
         QualityAware { graph_size } => Rc::new(QualityAwareGraphQsc::new(
             // shuffled because fbas join order shouldn't be correlated with importance in graph
             Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size), 2, 2).shuffled(),
