@@ -197,22 +197,30 @@ pub fn involved_nodes(node_sets: &[NodeIdSet]) -> Vec<NodeId> {
 
 /// Reduce to minimal node sets, i.e. to a set of node sets so that no member set is a superset of another.
 pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
-    let mut minimal_node_sets: Vec<NodeIdSet> = vec![];
-
-    debug!("Sorting node sets by length...");
-    node_sets.sort_by_cached_key(|x| x.len());
-    debug!("Sorting done.");
-
     debug!("Removing duplicates...");
     let len_before = node_sets.len();
+    node_sets.sort();
     node_sets.dedup();
     debug!("Done; removed {} duplicates.", len_before - node_sets.len());
 
-    debug!("Filtering non-minimal node sets...");
+    debug!("Sorting node sets into buckets, by length...");
+    let max_len_upper_bound = node_sets.iter().map(|x| x.len()).max().unwrap_or(0) + 1;
+    let mut buckets_by_len: Vec<Vec<NodeIdSet>> = vec![vec![]; max_len_upper_bound];
     for node_set in node_sets.into_iter() {
-        if minimal_node_sets.iter().all(|x| !x.is_subset(&node_set)) {
-            minimal_node_sets.push(node_set);
+        buckets_by_len[node_set.len()].push(node_set);
+    }
+    debug!("Sorting done.");
+
+    debug!("Filtering non-minimal node sets...");
+    let mut minimal_node_sets: Vec<NodeIdSet> = vec![];
+    let mut minimal_node_sets_current_len: Vec<NodeIdSet> = vec![];
+    for bucket in buckets_by_len.into_iter() {
+        for node_set in bucket.into_iter() {
+            if minimal_node_sets.iter().all(|x| !x.is_subset(&node_set)) {
+                minimal_node_sets_current_len.push(node_set);
+            }
         }
+        minimal_node_sets.append(&mut minimal_node_sets_current_len);
     }
     debug!("Filtering done.");
     minimal_node_sets
