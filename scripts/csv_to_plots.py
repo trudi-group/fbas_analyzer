@@ -45,9 +45,8 @@ for configname_value in configname_values:
 
         means = subsubdf[['mbmean', 'mimean', 'ttn']].copy()
 
-        # if we only have upper and lower bounds for the minimal intersections
-        if means['mimean'].isnull().all():
-            means['mimean'] = means['mimean'].fillna(0)
+        # if we only have upper and lower bounds for the minimal intersections, means will be NaN
+        means['mimean'] = means['mimean'].fillna(0)
 
         errors = [
                 [means['mbmean'] - subsubdf['mbmin'], subsubdf['mbmax'] - means['mbmean']],
