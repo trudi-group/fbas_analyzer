@@ -81,13 +81,15 @@ def get_minmaxmean_blocking_sets(data):
 
 
 def get_minmaxmean_minimal_intersections(data):
+    has_quorum_intersection = data.get('has_quorum_intersection')
     data_line = data.get('minimal_intersections')
-    if data_line:
+    if has_quorum_intersection == False:
+        return (0, 0, 0.)
+    elif data_line:
         return get_minmaxmean(data_line)
     else:
         # calculate theoretical lower and upper bounds
         [ttn, mq_histogram] = data.get('minimal_quorums')[1:3]
-        has_quorum_intersection = data.get('has_quorum_intersection')
 
         if sum(mq_histogram) == 1:
             lower_bound = None
