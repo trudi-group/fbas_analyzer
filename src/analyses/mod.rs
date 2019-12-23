@@ -166,10 +166,25 @@ pub fn histogram(node_sets: &[NodeIdSet]) -> Vec<usize> {
 }
 
 pub fn all_intersect(node_sets: &[NodeIdSet]) -> bool {
-    node_sets
-        .iter()
-        .enumerate()
-        .all(|(i, x)| node_sets.iter().skip(i + 1).all(|y| !x.is_disjoint(y)))
+    let involved_nodes_len = involved_nodes(node_sets).len();
+
+    let mut node_sets_by_size: Vec<(NodeIdSet, usize)> =
+        node_sets.iter().map(|ns| (ns.clone(), ns.len())).collect();
+    node_sets_by_size.sort_by_key(|x| x.1);
+
+    for (i, (ns1, ns1_len)) in node_sets_by_size.iter().enumerate() {
+        if *ns1_len > involved_nodes_len / 2 {
+            break;
+        }
+        for (ns2, ns2_len) in node_sets_by_size.iter().skip(i + 1) {
+            if ns1_len + ns2_len > involved_nodes_len {
+                break;
+            } else if ns1.is_disjoint(ns2) {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 pub fn involved_nodes(node_sets: &[NodeIdSet]) -> Vec<NodeId> {
