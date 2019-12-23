@@ -20,9 +20,13 @@ else:
     folder_path = './'
 
 df = pd.read_csv(csv_path)
-df = df.groupby([configname_key, p1_key, p2_key]).mean()
 
-del df['run']  # mean run number => makes no sense
+grouped = df.groupby([configname_key, p1_key, p2_key])
+df = pd.concat([
+    grouped['ttn', 'mbmean', 'mimean'].mean(),
+    grouped['mbmin', 'mimin'].min(),
+    grouped['mbmax', 'mimax'].max(),
+    ], axis=1, sort=False)
 
 [configname_values, p1_values, p2_values] = df.index.levels
 
