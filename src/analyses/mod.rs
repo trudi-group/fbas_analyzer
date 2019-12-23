@@ -210,7 +210,12 @@ pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeId
         buckets_by_len[node_set.len()].push(node_set);
     }
     debug!("Sorting done.");
+    remove_non_minimal_node_sets_from_buckets(buckets_by_len)
+}
 
+fn remove_non_minimal_node_sets_from_buckets(
+    buckets_by_len: Vec<impl IntoIterator<Item = NodeIdSet>>,
+) -> Vec<NodeIdSet> {
     debug!("Filtering non-minimal node sets...");
     let mut minimal_node_sets: Vec<NodeIdSet> = vec![];
     let mut minimal_node_sets_current_len: Vec<NodeIdSet> = vec![];
