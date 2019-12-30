@@ -68,7 +68,6 @@ impl Graph {
             k % 2 == 0,
             "For the Watts-Strogatz model, `k` must be an even number!"
         );
-        assert!(n >= 2*k, "Node numbers close to k can lead to infinite loops and are therefore not supported; choose a k <= n/2.");
 
         let mut matrix = vec![vec![false; n]; n];
         let mut rng = thread_rng();
@@ -81,7 +80,18 @@ impl Graph {
                 matrix[j][i] = true;
             }
         }
-        // step 2: rewire with probability beta
+
+        // List of free end nodes per node
+        let mut target_nodes: Vec<Vec<NodeId>> = vec![Vec::with_capacity(n - k); n];
+        for i in 0..n {
+            for j in 0..n {
+                if i != j && !matrix[i][j] && !matrix[j][i] {
+                    target_nodes[i].push(j);
+                }
+            }
+        }
+
+        // step 2: rewire with progability beta
         let mut to_be_rewired: VecDeque<usize> = VecDeque::with_capacity(k);
         for i in 0..n {
             for j in i + 1..=i + k / 2 {
@@ -90,19 +100,29 @@ impl Graph {
                     to_be_rewired.push_back(j);
                 }
             }
+
             for j in to_be_rewired.drain(..) {
-                // find new j
-                let mut newj = i;
-                while newj == i || matrix[i][newj] {
-                    newj = rng.gen_range(0, n);
+                let chosen_node = target_nodes[i].choose(&mut rng);
+                match chosen_node {
+                    Some(node) => {
+                        let newj: usize = *node;
+                        let mut index = target_nodes[i].iter().position(|x| *x == *node).unwrap();
+                        target_nodes[i].remove(index);
+                        if !target_nodes[newj].is_empty() { //remove i from newj's list
+                            index = target_nodes[newj].iter().position(|x| *x == i).unwrap();
+                            target_nodes[newj].remove(index);
+                        }
+                        //rewire
+                        matrix[i][j] = false;
+                        matrix[j][i] = false;
+                        matrix[i][newj] = true;
+                        matrix[newj][i] = true
+                    }
+                    None => continue,
                 }
-                // rewire
-                matrix[i][j] = false;
-                matrix[j][i] = false;
-                matrix[i][newj] = true;
-                matrix[newj][i] = true;
             }
         }
+
         // transform to data format used here
         let mut connections = vec![vec![]; n];
         for i in 0..n {
@@ -267,5 +287,31 @@ mod tests {
     #[test]
     fn node_degrees_directed() {
         // TODO
+    }
+
+    #[test]
+    fn small_world_graph_with_big_ks_has_same_number_of_edges() {
+        let nodes = vec![10, 51, 100];
+        let mean_k = vec![8, 50, 98];
+        for (n, k) in nodes.iter().zip(mean_k.iter()) {
+            let graph = Graph::new_random_small_world(*n, *k, 0.05);
+
+            let expected = n * k / 2;
+            let actual: usize = graph
+                .connections
+                .into_iter()
+                .map(|x| x.len())
+                .sum::<usize>()
+                / 2;
+            assert_eq!(expected, actual);
+        }
+    }
+
+    #[test]
+    fn small_world_graph_with_big_ks_is_random() {
+        let (n, k, beta) = (100, 10, 0.05);
+        let graph1 = Graph::new_random_small_world(n, k, beta);
+        let graph2 = Graph::new_random_small_world(n, k, beta);
+        assert_ne!(graph1, graph2);
     }
 }
