@@ -82,16 +82,16 @@ impl Graph {
         }
 
         // List of free end nodes per node
-        let mut target_nodes: Vec<Vec<NodeId>> = vec![Vec::with_capacity(n - k); n];
+        let mut possible_targets: Vec<Vec<NodeId>> = vec![Vec::with_capacity(n - k); n];
         for i in 0..n {
             for j in 0..n {
                 if i != j && !matrix[i][j] && !matrix[j][i] {
-                    target_nodes[i].push(j);
+                    possible_targets[i].push(j);
                 }
             }
         }
 
-        // step 2: rewire with progability beta
+        // step 2: rewire with probability beta
         let mut to_be_rewired: VecDeque<usize> = VecDeque::with_capacity(k);
         for i in 0..n {
             for j in i + 1..=i + k / 2 {
@@ -100,25 +100,18 @@ impl Graph {
                     to_be_rewired.push_back(j);
                 }
             }
-
             for j in to_be_rewired.drain(..) {
-                let chosen_node = target_nodes[i].choose(&mut rng);
-                match chosen_node {
-                    Some(node) => {
-                        let newj: usize = *node;
-                        let mut index = target_nodes[i].iter().position(|x| *x == *node).unwrap();
-                        target_nodes[i].remove(index);
-                        if !target_nodes[newj].is_empty() { //remove i from newj's list
-                            index = target_nodes[newj].iter().position(|x| *x == i).unwrap();
-                            target_nodes[newj].remove(index);
-                        }
-                        //rewire
-                        matrix[i][j] = false;
-                        matrix[j][i] = false;
-                        matrix[i][newj] = true;
-                        matrix[newj][i] = true
-                    }
-                    None => continue,
+                let chosen_node = possible_targets[i].choose(&mut rng);
+                if let Some(&newj) = chosen_node {
+                    //rewire
+                    matrix[i][j] = false;
+                    matrix[j][i] = false;
+                    matrix[i][newj] = true;
+                    matrix[newj][i] = true;
+                    possible_targets[i].push(j);
+                    possible_targets[j].push(i);
+                    possible_targets[i].retain(|&x| x != newj);
+                    possible_targets[newj].retain(|&x| x != i);
                 }
             }
         }
@@ -207,7 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn scale_free_graph_has_sane_amount_of_edges_overall() {
+    fn scale_free_graph_has_sane_number_of_edges() {
         let (n, m0, m) = (23, 3, 2);
         let graph = Graph::new_random_scale_free(n, m0, m);
 
@@ -228,8 +221,23 @@ mod tests {
     }
 
     #[test]
-    fn small_world_graph_has_sane_amount_of_edges_overall() {
+    fn small_world_graph_has_sane_number_of_edges() {
         let (n, k, beta) = (100, 10, 0.05);
+        let graph = Graph::new_random_small_world(n, k, beta);
+
+        let expected = n * k / 2;
+        let actual: usize = graph
+            .connections
+            .into_iter()
+            .map(|x| x.len())
+            .sum::<usize>()
+            / 2;
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn small_world_graph_with_big_k_has_sane_number_of_edges() {
+        let (n, k, beta) = (80, 78, 0.05);
         let graph = Graph::new_random_small_world(n, k, beta);
 
         let expected = n * k / 2;
@@ -245,6 +253,14 @@ mod tests {
     #[test]
     fn small_world_graph_is_random() {
         let (n, k, beta) = (100, 10, 0.05);
+        let graph1 = Graph::new_random_small_world(n, k, beta);
+        let graph2 = Graph::new_random_small_world(n, k, beta);
+        assert_ne!(graph1, graph2);
+    }
+
+    #[test]
+    fn small_world_graph_with_big_k_is_random() {
+        let (n, k, beta) = (120, 110, 0.05);
         let graph1 = Graph::new_random_small_world(n, k, beta);
         let graph2 = Graph::new_random_small_world(n, k, beta);
         assert_ne!(graph1, graph2);
@@ -287,31 +303,5 @@ mod tests {
     #[test]
     fn node_degrees_directed() {
         // TODO
-    }
-
-    #[test]
-    fn small_world_graph_with_big_ks_has_same_number_of_edges() {
-        let nodes = vec![10, 51, 100];
-        let mean_k = vec![8, 50, 98];
-        for (n, k) in nodes.iter().zip(mean_k.iter()) {
-            let graph = Graph::new_random_small_world(*n, *k, 0.05);
-
-            let expected = n * k / 2;
-            let actual: usize = graph
-                .connections
-                .into_iter()
-                .map(|x| x.len())
-                .sum::<usize>()
-                / 2;
-            assert_eq!(expected, actual);
-        }
-    }
-
-    #[test]
-    fn small_world_graph_with_big_ks_is_random() {
-        let (n, k, beta) = (100, 10, 0.05);
-        let graph1 = Graph::new_random_small_world(n, k, beta);
-        let graph2 = Graph::new_random_small_world(n, k, beta);
-        assert_ne!(graph1, graph2);
     }
 }
