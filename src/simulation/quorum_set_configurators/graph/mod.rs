@@ -68,7 +68,6 @@ impl Graph {
             k % 2 == 0,
             "For the Watts-Strogatz model, `k` must be an even number!"
         );
-        assert!(n >= 2*k, "Node numbers close to k can lead to infinite loops and are therefore not supported; choose a k <= n/2.");
 
         let mut matrix = vec![vec![false; n]; n];
         let mut rng = thread_rng();
@@ -81,6 +80,17 @@ impl Graph {
                 matrix[j][i] = true;
             }
         }
+
+        // List of free end nodes per node
+        let mut possible_targets: Vec<Vec<NodeId>> = vec![Vec::with_capacity(n - k); n];
+        for i in 0..n {
+            for j in 0..n {
+                if i != j && !matrix[i][j] && !matrix[j][i] {
+                    possible_targets[i].push(j);
+                }
+            }
+        }
+
         // step 2: rewire with probability beta
         let mut to_be_rewired: VecDeque<usize> = VecDeque::with_capacity(k);
         for i in 0..n {
@@ -91,18 +101,21 @@ impl Graph {
                 }
             }
             for j in to_be_rewired.drain(..) {
-                // find new j
-                let mut newj = i;
-                while newj == i || matrix[i][newj] {
-                    newj = rng.gen_range(0, n);
+                let chosen_node = possible_targets[i].choose(&mut rng);
+                if let Some(&newj) = chosen_node {
+                    //rewire
+                    matrix[i][j] = false;
+                    matrix[j][i] = false;
+                    matrix[i][newj] = true;
+                    matrix[newj][i] = true;
+                    possible_targets[i].push(j);
+                    possible_targets[j].push(i);
+                    possible_targets[i].retain(|&x| x != newj);
+                    possible_targets[newj].retain(|&x| x != i);
                 }
-                // rewire
-                matrix[i][j] = false;
-                matrix[j][i] = false;
-                matrix[i][newj] = true;
-                matrix[newj][i] = true;
             }
         }
+
         // transform to data format used here
         let mut connections = vec![vec![]; n];
         for i in 0..n {
@@ -187,7 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn scale_free_graph_has_sane_amount_of_edges_overall() {
+    fn scale_free_graph_has_sane_number_of_edges() {
         let (n, m0, m) = (23, 3, 2);
         let graph = Graph::new_random_scale_free(n, m0, m);
 
@@ -208,8 +221,23 @@ mod tests {
     }
 
     #[test]
-    fn small_world_graph_has_sane_amount_of_edges_overall() {
+    fn small_world_graph_has_sane_number_of_edges() {
         let (n, k, beta) = (100, 10, 0.05);
+        let graph = Graph::new_random_small_world(n, k, beta);
+
+        let expected = n * k / 2;
+        let actual: usize = graph
+            .connections
+            .into_iter()
+            .map(|x| x.len())
+            .sum::<usize>()
+            / 2;
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn small_world_graph_with_big_k_has_sane_number_of_edges() {
+        let (n, k, beta) = (80, 78, 0.05);
         let graph = Graph::new_random_small_world(n, k, beta);
 
         let expected = n * k / 2;
@@ -225,6 +253,14 @@ mod tests {
     #[test]
     fn small_world_graph_is_random() {
         let (n, k, beta) = (100, 10, 0.05);
+        let graph1 = Graph::new_random_small_world(n, k, beta);
+        let graph2 = Graph::new_random_small_world(n, k, beta);
+        assert_ne!(graph1, graph2);
+    }
+
+    #[test]
+    fn small_world_graph_with_big_k_is_random() {
+        let (n, k, beta) = (120, 110, 0.05);
         let graph1 = Graph::new_random_small_world(n, k, beta);
         let graph2 = Graph::new_random_small_world(n, k, beta);
         assert_ne!(graph1, graph2);
