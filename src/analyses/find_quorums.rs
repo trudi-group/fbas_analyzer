@@ -110,6 +110,9 @@ fn reduce_to_strongly_connected_components(
     for node_id in nodes.iter() {
         let node = &fbas.nodes[node_id];
         for included_node in node.quorum_set.contained_nodes().into_iter() {
+            if included_node == node_id {
+                continue;
+            }
             removed_nodes.remove(included_node);
         }
     }
