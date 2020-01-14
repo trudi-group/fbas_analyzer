@@ -5,6 +5,7 @@ use fbas_analyzer::*;
 use quicli::prelude::*;
 use structopt::StructOpt;
 
+use std::path::PathBuf;
 use std::rc::Rc;
 
 /// FBAS quorum set configuration (QSC) simulation sandbox.
@@ -61,6 +62,14 @@ enum QuorumSetConfiguratorConfig {
         relative_threshold: Option<f64>,
         graph_size: Option<usize>,
     },
+    /// Chooses quorum sets based on a snapshot of the CAIDA AS Relationships dataset given as input
+    /// and a relative threshold. All graph neighbors are validators, independent of node
+    /// existence, quorum intersection or anything else. If threshold is ommitted, uses as 67%
+    /// threshold as in "Ideal".
+    SimpleASGraph {
+        graph_data_path: PathBuf,
+        relative_threshold: Option<f64>,
+    },
     /// TODO - might be removed again soon
     QualityAware { graph_size: Option<usize> },
 }
@@ -111,6 +120,13 @@ fn parse_qscc(
             let k = mean_degree;
             // shuffled because fbas join order shouldn't be correlated with importance in graph
             let graph = Graph::new_random_small_world(n, k, 0.05).shuffled();
+            Rc::new(SimpleGraphQsc::new(graph, relative_threshold))
+        }
+        SimpleASGraph {
+            graph_data_path,
+            relative_threshold,
+        } => {
+            let graph = Graph::from_as_rel_file(&graph_data_path);
             Rc::new(SimpleGraphQsc::new(graph, relative_threshold))
         }
         QualityAware { graph_size } => Rc::new(QualityAwareGraphQsc::new(

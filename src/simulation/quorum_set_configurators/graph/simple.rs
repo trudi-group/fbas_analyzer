@@ -30,7 +30,7 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
                 .expect("Graph too small for this FBAS!")
                 .clone();
 
-            if !validators.contains(&node_id) {
+            if !validators.is_empty() && !validators.contains(&node_id) {
                 // we add nodes to their own quorum sets because
                 // 1. nodes in the Stellar network often do it.
                 // 2. it makes sense for threshold calculation (for achieving global n=3f+1)
