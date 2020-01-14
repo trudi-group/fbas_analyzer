@@ -17,6 +17,7 @@ log = "0.4"
 quicli = "0.4"
 structopt = "0.2"
 rand = "0.7"
+bzip2 = "0.3.2"
 
 [[bench]]
 name = "benchmarks"

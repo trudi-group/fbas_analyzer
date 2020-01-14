@@ -25,7 +25,7 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
         if *existing_quorum_set == QuorumSet::new() {
             let mut validators = self
                 .graph
-                .connections
+                .outlinks
                 .get(node_id)
                 .expect("Graph too small for this FBAS!")
                 .clone();

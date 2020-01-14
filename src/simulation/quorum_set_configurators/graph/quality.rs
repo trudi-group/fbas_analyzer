@@ -24,7 +24,7 @@ impl QuorumSetConfigurator for QualityAwareGraphQsc {
         let existing_quorum_set = &mut fbas.nodes[node_id].quorum_set;
         let neighbors = self
             .graph
-            .connections
+            .outlinks
             .get(node_id)
             .expect("Graph too small for this FBAS!")
             .clone();
@@ -122,7 +122,7 @@ mod tests {
     fn quality_aware_qsc_no_inner_set_if_few_friends() {
         let n = 8;
         let mut graph = Graph::new_full_mesh(n);
-        graph.connections[0] = vec![1, 2, 3];
+        graph.outlinks[0] = vec![1, 2, 3];
         let mut qsc = QualityAwareGraphQsc::new(graph.clone());
         qsc.quality_scores[1] = 30;
         qsc.quality_scores[2] = 50;
@@ -233,7 +233,7 @@ mod tests {
         let fbas = simulate!(qsc, n);
 
         for (node_id, node) in fbas.nodes.into_iter().enumerate() {
-            let mut expected: NodeIdSet = graph.connections[node_id].iter().cloned().collect();
+            let mut expected: NodeIdSet = graph.outlinks[node_id].iter().cloned().collect();
             expected.insert(node_id);
             let actual = node.quorum_set.contained_nodes();
             assert_eq!(expected, actual);

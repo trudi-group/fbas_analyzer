@@ -7,12 +7,12 @@ pub use quality::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Graph {
-    // connections per node
-    connections: Vec<Vec<NodeId>>,
+    // outgoing edges per node
+    outlinks: Vec<Vec<NodeId>>,
 }
 impl Graph {
-    pub fn new(connections: Vec<Vec<NodeId>>) -> Self {
-        Graph { connections }
+    pub fn new(outlinks: Vec<Vec<NodeId>>) -> Self {
+        Graph { outlinks }
     }
     /// Build a graph where every node is connected to every other node
     pub fn new_full_mesh(n: usize) -> Self {
@@ -25,15 +25,15 @@ impl Graph {
             "Parameters for Barabási–Albert don't make sense."
         );
 
-        let mut connections: Vec<Vec<NodeId>> = vec![vec![]; n];
+        let mut outlinks: Vec<Vec<NodeId>> = vec![vec![]; n];
         let mut rng = thread_rng();
 
         macro_rules! connect {
             ($a:expr, $b:expr) => {
                 let (a, b) = ($a, $b);
                 debug_assert_ne!(a, b);
-                connections[a].push(b);
-                connections[b].push(a);
+                outlinks[a].push(b);
+                outlinks[b].push(a);
             };
         }
 
@@ -49,7 +49,7 @@ impl Graph {
             let mut possible_targets: Vec<NodeId> = (0..i).collect();
             for _ in 0..m {
                 let j = possible_targets
-                    .choose_weighted(&mut rng, |&x| connections[x].len())
+                    .choose_weighted(&mut rng, |&x| outlinks[x].len())
                     .unwrap()
                     .to_owned();
                 connect!(i, j);
@@ -57,7 +57,7 @@ impl Graph {
                 possible_targets = possible_targets.into_iter().filter(|&x| x != j).collect();
             }
         }
-        let result = Self::new(connections);
+        let result = Self::new(outlinks);
         debug_assert!(result.is_undirected());
         result
     }
@@ -117,21 +117,21 @@ impl Graph {
         }
 
         // transform to data format used here
-        let mut connections = vec![vec![]; n];
+        let mut outlinks = vec![vec![]; n];
         for i in 0..n {
             for j in 0..n {
                 if matrix[i][j] {
-                    connections[i].push(j);
+                    outlinks[i].push(j);
                 }
             }
         }
-        let result = Self::new(connections);
+        let result = Self::new(outlinks);
         debug_assert!(result.is_undirected());
         result
     }
     /// Shuffle the node IDs
     pub fn shuffled(self) -> Self {
-        let n = self.connections.len();
+        let n = self.outlinks.len();
         let mut rng = thread_rng();
 
         // mappings
@@ -143,36 +143,31 @@ impl Graph {
         }
         let (new_to_old, old_to_new) = (new_to_old, old_to_new);
 
-        let new_connections = new_to_old
+        let new_outlinks = new_to_old
             .iter()
-            .map(|&oi| {
-                self.connections[oi]
-                    .iter()
-                    .map(|&oj| old_to_new[oj])
-                    .collect()
-            })
+            .map(|&oi| self.outlinks[oi].iter().map(|&oj| old_to_new[oj]).collect())
             .collect();
-        Self::new(new_connections)
+        Self::new(new_outlinks)
     }
     pub fn is_undirected(&self) -> bool {
-        self.connections.iter().enumerate().all(|(i, cons_i)| {
+        self.outlinks.iter().enumerate().all(|(i, cons_i)| {
             cons_i
                 .iter()
-                .map(|&j| &self.connections[j])
+                .map(|&j| &self.outlinks[j])
                 .all(|cons_j| cons_j.iter().any(|&x| x == i))
         })
     }
     pub fn get_in_degrees(&self) -> Vec<usize> {
-        let mut result: Vec<usize> = vec![0; self.connections.len()];
-        for connections in self.connections.iter() {
-            for &in_node in connections.iter() {
+        let mut result: Vec<usize> = vec![0; self.outlinks.len()];
+        for outlink in self.outlinks.iter() {
+            for &in_node in outlink.iter() {
                 result[in_node] = result[in_node].checked_add(1).unwrap();
             }
         }
         result
     }
     pub fn get_out_degrees(&self) -> Vec<usize> {
-        self.connections.iter().map(|x| x.len()).collect()
+        self.outlinks.iter().map(|x| x.len()).collect()
     }
 }
 
@@ -183,7 +178,7 @@ mod tests {
     #[test]
     fn full_mesh() {
         let expected = Graph {
-            connections: vec![vec![1, 2, 3], vec![0, 2, 3], vec![0, 1, 3], vec![0, 1, 2]],
+            outlinks: vec![vec![1, 2, 3], vec![0, 2, 3], vec![0, 1, 3], vec![0, 1, 2]],
         };
         let actual = Graph::new_full_mesh(4);
         assert_eq!(expected, actual);
@@ -196,7 +191,7 @@ mod tests {
 
         assert!((0..m0).all(|i| (0..i)
             .chain(i + 1..m0)
-            .all(|j| graph.connections[j].iter().any(|&x| x == i))));
+            .all(|j| graph.outlinks[j].iter().any(|&x| x == i))));
     }
 
     #[test]
@@ -205,12 +200,7 @@ mod tests {
         let graph = Graph::new_random_scale_free(n, m0, m);
 
         let expected = (m0 * (m0 - 1)) / 2 + (n - m0) * m;
-        let actual: usize = graph
-            .connections
-            .into_iter()
-            .map(|x| x.len())
-            .sum::<usize>()
-            / 2;
+        let actual: usize = graph.outlinks.into_iter().map(|x| x.len()).sum::<usize>() / 2;
         assert_eq!(expected, actual);
     }
 
@@ -226,12 +216,7 @@ mod tests {
         let graph = Graph::new_random_small_world(n, k, beta);
 
         let expected = n * k / 2;
-        let actual: usize = graph
-            .connections
-            .into_iter()
-            .map(|x| x.len())
-            .sum::<usize>()
-            / 2;
+        let actual: usize = graph.outlinks.into_iter().map(|x| x.len()).sum::<usize>() / 2;
         assert_eq!(expected, actual);
     }
 
@@ -241,12 +226,7 @@ mod tests {
         let graph = Graph::new_random_small_world(n, k, beta);
 
         let expected = n * k / 2;
-        let actual: usize = graph
-            .connections
-            .into_iter()
-            .map(|x| x.len())
-            .sum::<usize>()
-            / 2;
+        let actual: usize = graph.outlinks.into_iter().map(|x| x.len()).sum::<usize>() / 2;
         assert_eq!(expected, actual);
     }
 
@@ -281,7 +261,7 @@ mod tests {
         let shuffled = graph.clone().shuffled();
 
         fn degrees(graph: Graph) -> Vec<usize> {
-            let mut result: Vec<usize> = graph.connections.into_iter().map(|x| x.len()).collect();
+            let mut result: Vec<usize> = graph.outlinks.into_iter().map(|x| x.len()).collect();
             result.sort();
             result
         }
@@ -294,7 +274,7 @@ mod tests {
         let graph = Graph::new_random_scale_free(n, m0, m);
         assert!(graph.is_undirected());
 
-        let expected: Vec<usize> = graph.connections.iter().map(|x| x.len()).collect();
+        let expected: Vec<usize> = graph.outlinks.iter().map(|x| x.len()).collect();
 
         assert_eq!(expected, graph.get_in_degrees());
         assert_eq!(expected, graph.get_out_degrees());
