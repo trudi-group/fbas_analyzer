@@ -125,7 +125,7 @@ fn reduce_to_strongly_connected_components(
 
 /// A quick and dirty something resembling page rank
 fn sort_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
-    let mut scores: Vec<u64> = vec![1; fbas.nodes.len()];
+    let mut scores: Vec<u128> = vec![1; fbas.nodes.len()];
 
     let runs = 10;
 
