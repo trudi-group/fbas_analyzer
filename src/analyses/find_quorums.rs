@@ -198,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn find_transitivel_unsatisfiable_nodes() {
+    fn find_transitively_unsatisfiable_nodes() {
         let mut fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
 
         let directly_unsatisfiable = fbas.add_generic_node(QuorumSet::new());
@@ -252,5 +252,27 @@ mod tests {
         assert!(strongly_connected.contains(1));
         assert!(!strongly_connected.contains(directly_unsatisfiable));
         assert!(!strongly_connected.contains(transitively_unsatisfiable));
+    }
+
+    #[test]
+    fn reduce_to_strongly_connected_components_ignores_self_links() {
+        let mut fbas = Fbas::new();
+        let interconnected_qset = QuorumSet {
+            validators: vec![0, 1],
+            inner_quorum_sets: vec![],
+            threshold: 2,
+        };
+        let self_connected_qset = QuorumSet {
+            validators: vec![2],
+            inner_quorum_sets: vec![],
+            threshold: 1,
+        };
+        fbas.add_generic_node(interconnected_qset.clone());
+        fbas.add_generic_node(interconnected_qset);
+        fbas.add_generic_node(self_connected_qset);
+        let (strongly_connected, not_strongly_connected) =
+            reduce_to_strongly_connected_components(bitset![0, 1, 2], &fbas);
+        assert_eq!(bitset![0, 1], strongly_connected);
+        assert_eq!(bitset![2], not_strongly_connected);
     }
 }
