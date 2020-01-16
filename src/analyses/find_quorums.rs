@@ -1,14 +1,41 @@
 use super::*;
 
+/// Find all minimal quorums in the FBAS...
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
-    let quorums = find_quorums(fbas);
+    info!("Starting to look for minimal quorums...");
+    let quorums = find_quorums(fbas, find_minimal_quorums_step);
     info!("Found {} (not necessarily minimal) quorums.", quorums.len());
     let minimal_quorums = remove_non_minimal_node_sets(quorums);
     info!("Reduced to {} minimal quorums.", minimal_quorums.len());
     minimal_quorums
 }
 
-fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
+/// Similar to `find_minimal_quorums`, but aggressively searches for non-intersecting complement
+/// quorums to each found quorum and stops once such a quorum is found. Returns either two
+/// non-intersecting quorums or all minimal quorums (like `find_minimal_quorums`). Use this
+/// function if it is likely that the FBAS lacks quorum intersection and you want to stop early in
+/// such cases.
+pub fn find_nonintersecting_or_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
+    info!("Starting to look for potentially non-intersecting quorums...");
+    let quorums = find_quorums(fbas, find_nonintersecting_quorums_prep_step);
+    if all_intersect(&quorums) {
+        info!(
+            "Found no non-intersecting quorums out of {} found quorums.",
+            quorums.len()
+        );
+        let minimal_quorums = remove_non_minimal_node_sets(quorums);
+        info!("Reduced to {} minimal quorums.", minimal_quorums.len());
+        minimal_quorums
+    } else {
+        warn!("Found two non-intersecting quorums!");
+        quorums
+    }
+}
+
+fn find_quorums<F>(fbas: &Fbas, step: F) -> Vec<NodeIdSet>
+where
+    F: Fn(&mut NodeIdDeque, &mut NodeIdSet, &mut NodeIdSet, &mut Vec<NodeIdSet>, &Fbas),
+{
     let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
 
     debug!("Removing nodes not part of any quorum...");
@@ -46,33 +73,6 @@ fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     let mut found_quorums: Vec<NodeIdSet> = vec![];
 
     debug!("Collecting quorums...");
-    fn step(
-        unprocessed: &mut NodeIdDeque,
-        selection: &mut NodeIdSet,
-        available: &mut NodeIdSet,
-        found_quorums: &mut Vec<NodeIdSet>,
-        fbas: &Fbas,
-    ) {
-        if fbas.is_quorum(selection) {
-            found_quorums.push(selection.clone());
-        } else if let Some(current_candidate) = unprocessed.pop_front() {
-            selection.insert(current_candidate);
-
-            step(unprocessed, selection, available, found_quorums, fbas);
-
-            selection.remove(current_candidate);
-            available.remove(current_candidate);
-
-            if quorums_possible(selection, available, fbas) {
-                step(unprocessed, selection, available, found_quorums, fbas);
-            }
-            unprocessed.push_front(current_candidate);
-            available.insert(current_candidate);
-        }
-    }
-    fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
-        selection.iter().all(|x| fbas.nodes[x].is_quorum(available))
-    }
     step(
         &mut unprocessed.into(),
         &mut selection,
@@ -81,6 +81,108 @@ fn find_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
         fbas,
     );
     found_quorums
+}
+
+fn find_minimal_quorums_step(
+    unprocessed: &mut NodeIdDeque,
+    selection: &mut NodeIdSet,
+    available: &mut NodeIdSet,
+    found_quorums: &mut Vec<NodeIdSet>,
+    fbas: &Fbas,
+) {
+    if fbas.is_quorum(selection) {
+        found_quorums.push(selection.clone());
+    } else if let Some(current_candidate) = unprocessed.pop_front() {
+        selection.insert(current_candidate);
+
+        find_minimal_quorums_step(unprocessed, selection, available, found_quorums, fbas);
+
+        selection.remove(current_candidate);
+        available.remove(current_candidate);
+
+        if quorums_possible(selection, available, fbas) {
+            find_minimal_quorums_step(unprocessed, selection, available, found_quorums, fbas);
+        }
+        unprocessed.push_front(current_candidate);
+        available.insert(current_candidate);
+    }
+}
+
+fn find_nonintersecting_quorums_prep_step(
+    unprocessed: &mut NodeIdDeque,
+    selection: &mut NodeIdSet,
+    available: &mut NodeIdSet,
+    found_quorums: &mut Vec<NodeIdSet>,
+    fbas: &Fbas,
+) {
+    let mut antiselection = available.clone();
+    find_nonintersecting_quorums_step(
+        unprocessed,
+        selection,
+        available,
+        &mut antiselection,
+        found_quorums,
+        fbas,
+    );
+}
+fn find_nonintersecting_quorums_step(
+    unprocessed: &mut NodeIdDeque,
+    selection: &mut NodeIdSet,
+    available: &mut NodeIdSet,
+    antiselection: &mut NodeIdSet,
+    found_quorums: &mut Vec<NodeIdSet>,
+    fbas: &Fbas,
+) {
+    debug_assert!(selection.is_disjoint(&antiselection));
+    if fbas.is_quorum(selection) {
+        let (potential_complement, _) = find_unsatisfiable_nodes(&antiselection, fbas);
+
+        if !potential_complement.is_empty() {
+            assert!(fbas.is_quorum(&potential_complement));
+            // we found a non-intersecting quorum pair!
+            found_quorums.clear();
+            found_quorums.push(selection.clone());
+            found_quorums.push(potential_complement);
+            // cheap way to break the recursion
+            available.clear();
+            unprocessed.clear();
+        } else {
+            found_quorums.push(selection.clone());
+        }
+    } else if let Some(current_candidate) = unprocessed.pop_front() {
+        selection.insert(current_candidate);
+        antiselection.remove(current_candidate);
+
+        find_nonintersecting_quorums_step(
+            unprocessed,
+            selection,
+            available,
+            antiselection,
+            found_quorums,
+            fbas,
+        );
+
+        selection.remove(current_candidate);
+        antiselection.insert(current_candidate);
+        available.remove(current_candidate);
+
+        if quorums_possible(selection, available, fbas) {
+            find_nonintersecting_quorums_step(
+                unprocessed,
+                selection,
+                available,
+                antiselection,
+                found_quorums,
+                fbas,
+            );
+        }
+        unprocessed.push_front(current_candidate);
+        available.insert(current_candidate);
+    }
+}
+
+fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
+    selection.iter().all(|x| fbas.nodes[x].is_quorum(available))
 }
 
 pub fn find_unsatisfiable_nodes(nodes: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
@@ -156,7 +258,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn find_minimal_quorums_correct_trivial() {
+    fn find_minimal_quorums_in_correct_trivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
 
         let expected = vec![bitset![0, 1], bitset![0, 2], bitset![1, 2]];
@@ -166,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_quorums_broken_trivial() {
+    fn find_minimal_quorums_in_broken_trivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
 
         let expected = vec![bitset![0], bitset![1, 2]];
@@ -176,12 +278,22 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_quorums_broken_trivial_reversed_node_ids() {
+    fn find_minimal_quorums_in_broken_trivial_reversed_node_ids() {
         let mut fbas = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
         fbas.nodes.reverse();
 
         let expected = vec![bitset![2], bitset![0, 1]];
         let actual = find_minimal_quorums(&fbas);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_nonintersecting_quorums_in_broken() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
+
+        let expected = vec![bitset![3, 10], bitset![4, 6]];
+        let actual = find_nonintersecting_or_minimal_quorums(&fbas);
 
         assert_eq!(expected, actual);
     }

@@ -8,7 +8,9 @@ mod find_quorums;
 
 pub use find_blocking_sets::find_minimal_blocking_sets;
 pub use find_intersections::find_minimal_intersections;
-pub use find_quorums::{find_minimal_quorums, find_unsatisfiable_nodes};
+pub use find_quorums::{
+    find_minimal_quorums, find_nonintersecting_or_minimal_quorums, find_unsatisfiable_nodes,
+};
 
 /// Most methods require &mut because they cache intermediate results.
 pub struct Analysis<'a> {
@@ -17,6 +19,7 @@ pub struct Analysis<'a> {
     minimal_quorums: Option<Vec<NodeIdSet>>,
     minimal_blocking_sets: Option<Vec<NodeIdSet>>,
     minimal_intersections: Option<Vec<NodeIdSet>>,
+    expect_quorum_intersection: bool,
 }
 impl<'a> Analysis<'a> {
     pub fn new(fbas: &'a Fbas) -> Self {
@@ -26,15 +29,21 @@ impl<'a> Analysis<'a> {
             minimal_quorums: None,
             minimal_blocking_sets: None,
             minimal_intersections: None,
+            expect_quorum_intersection: true,
         }
     }
-    pub fn new_with_options(fbas: &'a Fbas, organizations: Option<&'a Organizations<'a>>) -> Self {
+    pub fn new_with_options(
+        fbas: &'a Fbas,
+        organizations: Option<&'a Organizations<'a>>,
+        expect_quorum_intersection: bool,
+    ) -> Self {
         Analysis {
             fbas,
             organizations,
             minimal_quorums: None,
             minimal_blocking_sets: None,
             minimal_intersections: None,
+            expect_quorum_intersection,
         }
     }
     pub fn has_quorum_intersection(&mut self) -> bool {
@@ -64,8 +73,13 @@ impl<'a> Analysis<'a> {
     pub fn minimal_quorums(&mut self) -> &[NodeIdSet] {
         if self.minimal_quorums.is_none() {
             warn!("Computing minimal quorums...");
-            self.minimal_quorums =
-                Some(self.maybe_collapse_minimal_node_sets(find_minimal_quorums(&self.fbas)));
+            self.minimal_quorums = Some(self.maybe_collapse_minimal_node_sets(
+                if self.expect_quorum_intersection {
+                    find_minimal_quorums(&self.fbas)
+                } else {
+                    find_nonintersecting_or_minimal_quorums(&self.fbas)
+                },
+            ));
             if log_enabled!(Warn) {
                 if self.has_quorum_intersection() {
                     debug!("FBAS enjoys quorum intersection.");
@@ -358,7 +372,7 @@ mod tests {
             }]"#,
             &fbas,
         );
-        let mut analysis = Analysis::new_with_options(&fbas, Some(&organizations));
+        let mut analysis = Analysis::new_with_options(&fbas, Some(&organizations), true);
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(analysis.minimal_quorums().len(), 1);

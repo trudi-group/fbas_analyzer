@@ -21,6 +21,12 @@ struct Cli {
     #[structopt(short = "c", long = "check-quorum-intersection")]
     check_quorum_intersection: bool,
 
+    /// Use quorum finding algorithm that works faster for FBAS that do not enjoy quorum
+    /// intersection. In case that there is, indeed, no quorum intersection, causes
+    /// `minimal_quorums` to hold the first non-intersecting pair of quorums found.
+    #[structopt(long = "expect-no-intersection")]
+    expect_no_intersection: bool,
+
     /// Output (and find) minimal blocking sets (minimal indispensable sets for global liveness)
     #[structopt(short = "b", long = "get-minimal-blocking-sets")]
     minimal_blocking_sets: bool,
@@ -80,7 +86,8 @@ fn main() -> CliResult {
         None
     };
 
-    let mut analysis = Analysis::new_with_options(&fbas, organizations.as_ref());
+    let mut analysis =
+        Analysis::new_with_options(&fbas, organizations.as_ref(), !args.expect_no_intersection);
 
     let (q, c, b, i) = (
         args.minimal_quorums,
@@ -161,23 +168,24 @@ fn main() -> CliResult {
     silprintln!("\n{} nodes are satisfiable.\n", satisfiable_nodes.len());
     print_ids_result!("satisfiable_nodes", &satisfiable_nodes);
 
-    if q {
-        silprintln!(
-            "\nWe found {} minimal quorums.\n",
-            analysis.minimal_quorums().len()
-        );
-        print_sets_result!("minimal_quorums", analysis.minimal_quorums());
-    }
     if c {
         if analysis.has_quorum_intersection() {
             silprintln!("\nAll quorums intersect 👍\n");
             println!("has_quorum_intersection: true");
         } else {
             silprintln!(
-                "\nSome quorums don't intersect - safety severely threatened for some nodes!\n"
+                "\nSome quorums don't intersect 👎 Safety severely threatened for some nodes!\n\
+                 (Also, the remaining results here might not make much sense.)\n"
             );
             println!("quorum_intersection: false");
         }
+    }
+    if q {
+        silprintln!(
+            "\nWe found {} minimal quorums.\n",
+            analysis.minimal_quorums().len()
+        );
+        print_sets_result!("minimal_quorums", analysis.minimal_quorums());
     }
     if b {
         silprintln!(
