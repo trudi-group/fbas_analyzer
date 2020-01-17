@@ -17,7 +17,7 @@ pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
 /// such cases.
 pub fn find_nonintersecting_or_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for potentially non-intersecting quorums...");
-    let quorums = find_quorums(fbas, find_nonintersecting_quorums_prep_step);
+    let quorums = find_quorums(fbas, find_nonintersecting_quorums_step_wrapper);
     if all_intersect(&quorums) {
         info!(
             "Found no non-intersecting quorums out of {} found quorums.",
@@ -108,7 +108,7 @@ fn find_minimal_quorums_step(
     }
 }
 
-fn find_nonintersecting_quorums_prep_step(
+fn find_nonintersecting_quorums_step_wrapper(
     unprocessed: &mut NodeIdDeque,
     selection: &mut NodeIdSet,
     available: &mut NodeIdSet,
@@ -116,14 +116,18 @@ fn find_nonintersecting_quorums_prep_step(
     fbas: &Fbas,
 ) {
     let mut antiselection = available.clone();
-    find_nonintersecting_quorums_step(
+    if let Some(intersecting_quorums) = find_nonintersecting_quorums_step(
         unprocessed,
         selection,
         available,
         &mut antiselection,
         found_quorums,
         fbas,
-    );
+    ) {
+        assert!(intersecting_quorums.iter().all(|x| fbas.is_quorum(x)));
+        assert!(intersecting_quorums[0].is_disjoint(&intersecting_quorums[1]));
+        *found_quorums = intersecting_quorums.to_vec();
+    }
 }
 fn find_nonintersecting_quorums_step(
     unprocessed: &mut NodeIdDeque,
@@ -132,20 +136,13 @@ fn find_nonintersecting_quorums_step(
     antiselection: &mut NodeIdSet,
     found_quorums: &mut Vec<NodeIdSet>,
     fbas: &Fbas,
-) {
+) -> Option<[NodeIdSet; 2]> {
     debug_assert!(selection.is_disjoint(&antiselection));
     if fbas.is_quorum(selection) {
         let (potential_complement, _) = find_unsatisfiable_nodes(&antiselection, fbas);
 
         if !potential_complement.is_empty() {
-            assert!(fbas.is_quorum(&potential_complement));
-            // we found a non-intersecting quorum pair!
-            found_quorums.clear();
-            found_quorums.push(selection.clone());
-            found_quorums.push(potential_complement);
-            // cheap way to break the recursion
-            available.clear();
-            unprocessed.clear();
+            return Some([selection.clone(), potential_complement]);
         } else {
             found_quorums.push(selection.clone());
         }
@@ -153,32 +150,36 @@ fn find_nonintersecting_quorums_step(
         selection.insert(current_candidate);
         antiselection.remove(current_candidate);
 
-        find_nonintersecting_quorums_step(
+        if let Some(intersecting_quorums) = find_nonintersecting_quorums_step(
             unprocessed,
             selection,
             available,
             antiselection,
             found_quorums,
             fbas,
-        );
-
+        ) {
+            return Some(intersecting_quorums);
+        }
         selection.remove(current_candidate);
         antiselection.insert(current_candidate);
         available.remove(current_candidate);
 
         if quorums_possible(selection, available, fbas) {
-            find_nonintersecting_quorums_step(
+            if let Some(intersecting_quorums) = find_nonintersecting_quorums_step(
                 unprocessed,
                 selection,
                 available,
                 antiselection,
                 found_quorums,
                 fbas,
-            );
+            ) {
+                return Some(intersecting_quorums);
+            }
         }
         unprocessed.push_front(current_candidate);
         available.insert(current_candidate);
     }
+    None
 }
 
 fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
@@ -292,7 +293,7 @@ mod tests {
     fn find_nonintersecting_quorums_in_broken() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
 
-        let expected = vec![bitset![3, 10], bitset![4, 6]];
+        let expected = vec![bitset![4, 6], bitset![3, 10]];
         let actual = find_nonintersecting_or_minimal_quorums(&fbas);
 
         assert_eq!(expected, actual);
