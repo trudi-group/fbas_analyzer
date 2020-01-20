@@ -4,6 +4,8 @@ mod simple;
 pub use simple::*;
 mod quality;
 pub use quality::*;
+mod tier_based;
+pub use tier_based::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Graph {
@@ -12,11 +14,30 @@ pub struct Graph {
 }
 impl Graph {
     pub fn new(outlinks: Vec<Vec<NodeId>>) -> Self {
+        info!("New graph with {} nodes.", outlinks.len());
         Graph { outlinks }
     }
-    /// Build a graph where every node is connected to every other node
+    /// Build a graph where every node is connected to every other node (i.e., a complete graph).
     pub fn new_full_mesh(n: usize) -> Self {
         Self::new((0..n).map(|i| (0..i).chain(i + 1..n).collect()).collect())
+    }
+    /// Build a graph consisting of tiers. Each tier is (conceptually) a fully meshed (i.e.,
+    /// complete) subraph. Each node is connected via a directed edge to each node from the next
+    /// "highest" tier, i.e., the tier with the next lowest index.
+    #[allow(clippy::needless_range_loop)]
+    pub fn new_tiered_full_mesh(tier_sizes: &[usize]) -> Self {
+        let mut outlinks: Vec<Vec<NodeId>> = vec![vec![]; tier_sizes.iter().sum()];
+        let mut higher_tier_node_ids = vec![];
+        for tier_size in tier_sizes.iter() {
+            let i0: usize = higher_tier_node_ids.last().map_or(0, |x| x + 1);
+            let n = i0.checked_add(*tier_size).unwrap();
+            for i in i0..n {
+                outlinks[i].extend_from_slice(&higher_tier_node_ids);
+                outlinks[i].extend((i0..i).chain(i + 1..n));
+            }
+            higher_tier_node_ids = (i0..n).collect();
+        }
+        Self::new(outlinks)
     }
     /// Build a scale-free graph using the Barabási–Albert (BA) model
     pub fn new_random_scale_free(n: usize, m0: usize, m: usize) -> Self {
@@ -181,6 +202,22 @@ mod tests {
             outlinks: vec![vec![1, 2, 3], vec![0, 2, 3], vec![0, 1, 3], vec![0, 1, 2]],
         };
         let actual = Graph::new_full_mesh(4);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn tiered_full_mesh() {
+        let expected = Graph {
+            outlinks: vec![
+                vec![1],
+                vec![0],
+                vec![0, 1, 3, 4],
+                vec![0, 1, 2, 4],
+                vec![0, 1, 2, 3],
+                vec![2, 3, 4],
+            ],
+        };
+        let actual = Graph::new_tiered_full_mesh(&vec![2, 3, 1]);
         assert_eq!(expected, actual);
     }
 

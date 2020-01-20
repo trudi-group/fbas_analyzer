@@ -70,6 +70,17 @@ enum QuorumSetConfiguratorConfig {
         graph_data_path: PathBuf,
         relative_threshold: Option<f64>,
     },
+    /// Docstring -> TODO
+    HigherTierASGraph {
+        graph_data_path: PathBuf,
+        relative_threshold: Option<f64>,
+    },
+    /// Docstring -> TODO
+    HigherTierScaleFree {
+        mean_degree: usize,
+        relative_threshold: Option<f64>,
+        graph_size: Option<usize>,
+    },
     /// TODO - might be removed again soon
     QualityAware { graph_size: Option<usize> },
 }
@@ -128,6 +139,26 @@ fn parse_qscc(
         } => {
             let graph = Graph::from_as_rel_file(&graph_data_path);
             Rc::new(SimpleGraphQsc::new(graph, relative_threshold))
+        }
+        HigherTierASGraph {
+            graph_data_path,
+            relative_threshold,
+        } => {
+            let graph = Graph::from_as_rel_file(&graph_data_path);
+            Rc::new(HigherTiersGraphQsc::new(graph, relative_threshold))
+        }
+        HigherTierScaleFree {
+            mean_degree,
+            relative_threshold,
+            graph_size,
+        } => {
+            // TODO code deduplication
+            let n = graph_size.unwrap_or(fbas_size);
+            let m = mean_degree / 2;
+            let m0 = m;
+            // shuffled because fbas join order shouldn't be correlated with importance in graph
+            let graph = Graph::new_random_scale_free(n, m, m0).shuffled();
+            Rc::new(HigherTiersGraphQsc::new(graph, relative_threshold))
         }
         QualityAware { graph_size } => Rc::new(QualityAwareGraphQsc::new(
             // shuffled because fbas join order shouldn't be correlated with importance in graph
