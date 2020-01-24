@@ -269,7 +269,7 @@ mod tests {
     fn find_nonintersecting_quorums_in_broken() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
 
-        let expected = vec![bitset![4, 6], bitset![3, 10]];
+        let expected = vec![bitset![3, 10], bitset![4, 6]];
         let actual = find_nonintersecting_or_minimal_quorums(&fbas);
 
         assert_eq!(expected, actual);

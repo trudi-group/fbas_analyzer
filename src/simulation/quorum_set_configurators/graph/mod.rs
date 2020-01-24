@@ -190,6 +190,37 @@ impl Graph {
     pub fn get_out_degrees(&self) -> Vec<usize> {
         self.outlinks.iter().map(|x| x.len()).collect()
     }
+    /// Simplified page rank (no dampening, fixed maximum number of runs, fixed epsilon)
+    #[allow(clippy::needless_range_loop)]
+    pub fn get_rank_scores(&self) -> Vec<RankScore> {
+        let n = self.outlinks.len();
+        let max_runs = 1000;
+        let epsilon = 0.00001;
+        let starting_score = 1. / n as RankScore;
+
+        let mut scores: Vec<RankScore> = vec![starting_score; n];
+        let mut last_scores: Vec<RankScore>;
+
+        for _ in 0..max_runs {
+            last_scores = scores;
+            scores = vec![0.; n];
+
+            for i in 0..n {
+                let l = self.outlinks[i].len() as RankScore;
+                for j in self.outlinks[i].iter().copied() {
+                    scores[j] += last_scores[i] / l;
+                }
+            }
+            if scores
+                .iter()
+                .zip(last_scores.iter())
+                .all(|(&x, &y)| (x - y).abs() < epsilon)
+            {
+                break;
+            }
+        }
+        scores
+    }
 }
 
 #[cfg(test)]
@@ -318,7 +349,30 @@ mod tests {
     }
 
     #[test]
-    fn node_degrees_directed() {
-        // TODO
+    fn node_out_degrees_directed() {
+        let graph = Graph::new_tiered_full_mesh(&vec![2, 3, 1]);
+        let actual = graph.get_out_degrees();
+        let expected = vec![1, 1, 4, 4, 4, 3];
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn node_in_degrees_directed() {
+        let graph = Graph::new_tiered_full_mesh(&vec![2, 3, 1]);
+        let actual = graph.get_in_degrees();
+        let expected = vec![4, 4, 3, 3, 3, 0];
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn node_rank_scores() {
+        let graph = Graph::new_tiered_full_mesh(&vec![2, 3, 1]);
+        let actual: Vec<RankScore> = graph
+            .get_rank_scores()
+            .into_iter()
+            .map(|x| (x * 2.).round() as RankScore / 2.) // rounding
+            .collect();
+        let expected = vec![0.5, 0.5, 0., 0., 0., 0.];
+        assert_eq!(expected, actual);
     }
 }
