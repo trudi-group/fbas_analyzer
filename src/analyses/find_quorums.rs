@@ -229,30 +229,6 @@ fn reduce_to_strongly_connected_components(
     (nodes, removed_nodes)
 }
 
-/// A quick and dirty something resembling page rank
-fn sort_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
-    let mut scores: Vec<u128> = vec![1; fbas.nodes.len()];
-
-    let runs = 10;
-
-    for _ in 0..runs {
-        let scores_snapshot = scores.clone();
-
-        for node_id in nodes.iter().copied() {
-            let node = &fbas.nodes[node_id];
-
-            for trusted_node_id in node.quorum_set.contained_nodes().into_iter() {
-                let score = &mut scores[trusted_node_id];
-                *score = score.checked_add(scores_snapshot[node_id]).unwrap();
-            }
-        }
-    }
-    let mut nodes = nodes;
-    // sort by "highest score first"
-    nodes.sort_by(|x, y| scores[*y].cmp(&scores[*x]));
-    nodes
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
