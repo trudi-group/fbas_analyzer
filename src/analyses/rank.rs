@@ -5,6 +5,7 @@ pub type RankScore = f64;
 /// Rank nodes using an adaptation of the page rank algorithm (no dampening, fixed number of runs,
 /// no distinction between validators and inner quorum set validators). Links from nodes not in
 /// `nodes` are ignored.
+// TODO dedup / harmonize this with Graph::get_rank_scores
 pub fn rank_nodes(nodes: &[NodeId], fbas: &Fbas) -> Vec<RankScore> {
     let nodes_set: NodeIdSet = nodes.iter().cloned().collect();
     assert_eq!(nodes.len(), nodes_set.len());
@@ -24,11 +25,11 @@ pub fn rank_nodes(nodes: &[NodeId], fbas: &Fbas) -> Vec<RankScore> {
             let trusted_nodes = node.quorum_set.contained_nodes();
             let l = trusted_nodes.len() as RankScore;
 
-            for node_id in trusted_nodes
+            for trusted_node_id in trusted_nodes
                 .into_iter()
                 .filter(|&id| nodes_set.contains(id))
             {
-                scores[node_id] += last_scores[node_id] / l;
+                scores[trusted_node_id] += last_scores[node_id] / l;
             }
         }
     }
