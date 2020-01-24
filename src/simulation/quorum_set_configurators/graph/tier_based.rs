@@ -3,13 +3,13 @@ use super::*;
 /// Makes non-nested quorum sets containing all immediate graph neighbors
 pub struct HigherTiersGraphQsc {
     graph: Graph,
-    in_degrees: Vec<usize>,
+    rank_scores: Vec<RankScore>,
     relative_threshold: Option<f64>,
 }
 impl HigherTiersGraphQsc {
     pub fn new(graph: Graph, relative_threshold: Option<f64>) -> Self {
         HigherTiersGraphQsc {
-            in_degrees: graph.get_in_degrees(),
+            rank_scores: graph.get_rank_scores(),
             graph,
             relative_threshold,
         }
@@ -24,7 +24,7 @@ impl HigherTiersGraphQsc {
         &self,
         node_id: NodeId,
     ) -> (Vec<NodeId>, Vec<NodeId>, Vec<NodeId>) {
-        let in_degree = self.in_degrees[node_id];
+        let rank_score = self.rank_scores[node_id];
         let all_neighbors: Vec<NodeId> = self
             .graph
             .outlinks
@@ -36,14 +36,14 @@ impl HigherTiersGraphQsc {
         let (peers, idols): (Vec<NodeId>, Vec<NodeId>) =
             all_neighbors.into_iter().partition(is_peer);
 
-        // if don't have directed outlinks we decide based on node degree
+        // if don't have directed outlinks we decide based on node rank
         let (higher_tier, other_tier) = if !idols.is_empty() {
             (idols, peers)
         } else {
-            let is_higher_tier = |i: &NodeId| self.in_degrees[*i] >= 2 * in_degree;
+            let is_higher_tier = |i: &NodeId| self.rank_scores[*i] >= 2. * rank_score;
             peers.into_iter().partition(is_higher_tier)
         };
-        let is_lower_tier = |i: &NodeId| in_degree >= 2 * self.in_degrees[*i];
+        let is_lower_tier = |i: &NodeId| rank_score >= 2. * self.rank_scores[*i];
         let (lower_tier, same_tier): (Vec<NodeId>, Vec<NodeId>) =
             other_tier.into_iter().partition(is_lower_tier);
 
@@ -115,7 +115,7 @@ mod tests {
         graph.outlinks[3].push(4);
         let higher_tier_qsc = HigherTiersGraphQsc::new_67p(graph);
         let actual = higher_tier_qsc.get_neighbors_by_tierness(4);
-        let expected = (vec![3], vec![], vec![5]);
+        let expected = (vec![3], vec![5], vec![]);
         assert_eq!(expected, actual);
     }
 
