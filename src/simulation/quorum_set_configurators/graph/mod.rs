@@ -6,6 +6,8 @@ mod quality;
 pub use quality::*;
 mod tier_based;
 pub use tier_based::*;
+mod rank_based;
+pub use rank_based::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Graph {
@@ -178,6 +180,9 @@ impl Graph {
                 .all(|cons_j| cons_j.iter().any(|&x| x == i))
         })
     }
+    pub fn number_of_nodes(&self) -> usize {
+        self.outlinks.len()
+    }
     pub fn get_in_degrees(&self) -> Vec<usize> {
         let mut result: Vec<usize> = vec![0; self.outlinks.len()];
         for outlink in self.outlinks.iter() {
@@ -193,11 +198,11 @@ impl Graph {
     /// Simplified page rank (no dampening, fixed maximum number of runs, fixed epsilon)
     #[allow(clippy::needless_range_loop)]
     pub fn get_rank_scores(&self) -> Vec<RankScore> {
-        let n = self.outlinks.len();
+        let n = self.number_of_nodes();
         let max_runs = 1000;
         let epsilon = 0.00001;
-        let starting_score = 1. / n as RankScore;
 
+        let starting_score = 1. / n as RankScore;
         let mut scores: Vec<RankScore> = vec![starting_score; n];
         let mut last_scores: Vec<RankScore>;
 

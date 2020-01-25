@@ -81,6 +81,11 @@ enum QuorumSetConfiguratorConfig {
         relative_threshold: Option<f64>,
         graph_size: Option<usize>,
     },
+    /// Docstring -> TODO
+    GlobalRankASGraph {
+        graph_data_path: PathBuf,
+        relative_threshold: Option<f64>,
+    },
     /// TODO - might be removed again soon
     QualityAware { graph_size: Option<usize> },
 }
@@ -159,6 +164,13 @@ fn parse_qscc(
             // shuffled because fbas join order shouldn't be correlated with importance in graph
             let graph = Graph::new_random_scale_free(n, m, m0).shuffled();
             Rc::new(HigherTiersGraphQsc::new(graph, relative_threshold))
+        }
+        GlobalRankASGraph {
+            graph_data_path,
+            relative_threshold,
+        } => {
+            let graph = Graph::from_as_rel_file(&graph_data_path);
+            Rc::new(GlobalRankGraphQsc::new(graph, relative_threshold))
         }
         QualityAware { graph_size } => Rc::new(QualityAwareGraphQsc::new(
             // shuffled because fbas join order shouldn't be correlated with importance in graph
