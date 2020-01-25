@@ -8,7 +8,11 @@ pub struct HigherTiersGraphQsc {
     make_symmetric_top_tier: bool,
 }
 impl HigherTiersGraphQsc {
-    pub fn new(graph: Graph, relative_threshold: Option<f64>, make_symmetric_top_tier: bool) -> Self {
+    pub fn new(
+        graph: Graph,
+        relative_threshold: Option<f64>,
+        make_symmetric_top_tier: bool,
+    ) -> Self {
         let rank_scores = graph.get_rank_scores();
         debug!(
             "Non-zero rank scores: {:?}",
@@ -29,7 +33,11 @@ impl HigherTiersGraphQsc {
     pub fn new_67p(graph: Graph, make_symmetric_top_tier: bool) -> Self {
         Self::new(graph, None, make_symmetric_top_tier)
     }
-    pub fn new_relative(graph: Graph, relative_threshold: f64, make_symmetric_top_tier: bool) -> Self {
+    pub fn new_relative(
+        graph: Graph,
+        relative_threshold: f64,
+        make_symmetric_top_tier: bool,
+    ) -> Self {
         Self::new(graph, Some(relative_threshold), make_symmetric_top_tier)
     }
     fn get_neighbors_by_tierness(
@@ -160,7 +168,8 @@ mod tests {
     #[test]
     fn higher_tier_qsc_can_be_like_ideal_safe() {
         let n = 10;
-        let higher_tier_qsc = HigherTiersGraphQsc::new_67p(Graph::new_tiered_full_mesh(&vec![n]), false);
+        let higher_tier_qsc =
+            HigherTiersGraphQsc::new_67p(Graph::new_tiered_full_mesh(&vec![n]), false);
         let ideal_qsc = IdealQsc::new();
 
         let actual = simulate!(higher_tier_qsc, n);

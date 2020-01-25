@@ -97,19 +97,25 @@ impl Node {
 }
 impl QuorumSet {
     fn from_raw(raw_quorum_set: RawQuorumSet, pk_to_id: &HashMap<PublicKey, NodeId>) -> Self {
+        let mut validators: Vec<NodeId> = raw_quorum_set
+            .validators
+            .into_iter()
+            .filter_map(|x| pk_to_id.get(&x))
+            .copied()
+            .collect();
+        let mut inner_quorum_sets: Vec<QuorumSet> = raw_quorum_set
+            .inner_quorum_sets
+            .into_iter()
+            .map(|x| QuorumSet::from_raw(x, pk_to_id))
+            .collect();
+        let threshold = raw_quorum_set.threshold;
+        // sort to make comparisons between quorum sets easier
+        validators.sort();
+        inner_quorum_sets.sort();
         QuorumSet {
-            threshold: raw_quorum_set.threshold,
-            validators: raw_quorum_set
-                .validators
-                .into_iter()
-                .filter_map(|x| pk_to_id.get(&x))
-                .copied()
-                .collect(),
-            inner_quorum_sets: raw_quorum_set
-                .inner_quorum_sets
-                .into_iter()
-                .map(|x| QuorumSet::from_raw(x, pk_to_id))
-                .collect(),
+            validators,
+            inner_quorum_sets,
+            threshold,
         }
     }
     fn to_raw(&self, fbas: &Fbas) -> RawQuorumSet {

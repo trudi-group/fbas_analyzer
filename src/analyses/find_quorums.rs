@@ -1,9 +1,10 @@
 use super::*;
+use std::collections::BTreeMap;
 
 /// Find all minimal quorums in the FBAS...
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal quorums...");
-    let quorums = find_quorums(fbas, find_minimal_quorums_step);
+    let quorums = find_quorums(fbas, true, find_minimal_quorums_worker);
     info!("Found {} (not necessarily minimal) quorums.", quorums.len());
     let minimal_quorums = remove_non_minimal_node_sets(quorums);
     info!("Reduced to {} minimal quorums.", minimal_quorums.len());
@@ -16,7 +17,7 @@ pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
 /// the FBAS lacks quorum intersection and you want to stop early in such cases.
 pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for potentially non-intersecting quorums...");
-    let quorums = find_quorums(fbas, find_nonintersecting_quorums_step_wrapper);
+    let quorums = find_quorums(fbas, true, find_nonintersecting_quorums_worker);
     if quorums.is_empty() {
         info!("Found no non-intersecting quorums.");
     } else {
@@ -25,9 +26,21 @@ pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     quorums
 }
 
-fn find_quorums<F>(fbas: &Fbas, step: F) -> Vec<NodeIdSet>
+/// Finds groups of nodes (represented as quorum sets) such that all members of the same group have
+/// the exact identical quorum set, and the nodes contained in this quorum set are exactly the
+/// group of nodes (a symmetric cluster). Once no more such clusters are found, returns the maximum
+/// quorum of the remaining nodes. (So, getting a result with more than 1 entry implies that we
+/// don't have quorum intersection.)
+pub fn find_symmetric_quorum_clusters(fbas: &Fbas) -> Vec<QuorumSet> {
+    info!("Starting to look for symmetric quorum clusters...");
+    let quorums = find_quorums(fbas, false, find_symmetric_quorum_clusters_worker);
+    info!("Found {} different quorum clusters.", quorums.len());
+    quorums
+}
+
+fn find_quorums<F, R>(fbas: &Fbas, sort: bool, worker: F) -> Vec<R>
 where
-    F: Fn(&mut NodeIdDeque, &mut NodeIdSet, &mut NodeIdSet, &mut Vec<NodeIdSet>, &Fbas),
+    F: Fn(Vec<NodeId>, &Fbas) -> Vec<R>,
 {
     let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
 
@@ -35,8 +48,8 @@ where
     let (satisfiable, unsatisfiable) = find_unsatisfiable_nodes(&all_nodes, fbas);
     if !unsatisfiable.is_empty() {
         warn!(
-            "The quorum sets of nodes {:?} are not satisfiable at all in the given FBAS!",
-            unsatisfiable
+            "The quorum sets of {} nodes are not satisfiable at all in the given FBAS!",
+            unsatisfiable.len()
         );
         info!(
             "Ignoring {} unsatisfiable nodes ({} nodes left).",
@@ -56,17 +69,24 @@ where
         strongly_connected.len(),
     );
 
-    debug!("Sorting nodes by rank...");
-    let sorted = sort_by_rank(strongly_connected.into_iter().collect(), fbas);
-    debug!("Sorted.");
+    let mut nodes = strongly_connected.into_iter().collect();
+    if sort {
+        debug!("Sorting nodes by rank...");
+        nodes = sort_by_rank(nodes, fbas);
+        debug!("Sorted.");
+    }
 
-    let unprocessed = sorted;
+    debug!("Collecting quorums...");
+    worker(nodes, fbas)
+}
+
+fn find_minimal_quorums_worker(sorted_nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeIdSet> {
+    let unprocessed = sorted_nodes;
     let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
     let mut available = unprocessed.iter().cloned().collect();
     let mut found_quorums: Vec<NodeIdSet> = vec![];
 
-    debug!("Collecting quorums...");
-    step(
+    find_minimal_quorums_step(
         &mut unprocessed.into(),
         &mut selection,
         &mut available,
@@ -75,7 +95,6 @@ where
     );
     found_quorums
 }
-
 fn find_minimal_quorums_step(
     unprocessed: &mut NodeIdDeque,
     selection: &mut NodeIdSet,
@@ -101,27 +120,24 @@ fn find_minimal_quorums_step(
     }
 }
 
-fn find_nonintersecting_quorums_step_wrapper(
-    unprocessed: &mut NodeIdDeque,
-    selection: &mut NodeIdSet,
-    available: &mut NodeIdSet,
-    found_quorums: &mut Vec<NodeIdSet>,
-    fbas: &Fbas,
-) {
+fn find_nonintersecting_quorums_worker(sorted_nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeIdSet> {
+    let unprocessed = sorted_nodes;
+    let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
+    let mut available: NodeIdSet = unprocessed.iter().cloned().collect();
     let mut antiselection = available.clone();
     if let Some(intersecting_quorums) = find_nonintersecting_quorums_step(
-        unprocessed,
-        selection,
-        available,
+        &mut unprocessed.into(),
+        &mut selection,
+        &mut available,
         &mut antiselection,
         fbas,
     ) {
         assert!(intersecting_quorums.iter().all(|x| fbas.is_quorum(x)));
         assert!(intersecting_quorums[0].is_disjoint(&intersecting_quorums[1]));
-        *found_quorums = intersecting_quorums.to_vec();
+        intersecting_quorums.to_vec()
     } else {
-        assert!(fbas.is_quorum(available));
-        *found_quorums = vec![available.clone()];
+        assert!(fbas.is_quorum(&available));
+        vec![available.clone()]
     }
 }
 fn find_nonintersecting_quorums_step(
@@ -169,6 +185,50 @@ fn find_nonintersecting_quorums_step(
         available.insert(current_candidate);
     }
     None
+}
+
+fn find_symmetric_quorum_clusters_worker(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<QuorumSet> {
+    // qset -> (#occurances, goal #occurances)
+    let mut qset_occurances: BTreeMap<QuorumSet, (usize, usize)> = BTreeMap::new();
+
+    for &node_id in nodes.iter() {
+        let qset = &fbas.nodes[node_id].quorum_set;
+        let (count, goal) = if let Some((counter, goal)) = qset_occurances.get_mut(qset) {
+            *counter += 1;
+            (*counter, *goal)
+        } else {
+            let goal = qset.contained_nodes().len();
+            qset_occurances.insert(qset.clone(), (1, goal));
+            (1, goal)
+        };
+
+        if count == goal {
+            let mut found_clusters = vec![qset.clone()];
+            let qset_nodes = qset.contained_nodes();
+            let remaining_nodes = nodes
+                .iter()
+                .copied()
+                .filter(|&i| !qset_nodes.contains(i))
+                .collect();
+            let (remaining_satisfiable_nodes, _) = find_unsatisfiable_nodes(&remaining_nodes, fbas);
+            if !remaining_satisfiable_nodes.is_empty() {
+                found_clusters.append(&mut find_symmetric_quorum_clusters_worker(
+                    remaining_satisfiable_nodes.into_iter().collect(),
+                    fbas,
+                ));
+            }
+            return found_clusters;
+        }
+    }
+    // no cluster found
+    assert!(fbas.is_quorum(&nodes.iter().copied().collect()));
+    let mut validators = nodes;
+    validators.sort();
+    vec![QuorumSet {
+        threshold: validators.len(),
+        validators,
+        inner_quorum_sets: vec![],
+    }]
 }
 
 fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
@@ -260,6 +320,20 @@ mod tests {
 
         let expected = vec![bitset![3, 10], bitset![4, 6]];
         let actual = find_nonintersecting_quorums(&fbas);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_symmetric_quorum_cluster_in_correct_trivial() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
+
+        let expected = vec![QuorumSet {
+            validators: vec![0, 1, 2],
+            threshold: 2,
+            inner_quorum_sets: vec![],
+        }];
+        let actual = find_symmetric_quorum_clusters(&fbas);
 
         assert_eq!(expected, actual);
     }

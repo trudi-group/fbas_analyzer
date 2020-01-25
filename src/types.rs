@@ -66,7 +66,7 @@ impl Node {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct QuorumSet {
     pub(crate) threshold: usize,
     pub(crate) validators: Vec<NodeId>,
