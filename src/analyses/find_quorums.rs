@@ -12,24 +12,17 @@ pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
 
 /// Similar to `find_minimal_quorums`, but aggressively searches for non-intersecting complement
 /// quorums to each found quorum and stops once such a quorum is found. Returns either two
-/// non-intersecting quorums or all minimal quorums (like `find_minimal_quorums`). Use this
-/// function if it is likely that the FBAS lacks quorum intersection and you want to stop early in
-/// such cases.
-pub fn find_nonintersecting_or_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
+/// non-intersecting quorums or one very big quorum. Use this function if it is very likely that
+/// the FBAS lacks quorum intersection and you want to stop early in such cases.
+pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for potentially non-intersecting quorums...");
     let quorums = find_quorums(fbas, find_nonintersecting_quorums_step_wrapper);
-    if all_intersect(&quorums) {
-        info!(
-            "Found no non-intersecting quorums out of {} found quorums.",
-            quorums.len()
-        );
-        let minimal_quorums = remove_non_minimal_node_sets(quorums);
-        info!("Reduced to {} minimal quorums.", minimal_quorums.len());
-        minimal_quorums
+    if quorums.is_empty() {
+        info!("Found no non-intersecting quorums.");
     } else {
         warn!("Found two non-intersecting quorums!");
-        quorums
     }
+    quorums
 }
 
 fn find_quorums<F>(fbas: &Fbas, step: F) -> Vec<NodeIdSet>
@@ -121,12 +114,14 @@ fn find_nonintersecting_quorums_step_wrapper(
         selection,
         available,
         &mut antiselection,
-        found_quorums,
         fbas,
     ) {
         assert!(intersecting_quorums.iter().all(|x| fbas.is_quorum(x)));
         assert!(intersecting_quorums[0].is_disjoint(&intersecting_quorums[1]));
         *found_quorums = intersecting_quorums.to_vec();
+    } else {
+        assert!(fbas.is_quorum(available));
+        *found_quorums = vec![available.clone()];
     }
 }
 fn find_nonintersecting_quorums_step(
@@ -134,7 +129,6 @@ fn find_nonintersecting_quorums_step(
     selection: &mut NodeIdSet,
     available: &mut NodeIdSet,
     antiselection: &mut NodeIdSet,
-    found_quorums: &mut Vec<NodeIdSet>,
     fbas: &Fbas,
 ) -> Option<[NodeIdSet; 2]> {
     debug_assert!(selection.is_disjoint(&antiselection));
@@ -143,19 +137,15 @@ fn find_nonintersecting_quorums_step(
 
         if !potential_complement.is_empty() {
             return Some([selection.clone(), potential_complement]);
-        } else {
-            found_quorums.push(selection.clone());
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
         selection.insert(current_candidate);
         antiselection.remove(current_candidate);
-
         if let Some(intersecting_quorums) = find_nonintersecting_quorums_step(
             unprocessed,
             selection,
             available,
             antiselection,
-            found_quorums,
             fbas,
         ) {
             return Some(intersecting_quorums);
@@ -170,7 +160,6 @@ fn find_nonintersecting_quorums_step(
                 selection,
                 available,
                 antiselection,
-                found_quorums,
                 fbas,
             ) {
                 return Some(intersecting_quorums);
@@ -270,7 +259,7 @@ mod tests {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
 
         let expected = vec![bitset![3, 10], bitset![4, 6]];
-        let actual = find_nonintersecting_or_minimal_quorums(&fbas);
+        let actual = find_nonintersecting_quorums(&fbas);
 
         assert_eq!(expected, actual);
     }

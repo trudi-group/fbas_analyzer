@@ -12,7 +12,7 @@ pub(crate) use rank::*;
 pub use find_blocking_sets::find_minimal_blocking_sets;
 pub use find_intersections::find_minimal_intersections;
 pub use find_quorums::{
-    find_minimal_quorums, find_nonintersecting_or_minimal_quorums, find_unsatisfiable_nodes,
+    find_minimal_quorums, find_nonintersecting_quorums, find_unsatisfiable_nodes,
 };
 
 /// Most methods require &mut because they cache intermediate results.
@@ -80,7 +80,7 @@ impl<'a> Analysis<'a> {
                 if self.expect_quorum_intersection {
                     find_minimal_quorums(&self.fbas)
                 } else {
-                    find_nonintersecting_or_minimal_quorums(&self.fbas)
+                    find_nonintersecting_quorums(&self.fbas)
                 },
             ));
             if log_enabled!(Warn) {

@@ -28,9 +28,12 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let broken_fbas = Fbas::from_json_file(Path::new(
         "test_data/stellarbeat_nodes_2020-01-16_broken_by_hand.json",
     ));
-    c.bench_function("find_nonintersecting_or_minimal_quorums", |b| {
-        b.iter(|| find_nonintersecting_or_minimal_quorums(black_box(&broken_fbas)))
+    c.bench_function("find_nonintersecting_quorums_in_broken", |b| {
+        b.iter(|| find_nonintersecting_quorums(black_box(&broken_fbas)))
     });
+    // c.bench_function("find_nonintersecting_quorums_in_correct", |b| {
+    //     b.iter(|| find_nonintersecting_quorums(black_box(&fbas)))
+    // });
 
     // c.bench_function("collapse_by_organization", |b| {
     //     b.iter(|| {
