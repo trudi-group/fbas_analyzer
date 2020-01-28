@@ -30,7 +30,7 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
                 .expect("Graph too small for this FBAS!")
                 .clone();
 
-            if !validators.contains(&node_id) {
+            if !validators.is_empty() && !validators.contains(&node_id) {
                 // we add nodes to their own quorum sets because
                 // 1. nodes in the Stellar network often do it.
                 // 2. it makes sense for threshold calculation (for achieving global n=3f+1)
@@ -76,23 +76,6 @@ mod tests {
 
         let actual = simulate!(simple_qsc, n);
         let expected = simulate!(ideal_qsc, n);
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn simple_qsc_doesnt_return_empty_quorum_set() {
-        // also because doing so confuses current simulation logic
-        let mut fbas = Fbas::new_generic_unconfigured(1);
-        let qsc = SimpleGraphQsc::new_67p(Graph::new_full_mesh(1));
-
-        qsc.configure(0, &mut fbas);
-        let actual = fbas.nodes[0].quorum_set.clone();
-
-        let expected = QuorumSet {
-            validators: vec![0],
-            threshold: 1,
-            inner_quorum_sets: vec![],
-        };
         assert_eq!(expected, actual);
     }
 }
