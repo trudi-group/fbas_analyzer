@@ -38,11 +38,7 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
             }
             validators.sort(); // for easier comparability
 
-            let threshold = if let Some(relative_threshold) = self.relative_threshold {
-                (relative_threshold * validators.len() as f64).ceil() as usize
-            } else {
-                get_67p_threshold(validators.len())
-            };
+            let threshold = calculate_threshold(validators.len(), self.relative_threshold);
 
             existing_quorum_set.validators.extend(validators);
             existing_quorum_set.threshold = threshold;

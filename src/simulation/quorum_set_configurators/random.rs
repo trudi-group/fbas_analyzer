@@ -38,7 +38,7 @@ impl QuorumSetConfigurator for RandomQsc {
 
             let threshold = self
                 .desired_threshold
-                .unwrap_or_else(|| get_67p_threshold(target_quorum_set_size));
+                .unwrap_or_else(|| calculate_67p_threshold(target_quorum_set_size));
 
             let used_nodes: BitSet<NodeId> =
                 existing_quorum_set.validators.iter().copied().collect();

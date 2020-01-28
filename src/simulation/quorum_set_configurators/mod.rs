@@ -117,7 +117,7 @@ impl IdealQsc {
     }
     fn build_new_configuration(fbas: &Fbas) -> QuorumSet {
         let n = fbas.nodes.len();
-        let threshold: usize = get_67p_threshold(n);
+        let threshold: usize = calculate_67p_threshold(n);
         let validators = (0..n).collect();
         let inner_quorum_sets = vec![];
         QuorumSet {
@@ -128,10 +128,24 @@ impl IdealQsc {
     }
 }
 
+fn calculate_threshold(n: usize, relative_threshold: Option<f64>) -> usize {
+    if let Some(x) = relative_threshold {
+        calculate_x_threshold(n, x)
+    } else {
+        calculate_67p_threshold(n)
+    }
+}
+
 /// t = ceil((2n+1)/3) => n >= 3f+1
-fn get_67p_threshold(n: usize) -> usize {
+fn calculate_67p_threshold(n: usize) -> usize {
     // reformed for more robustness against floating point errors
     n - ((n as f64 - 1.) / 3.).floor() as usize
+}
+
+/// t = max(1, ceil(nx))
+fn calculate_x_threshold(n: usize, x: f64) -> usize {
+    // t >= 1 so that we behave like calculate_67p_threshold and not confuse simulation logic
+    cmp::max(1, (x * n as f64).ceil() as usize)
 }
 
 #[cfg(test)]
@@ -164,10 +178,16 @@ mod tests {
     }
 
     #[test]
-    fn get_67p_threshold_test() {
+    fn calculate_67p_threshold_up_to_20() {
         for n in 1..20 {
-            assert_is_67p_threshold!(get_67p_threshold(n), n);
+            assert_is_67p_threshold!(calculate_67p_threshold(n), n);
         }
+    }
+
+    #[test]
+    fn calculate_relative_threshold_is_at_least_1() {
+        assert_eq!(calculate_x_threshold(0, 0.51), 1);
+        assert_eq!(calculate_x_threshold(100, 0.), 1);
     }
 
     #[test]

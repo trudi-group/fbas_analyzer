@@ -62,9 +62,9 @@ impl QuorumSetConfigurator for QualityAwareGraphQsc {
             higher_quality_validators.sort(); // for easier comparability
             lower_quality_validators.sort(); // for easier comparability
             let validators = higher_quality_validators;
-            let threshold = get_67p_threshold(validators.len() + 1);
+            let threshold = calculate_67p_threshold(validators.len() + 1);
             let inner_quorum_sets = vec![QuorumSet {
-                threshold: get_67p_threshold(lower_quality_validators.len()),
+                threshold: calculate_67p_threshold(lower_quality_validators.len()),
                 validators: lower_quality_validators,
                 inner_quorum_sets: vec![],
             }];
@@ -77,7 +77,7 @@ impl QuorumSetConfigurator for QualityAwareGraphQsc {
             let mut validators = higher_quality_validators;
             validators.extend(lower_quality_validators.into_iter());
             validators.sort(); // for easier comparability
-            let threshold = get_67p_threshold(validators.len());
+            let threshold = calculate_67p_threshold(validators.len());
             let inner_quorum_sets = vec![];
             QuorumSet {
                 validators,
