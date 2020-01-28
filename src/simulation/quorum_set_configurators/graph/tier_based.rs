@@ -24,26 +24,19 @@ impl HigherTiersGraphQsc {
         &self,
         node_id: NodeId,
     ) -> (Vec<NodeId>, Vec<NodeId>, Vec<NodeId>) {
-        let rank_score = self.rank_scores[node_id];
-        let all_neighbors: Vec<NodeId> = self
+        let own_rank_score = self.rank_scores[node_id];
+        let neighbors: Vec<NodeId> = self
             .graph
             .outlinks
             .get(node_id)
             .expect("Graph too small for this FBAS!")
             .clone();
 
-        let is_peer = |i: &NodeId| self.graph.outlinks[*i].contains(&node_id);
-        let (peers, idols): (Vec<NodeId>, Vec<NodeId>) =
-            all_neighbors.into_iter().partition(is_peer);
+        let is_higher_tier = |i: &NodeId| self.rank_scores[*i] >= 2. * own_rank_score;
+        let (higher_tier, other_tier): (Vec<NodeId>, Vec<NodeId>) =
+            neighbors.into_iter().partition(is_higher_tier);
 
-        // if don't have directed outlinks we decide based on node rank
-        let (higher_tier, other_tier) = if !idols.is_empty() {
-            (idols, peers)
-        } else {
-            let is_higher_tier = |i: &NodeId| self.rank_scores[*i] >= 2. * rank_score;
-            peers.into_iter().partition(is_higher_tier)
-        };
-        let is_lower_tier = |i: &NodeId| rank_score >= 2. * self.rank_scores[*i];
+        let is_lower_tier = |i: &NodeId| own_rank_score >= 2. * self.rank_scores[*i];
         let (lower_tier, same_tier): (Vec<NodeId>, Vec<NodeId>) =
             other_tier.into_iter().partition(is_lower_tier);
 
