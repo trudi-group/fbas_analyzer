@@ -100,8 +100,11 @@ mod tests {
     fn get_neighbors_by_tierness_middle_tier_undirected_links() {
         let mut graph = Graph::new_full_mesh(4);
         graph.outlinks.push(vec![3, 5]);
-        graph.outlinks.push(vec![4]);
+        graph.outlinks.push(vec![3, 4]);
+        graph.outlinks.push(vec![3, 4, 6]);
+        graph.outlinks.push(vec![5]);
         graph.outlinks[3].push(4);
+        graph.outlinks[3].push(5);
         let higher_tier_qsc = HigherTiersGraphQsc::new_67p(graph);
         let actual = higher_tier_qsc.get_neighbors_by_tierness(4);
         let expected = (vec![3], vec![5], vec![]);
@@ -112,11 +115,14 @@ mod tests {
     fn get_neighbors_by_tierness_top_tier_undirected_links() {
         let mut graph = Graph::new_full_mesh(4);
         graph.outlinks.push(vec![3, 5]);
-        graph.outlinks.push(vec![4]);
+        graph.outlinks.push(vec![3, 4]);
+        graph.outlinks.push(vec![3, 4, 6]);
+        graph.outlinks.push(vec![5]);
         graph.outlinks[3].push(4);
+        graph.outlinks[3].push(5);
         let higher_tier_qsc = HigherTiersGraphQsc::new_67p(graph);
         let actual = higher_tier_qsc.get_neighbors_by_tierness(3);
-        let expected = (vec![], vec![0, 1, 2], vec![4]);
+        let expected = (vec![], vec![0, 1, 2], vec![4, 5]);
         assert_eq!(expected, actual);
     }
 

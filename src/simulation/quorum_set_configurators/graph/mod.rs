@@ -199,10 +199,11 @@ impl Graph {
     #[allow(clippy::needless_range_loop)]
     pub fn get_rank_scores(&self) -> Vec<RankScore> {
         let n = self.number_of_nodes();
-        let max_runs = 1000;
-        let epsilon = 0.00001;
 
         let starting_score = 1. / n as RankScore;
+        let max_runs = (2 * n).max(1000);
+        let epsilon = (starting_score / n as RankScore).max(0.00001);
+
         let mut scores: Vec<RankScore> = vec![starting_score; n];
         let mut last_scores: Vec<RankScore>;
 
