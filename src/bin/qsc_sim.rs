@@ -73,11 +73,13 @@ enum QuorumSetConfiguratorConfig {
     /// Docstring -> TODO
     HigherTierASGraph {
         graph_data_path: PathBuf,
+        make_symmetric_top_tier: bool,
         relative_threshold: Option<f64>,
     },
     /// Docstring -> TODO
     HigherTierScaleFree {
         mean_degree: usize,
+        make_symmetric_top_tier: bool,
         relative_threshold: Option<f64>,
         graph_size: Option<usize>,
     },
@@ -147,13 +149,15 @@ fn parse_qscc(
         }
         HigherTierASGraph {
             graph_data_path,
+            make_symmetric_top_tier,
             relative_threshold,
         } => {
             let graph = Graph::from_as_rel_file(&graph_data_path);
-            Rc::new(HigherTiersGraphQsc::new(graph, relative_threshold))
+            Rc::new(HigherTiersGraphQsc::new(graph, relative_threshold, make_symmetric_top_tier))
         }
         HigherTierScaleFree {
             mean_degree,
+            make_symmetric_top_tier,
             relative_threshold,
             graph_size,
         } => {
@@ -163,7 +167,7 @@ fn parse_qscc(
             let m0 = m;
             // shuffled because fbas join order shouldn't be correlated with importance in graph
             let graph = Graph::new_random_scale_free(n, m, m0).shuffled();
-            Rc::new(HigherTiersGraphQsc::new(graph, relative_threshold))
+            Rc::new(HigherTiersGraphQsc::new(graph, relative_threshold, make_symmetric_top_tier))
         }
         GlobalRankASGraph {
             graph_data_path,
