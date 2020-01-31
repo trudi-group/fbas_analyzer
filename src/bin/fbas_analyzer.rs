@@ -27,6 +27,10 @@ struct Cli {
     #[structopt(long = "expect-no-intersection")]
     expect_no_intersection: bool,
 
+    /// TODO
+    #[structopt(long = "symmetric-clusters")]
+    symmetric_clusters: bool,
+
     /// Output (and find) minimal blocking sets (minimal indispensable sets for global liveness)
     #[structopt(short = "b", long = "get-minimal-blocking-sets")]
     minimal_blocking_sets: bool,
@@ -167,6 +171,14 @@ fn main() -> CliResult {
     let satisfiable_nodes = analysis.satisfiable_nodes();
     silprintln!("\n{} nodes are satisfiable.\n", satisfiable_nodes.len());
     print_ids_result!("satisfiable_nodes", &satisfiable_nodes);
+
+    if args.symmetric_clusters {
+        silprintln!("\nLooking for symmetric quorum clusters...\n");
+        println!(
+            "symmetric_quorum_clusters: {:?}",
+            analysis.symmetric_quorum_clusters()
+        );
+    }
 
     if c {
         if analysis.has_quorum_intersection() {

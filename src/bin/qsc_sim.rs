@@ -153,7 +153,11 @@ fn parse_qscc(
             relative_threshold,
         } => {
             let graph = Graph::from_as_rel_file(&graph_data_path);
-            Rc::new(HigherTiersGraphQsc::new(graph, relative_threshold, make_symmetric_top_tier))
+            Rc::new(HigherTiersGraphQsc::new(
+                graph,
+                relative_threshold,
+                make_symmetric_top_tier,
+            ))
         }
         HigherTierScaleFree {
             mean_degree,
@@ -167,7 +171,11 @@ fn parse_qscc(
             let m0 = m;
             // shuffled because fbas join order shouldn't be correlated with importance in graph
             let graph = Graph::new_random_scale_free(n, m, m0).shuffled();
-            Rc::new(HigherTiersGraphQsc::new(graph, relative_threshold, make_symmetric_top_tier))
+            Rc::new(HigherTiersGraphQsc::new(
+                graph,
+                relative_threshold,
+                make_symmetric_top_tier,
+            ))
         }
         GlobalRankASGraph {
             graph_data_path,

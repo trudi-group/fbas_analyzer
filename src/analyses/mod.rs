@@ -12,7 +12,8 @@ pub(crate) use rank::*;
 pub use find_blocking_sets::find_minimal_blocking_sets;
 pub use find_intersections::find_minimal_intersections;
 pub use find_quorums::{
-    find_minimal_quorums, find_nonintersecting_quorums, find_unsatisfiable_nodes,
+    find_minimal_quorums, find_nonintersecting_quorums, find_symmetric_quorum_clusters,
+    find_unsatisfiable_nodes,
 };
 
 /// Most methods require &mut because they cache intermediate results.
@@ -112,6 +113,9 @@ impl<'a> Analysis<'a> {
             info!("Using cached minimal intersections.");
         }
         self.minimal_intersections.as_ref().unwrap()
+    }
+    pub fn symmetric_quorum_clusters(&self) -> Vec<QuorumSet> {
+        find_symmetric_quorum_clusters(self.fbas)
     }
     pub fn involved_nodes(&mut self) -> Vec<NodeId> {
         involved_nodes(self.minimal_quorums())
