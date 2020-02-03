@@ -185,8 +185,8 @@ impl Graph {
     }
     pub fn get_in_degrees(&self) -> Vec<usize> {
         let mut result: Vec<usize> = vec![0; self.outlinks.len()];
-        for outlink in self.outlinks.iter() {
-            for &in_node in outlink.iter() {
+        for outlinks in self.outlinks.iter() {
+            for &in_node in outlinks.iter() {
                 result[in_node] = result[in_node].checked_add(1).unwrap();
             }
         }
@@ -194,6 +194,17 @@ impl Graph {
     }
     pub fn get_out_degrees(&self) -> Vec<usize> {
         self.outlinks.iter().map(|x| x.len()).collect()
+    }
+    /// Returns all nodes that have nonzero degree
+    pub fn get_connected_nodes(&self) -> NodeIdSet {
+        let mut result = NodeIdSet::new();
+        for (i, outlinks) in self.outlinks.iter().enumerate() {
+            if !outlinks.is_empty() {
+                result.insert(i);
+                result.extend(outlinks.iter().copied());
+            }
+        }
+        result
     }
     /// Simplified page rank (no dampening, fixed maximum number of runs, fixed epsilon)
     #[allow(clippy::needless_range_loop)]
@@ -367,6 +378,16 @@ mod tests {
         let graph = Graph::new_tiered_full_mesh(&vec![2, 3, 1]);
         let actual = graph.get_in_degrees();
         let expected = vec![4, 4, 3, 3, 3, 0];
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn get_alive_nodes_directed() {
+        let graph = Graph {
+            outlinks: vec![vec![], vec![0], vec![0, 3], vec![2], vec![]],
+        };
+        let actual = graph.get_connected_nodes();
+        let expected = bitset![0, 1, 2, 3];
         assert_eq!(expected, actual);
     }
 

@@ -3,12 +3,15 @@ use super::*;
 /// Makes non-nested quorum sets containing all immediate graph neighbors
 pub struct SimpleGraphQsc {
     graph: Graph,
+    connected_nodes: NodeIdSet,
     relative_threshold: Option<f64>,
 }
 impl SimpleGraphQsc {
     pub fn new(graph: Graph, relative_threshold: Option<f64>) -> Self {
+        let connected_nodes = graph.get_connected_nodes();
         SimpleGraphQsc {
             graph,
+            connected_nodes,
             relative_threshold,
         }
     }
@@ -22,7 +25,7 @@ impl SimpleGraphQsc {
 impl QuorumSetConfigurator for SimpleGraphQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
         let existing_quorum_set = &mut fbas.nodes[node_id].quorum_set;
-        if *existing_quorum_set == QuorumSet::new() {
+        if self.connected_nodes.contains(node_id) && *existing_quorum_set == QuorumSet::new() {
             let mut validators = self
                 .graph
                 .outlinks
@@ -30,7 +33,7 @@ impl QuorumSetConfigurator for SimpleGraphQsc {
                 .expect("Graph too small for this FBAS!")
                 .clone();
 
-            if !validators.is_empty() && !validators.contains(&node_id) {
+            if !validators.contains(&node_id) {
                 // we add nodes to their own quorum sets because
                 // 1. nodes in the Stellar network often do it.
                 // 2. it makes sense for threshold calculation (for achieving global n=3f+1)

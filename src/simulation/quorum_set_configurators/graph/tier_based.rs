@@ -4,6 +4,7 @@ use super::*;
 pub struct HigherTiersGraphQsc {
     graph: Graph,
     rank_scores: Vec<RankScore>,
+    connected_nodes: NodeIdSet,
     relative_threshold: Option<f64>,
     make_symmetric_top_tier: bool,
 }
@@ -23,9 +24,11 @@ impl HigherTiersGraphQsc {
                 .filter(|&(_, s)| s > 0.0)
                 .collect::<Vec<(NodeId, f64)>>()
         );
+        let connected_nodes = graph.get_connected_nodes();
         HigherTiersGraphQsc {
             graph,
             rank_scores,
+            connected_nodes,
             relative_threshold,
             make_symmetric_top_tier,
         }
@@ -65,6 +68,10 @@ impl HigherTiersGraphQsc {
 }
 impl QuorumSetConfigurator for HigherTiersGraphQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
+        if !self.connected_nodes.contains(node_id) {
+            return NoChange;
+        }
+
         let (higher_tier_neighbors, same_tier_neighbors, _) =
             self.get_neighbors_by_tierness(node_id);
 
@@ -88,7 +95,7 @@ impl QuorumSetConfigurator for HigherTiersGraphQsc {
             validators.extend(corrected_validators.into_iter());
         }
 
-        if !validators.is_empty() && !validators.contains(&node_id) {
+        if !validators.contains(&node_id) {
             // we add nodes to their own quorum sets because
             // 1. nodes in the Stellar network often do it.
             // 2. it makes sense for threshold calculation (for achieving global n=3f+1)
