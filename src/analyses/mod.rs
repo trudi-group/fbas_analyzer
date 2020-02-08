@@ -11,6 +11,7 @@ pub(crate) use rank::*;
 
 pub use find_blocking_sets::find_minimal_blocking_sets;
 pub use find_intersections::find_minimal_intersections;
+use find_quorums::reduce_to_strongly_connected_components;
 pub use find_quorums::{
     find_minimal_quorums, find_nonintersecting_quorums, find_symmetric_quorum_clusters,
     find_unsatisfiable_nodes,
@@ -19,32 +20,40 @@ pub use find_quorums::{
 /// Most methods require &mut because they cache intermediate results.
 pub struct Analysis<'a> {
     fbas: &'a Fbas,
+    fbas_shrunken: Fbas,
+    unshrink_table: Vec<NodeId>,
     organizations: Option<&'a Organizations<'a>>,
     minimal_quorums: Option<Vec<NodeIdSet>>,
+    minimal_quorums_shrunken: Option<Vec<NodeIdSet>>,
     minimal_blocking_sets: Option<Vec<NodeIdSet>>,
     minimal_intersections: Option<Vec<NodeIdSet>>,
     expect_quorum_intersection: bool,
 }
 impl<'a> Analysis<'a> {
     pub fn new(fbas: &'a Fbas) -> Self {
-        Analysis {
-            fbas,
-            organizations: None,
-            minimal_quorums: None,
-            minimal_blocking_sets: None,
-            minimal_intersections: None,
-            expect_quorum_intersection: true,
-        }
+        Self::new_with_options(fbas, None, true)
     }
     pub fn new_with_options(
         fbas: &'a Fbas,
         organizations: Option<&'a Organizations<'a>>,
         expect_quorum_intersection: bool,
     ) -> Self {
+        debug!(
+            "Shrinking FBAS of size {} to save memory...",
+            fbas.number_of_nodes()
+        );
+        let (fbas_shrunken, unshrink_table) = Fbas::shrunken(fbas);
+        debug!(
+            "Shrank to an FBAS of size {}.",
+            fbas_shrunken.number_of_nodes()
+        );
         Analysis {
             fbas,
+            fbas_shrunken,
+            unshrink_table,
             organizations,
             minimal_quorums: None,
+            minimal_quorums_shrunken: None,
             minimal_blocking_sets: None,
             minimal_intersections: None,
             expect_quorum_intersection,
@@ -52,54 +61,50 @@ impl<'a> Analysis<'a> {
     }
     pub fn has_quorum_intersection(&mut self) -> bool {
         info!("Checking for intersection of all minimal quorums...");
-        !self.minimal_quorums().is_empty() && all_intersect(self.minimal_quorums())
+        !self.minimal_quorums_shrunken().is_empty()
+            && all_intersect(self.minimal_quorums_shrunken())
     }
-    pub fn all_nodes_uncollapsed(&self) -> Vec<NodeId> {
+    pub fn all_nodes(&self) -> Vec<NodeId> {
         (0..self.fbas.nodes.len()).collect()
     }
     pub fn all_nodes_collapsed(&self) -> Vec<NodeId> {
-        self.maybe_collapse_node_ids(self.all_nodes_uncollapsed())
+        self.maybe_collapse_node_ids(self.all_nodes())
     }
     pub fn satisfiable_nodes(&self) -> Vec<NodeId> {
-        let (satisfiable, _) = find_unsatisfiable_nodes(
-            &self.all_nodes_uncollapsed().into_iter().collect(),
-            self.fbas,
-        );
+        let (satisfiable, _) =
+            find_unsatisfiable_nodes(&self.all_nodes().into_iter().collect(), self.fbas);
         self.maybe_collapse_node_ids(satisfiable.into_iter())
     }
     pub fn unsatisfiable_nodes(&self) -> Vec<NodeId> {
-        let (_, unsatisfiable) = find_unsatisfiable_nodes(
-            &self.all_nodes_uncollapsed().into_iter().collect(),
-            self.fbas,
-        );
+        let (_, unsatisfiable) =
+            find_unsatisfiable_nodes(&self.all_nodes().into_iter().collect(), self.fbas);
         self.maybe_collapse_node_ids(unsatisfiable.into_iter())
     }
     pub fn minimal_quorums(&mut self) -> &[NodeIdSet] {
         if self.minimal_quorums.is_none() {
-            warn!("Computing minimal quorums...");
-            self.minimal_quorums = Some(self.maybe_collapse_minimal_node_sets(
-                if self.expect_quorum_intersection {
-                    find_minimal_quorums(&self.fbas)
-                } else {
-                    find_nonintersecting_quorums(&self.fbas)
-                },
-            ));
-            if log_enabled!(Warn) {
-                if self.has_quorum_intersection() {
-                    debug!("FBAS enjoys quorum intersection.");
-                } else {
-                    warn!("FBAS doesn't enjoy quorum intersection!");
-                }
-            }
+            self.find_and_cache_minimal_quorums();
         } else {
             info!("Using cached minimal quorums.");
         }
         self.minimal_quorums.as_ref().unwrap()
     }
+    fn minimal_quorums_shrunken(&mut self) -> &[NodeIdSet] {
+        if self.minimal_quorums_shrunken.is_none() {
+            self.find_and_cache_minimal_quorums();
+        } else {
+            info!("Using cached minimal quorums.");
+        }
+        self.minimal_quorums_shrunken.as_ref().unwrap()
+    }
     pub fn minimal_blocking_sets(&mut self) -> &[NodeIdSet] {
         if self.minimal_blocking_sets.is_none() {
             warn!("Computing minimal blocking sets...");
-            self.minimal_blocking_sets = Some(find_minimal_blocking_sets(self.minimal_quorums()));
+            let minimal_blocking_sets_shrunken =
+                find_minimal_blocking_sets(self.minimal_quorums_shrunken());
+            self.minimal_blocking_sets =
+                Some(self.maybe_collapse_minimal_node_sets(
+                    self.unshrink(minimal_blocking_sets_shrunken),
+                ));
         } else {
             info!("Using cached minimal blocking sets.");
         }
@@ -108,7 +113,12 @@ impl<'a> Analysis<'a> {
     pub fn minimal_intersections(&mut self) -> &[NodeIdSet] {
         if self.minimal_intersections.is_none() {
             warn!("Computing minimal intersections...");
-            self.minimal_intersections = Some(find_minimal_intersections(self.minimal_quorums()));
+            let minimal_intersections_shrunken =
+                find_minimal_intersections(self.minimal_quorums_shrunken());
+            self.minimal_intersections =
+                Some(self.maybe_collapse_minimal_node_sets(
+                    self.unshrink(minimal_intersections_shrunken),
+                ));
         } else {
             info!("Using cached minimal intersections.");
         }
@@ -120,6 +130,25 @@ impl<'a> Analysis<'a> {
     pub fn involved_nodes(&mut self) -> Vec<NodeId> {
         involved_nodes(self.minimal_quorums())
     }
+    fn find_and_cache_minimal_quorums(&mut self) {
+        warn!("Computing minimal quorums...");
+        let minimal_quorums_shrunken = if self.expect_quorum_intersection {
+            find_minimal_quorums(&self.fbas_shrunken)
+        } else {
+            find_nonintersecting_quorums(&self.fbas_shrunken)
+        };
+        let minimal_quorums =
+            self.maybe_collapse_minimal_node_sets(self.unshrink(minimal_quorums_shrunken.clone()));
+        self.minimal_quorums = Some(minimal_quorums);
+        self.minimal_quorums_shrunken = Some(minimal_quorums_shrunken);
+        if log_enabled!(Warn) {
+            if self.has_quorum_intersection() {
+                debug!("FBAS enjoys quorum intersection.");
+            } else {
+                warn!("FBAS doesn't enjoy quorum intersection!");
+            }
+        }
+    }
     fn maybe_collapse_node_ids(&self, node_ids: impl IntoIterator<Item = NodeId>) -> Vec<NodeId> {
         if let Some(ref orgs) = self.organizations {
             orgs.collapse_node_set(node_ids.into_iter().collect())
@@ -128,6 +157,9 @@ impl<'a> Analysis<'a> {
         } else {
             node_ids.into_iter().collect()
         }
+    }
+    fn unshrink(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
+        unshrink(node_sets, &self.unshrink_table)
     }
     fn maybe_collapse_minimal_node_sets(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         if let Some(ref orgs) = self.organizations {
@@ -252,6 +284,13 @@ fn remove_non_minimal_node_sets_from_buckets(
     minimal_node_sets
 }
 
+fn unshrink(node_sets: Vec<NodeIdSet>, unshrink_table: &[NodeId]) -> Vec<NodeIdSet> {
+    node_sets
+        .into_iter()
+        .map(|node_set| node_set.into_iter().map(|id| unshrink_table[id]).collect())
+        .collect()
+}
+
 impl<'fbas> Organizations<'fbas> {
     /// Collapse a node ID so that all nodes by the same organization get the same ID.
     pub fn collapse_node(self: &Self, node_id: NodeId) -> NodeId {
@@ -274,9 +313,68 @@ impl<'fbas> Organizations<'fbas> {
 }
 
 impl Fbas {
-    /// Comfort function; we recommend using `Analysis` directly
     pub fn has_quorum_intersection(&self) -> bool {
         Analysis::new(&self).has_quorum_intersection()
+    }
+    fn unsatisfiable_nodes(&self) -> (NodeIdSet, NodeIdSet) {
+        let all_nodes = (0..self.nodes.len()).collect();
+        find_unsatisfiable_nodes(&all_nodes, self)
+    }
+    fn shrunken(fbas: &Self) -> (Self, Vec<NodeId>) {
+        let (satisfiable_nodes, _) = fbas.unsatisfiable_nodes();
+        let (strongly_connected_nodes, _) =
+            reduce_to_strongly_connected_components(satisfiable_nodes, fbas);
+
+        let shrink_map: HashMap<NodeId, NodeId> = strongly_connected_nodes
+            .iter()
+            .enumerate()
+            .map(|(new, old)| (old, new))
+            .collect();
+        let unshrink_table: Vec<NodeId> = strongly_connected_nodes.into_iter().collect();
+
+        let mut fbas_shrunken = Fbas::new_generic_unconfigured(unshrink_table.len());
+        for old_id in 0..fbas.nodes.len() {
+            if let Some(&new_id) = shrink_map.get(&old_id) {
+                fbas_shrunken.nodes[new_id] = Node::shrunken(&fbas.nodes[old_id], &shrink_map);
+            }
+        }
+        (fbas_shrunken, unshrink_table)
+    }
+}
+impl Node {
+    fn shrunken(node: &Self, shrink_map: &HashMap<NodeId, NodeId>) -> Self {
+        Node {
+            public_key: node.public_key.clone(),
+            quorum_set: QuorumSet::shrunken(&node.quorum_set, shrink_map),
+        }
+    }
+}
+impl QuorumSet {
+    fn shrunken(quorum_set: &Self, shrink_map: &HashMap<NodeId, NodeId>) -> Self {
+        let mut validators = vec![];
+        for old_id in quorum_set.validators.iter() {
+            if let Some(&new_id) = shrink_map.get(&old_id) {
+                validators.push(new_id);
+            }
+        }
+        validators.sort();
+
+        let mut inner_quorum_sets = vec![];
+        for inner_quorum_set in quorum_set.inner_quorum_sets.iter() {
+            let shrunken_inner_quorum_set = QuorumSet::shrunken(inner_quorum_set, shrink_map);
+            if shrunken_inner_quorum_set != QuorumSet::new() {
+                inner_quorum_sets.push(shrunken_inner_quorum_set);
+            }
+        }
+        inner_quorum_sets.sort();
+
+        let threshold = quorum_set.threshold;
+
+        QuorumSet {
+            threshold,
+            validators,
+            inner_quorum_sets,
+        }
     }
 }
 
@@ -384,7 +482,7 @@ mod tests {
         assert!(analysis.has_quorum_intersection());
         assert_eq!(analysis.minimal_quorums().len(), 1);
         assert_eq!(analysis.minimal_blocking_sets().len(), 1);
-        assert_eq!(analysis.minimal_intersections().len(), 0);
+        assert_eq!(analysis.minimal_intersections().len(), 1);
     }
 
     #[test]
@@ -418,6 +516,40 @@ mod tests {
         let non_minimal = vec![bitset![0, 1, 2], bitset![0, 1], bitset![0, 2]];
         let expected = vec![bitset![0, 1], bitset![0, 2]];
         let actual = remove_non_minimal_node_sets(non_minimal);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn shrink_fbas_reduces_size() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let (fbas_shrunken, _) = Fbas::shrunken(&fbas);
+        assert!(fbas_shrunken.number_of_nodes() < fbas.number_of_nodes());
+    }
+
+    #[test]
+    fn shrink_quorum_set() {
+        let qset = QuorumSet {
+            threshold: 2,
+            validators: vec![2, 3, 4],
+            inner_quorum_sets: vec![],
+        };
+        let shrink_map: HashMap<NodeId, NodeId> = vec![(2, 0), (4, 1)].into_iter().collect();
+        let expected = QuorumSet {
+            threshold: 2,
+            validators: vec![0, 1],
+            inner_quorum_sets: vec![],
+        };
+        let actual = QuorumSet::shrunken(&qset, &shrink_map);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn shrink_unshrink_find_minimal_quorums() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let (fbas_shrunken, unshrink_table) = Fbas::shrunken(&fbas);
+
+        let expected = find_minimal_quorums(&fbas);
+        let actual = unshrink(find_minimal_quorums(&fbas_shrunken), &unshrink_table);
         assert_eq!(expected, actual);
     }
 

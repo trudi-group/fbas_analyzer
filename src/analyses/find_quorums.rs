@@ -18,7 +18,7 @@ pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
 pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for potentially non-intersecting quorums...");
     let quorums = find_quorums(fbas, true, find_nonintersecting_quorums_worker);
-    if quorums.is_empty() {
+    if quorums.len() < 2 {
         info!("Found no non-intersecting quorums.");
     } else {
         warn!("Found two non-intersecting quorums!");
@@ -253,7 +253,7 @@ pub fn find_unsatisfiable_nodes(nodes: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, N
     (satisfiable, unsatisfiable)
 }
 
-fn reduce_to_strongly_connected_components(
+pub(crate) fn reduce_to_strongly_connected_components(
     mut nodes: NodeIdSet,
     fbas: &Fbas,
 ) -> (NodeIdSet, NodeIdSet) {
