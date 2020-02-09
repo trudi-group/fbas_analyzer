@@ -183,6 +183,10 @@ impl<'a> Analysis<'a> {
             node_sets
         }
     }
+    /// Temporary workaround for being able to map shrunken IDs to correct pretty names
+    pub fn internal_fbas_clone(&self) -> Fbas {
+        self.fbas_shrunken.clone()
+    }
 }
 
 /// Returns (number_of_sets, number_of_distinct_nodes, <minmaxmean_set_size>)

@@ -93,6 +93,13 @@ fn main() -> CliResult {
     let mut analysis =
         Analysis::new_with_options(&fbas, organizations.as_ref(), !args.expect_no_intersection);
 
+    // TODO refactor
+    let id_reference_fbas = if organizations.is_some() {
+        fbas.clone()
+    } else {
+        analysis.internal_fbas_clone()
+    };
+
     let (q, c, b, i) = (
         args.minimal_quorums,
         args.check_quorum_intersection || args.minimal_intersections,
@@ -123,7 +130,7 @@ fn main() -> CliResult {
             println!(
                 "{}: {}",
                 $result_name,
-                format_node_id_sets($result, &fbas, &organizations, desc, hist, output_pretty)
+                format_node_id_sets($result, &id_reference_fbas, &organizations, desc, hist, output_pretty)
             );
         };
     }
@@ -132,7 +139,7 @@ fn main() -> CliResult {
             println!(
                 "{}: {}",
                 $result_name,
-                format_node_ids($result, &fbas, &organizations, desc || hist, output_pretty)
+                format_node_ids($result, &id_reference_fbas, &organizations, desc || hist, output_pretty)
             );
         };
     }
@@ -159,18 +166,18 @@ fn main() -> CliResult {
     } else {
         silprintln!("\nThere are {} nodes in the FBAS.\n", all_nodes.len());
     }
-    print_ids_result!("all_nodes", &all_nodes);
+    // print_ids_result!("all_nodes", &all_nodes);
 
     let unsatisfiable_nodes = analysis.unsatisfiable_nodes();
     silprintln!(
         "\n{} nodes are unsatisfiable (broken configuration?).\n",
         unsatisfiable_nodes.len()
     );
-    print_ids_result!("unsatisfiable_nodes", &unsatisfiable_nodes);
+    // print_ids_result!("unsatisfiable_nodes", &unsatisfiable_nodes);
 
     let satisfiable_nodes = analysis.satisfiable_nodes();
     silprintln!("\n{} nodes are satisfiable.\n", satisfiable_nodes.len());
-    print_ids_result!("satisfiable_nodes", &satisfiable_nodes);
+    //print_ids_result!("satisfiable_nodes", &satisfiable_nodes);
 
     if args.symmetric_clusters {
         silprintln!("\nLooking for symmetric quorum clusters...\n");
