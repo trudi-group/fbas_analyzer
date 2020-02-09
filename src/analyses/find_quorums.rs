@@ -6,7 +6,7 @@ pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal quorums...");
     let quorums = find_quorums(fbas, true, find_minimal_quorums_worker);
     info!("Found {} (not necessarily minimal) quorums.", quorums.len());
-    let minimal_quorums = remove_non_minimal_node_sets(quorums);
+    let minimal_quorums = remove_non_minimal_quorums(quorums, fbas);
     info!("Reduced to {} minimal quorums.", minimal_quorums.len());
     minimal_quorums
 }
@@ -276,6 +276,50 @@ pub(crate) fn reduce_to_strongly_connected_components(
         removed_nodes.union_with(&new_removed_nodes);
     }
     (nodes, removed_nodes)
+}
+
+fn remove_non_minimal_quorums(mut quorums: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
+    debug!("Removing duplicates...");
+    let len_before = quorums.len();
+    quorums.sort();
+    quorums.dedup();
+    debug!("Done; removed {} duplicates.", len_before - quorums.len());
+
+    let mut minimal_quorums = vec![];
+    let mut tester: NodeIdSet;
+    let mut is_minimal;
+
+    debug!("Filtering non-minimal quorums...");
+    for (i, quorum) in quorums.into_iter().enumerate() {
+        if i % 100000 == 0 {
+            debug!(
+                "...at quorum {}; {} minimal quorums",
+                i,
+                minimal_quorums.len()
+            );
+        }
+        is_minimal = true;
+        tester = quorum.clone();
+
+        for node_id in quorum.iter() {
+            tester.remove(node_id);
+            if contains_quorum(&tester, fbas) {
+                is_minimal = false;
+                break;
+            }
+            tester.insert(node_id);
+        }
+        if is_minimal {
+            minimal_quorums.push(quorum);
+        }
+    }
+    debug!("Filtering done.");
+    minimal_quorums.sort_by_key(|x| x.len());
+    minimal_quorums
+}
+
+fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
+    !find_unsatisfiable_nodes(&node_set, fbas).0.is_empty()
 }
 
 #[cfg(test)]

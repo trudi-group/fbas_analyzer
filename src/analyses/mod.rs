@@ -262,7 +262,14 @@ pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeId
     for node_set in node_sets.into_iter() {
         buckets_by_len[node_set.len()].push(node_set);
     }
-    debug!("Sorting done.");
+    debug!(
+        "Sorting done; #nodes per bucket: {:?}",
+        buckets_by_len
+            .iter()
+            .map(|x| x.len())
+            .enumerate()
+            .collect::<Vec<(usize, usize)>>()
+    );
     remove_non_minimal_node_sets_from_buckets(buckets_by_len)
 }
 
@@ -272,7 +279,12 @@ fn remove_non_minimal_node_sets_from_buckets(
     debug!("Filtering non-minimal node sets...");
     let mut minimal_node_sets: Vec<NodeIdSet> = vec![];
     let mut minimal_node_sets_current_len: Vec<NodeIdSet> = vec![];
-    for bucket in buckets_by_len.into_iter() {
+    for (i, bucket) in buckets_by_len.into_iter().enumerate() {
+        debug!(
+            "...at bucket {}; {} minimal node sets",
+            i,
+            minimal_node_sets.len()
+        );
         for node_set in bucket.into_iter() {
             if minimal_node_sets.iter().all(|x| !x.is_subset(&node_set)) {
                 minimal_node_sets_current_len.push(node_set);
