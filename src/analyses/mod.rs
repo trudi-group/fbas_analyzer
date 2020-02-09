@@ -159,7 +159,11 @@ impl<'a> Analysis<'a> {
         }
     }
     fn unshrink(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
-        unshrink(node_sets, &self.unshrink_table)
+        if self.organizations.is_some() {
+            unshrink(node_sets, &self.unshrink_table)
+        } else {
+            node_sets
+        }
     }
     fn maybe_collapse_minimal_node_sets(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         if let Some(ref orgs) = self.organizations {
@@ -460,16 +464,16 @@ mod tests {
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(
-            analysis.minimal_quorums(),
-            &[bitset![0, 1], bitset![0, 10], bitset![1, 10]]
+            describe_with_histogram(analysis.minimal_quorums()),
+            describe_with_histogram(&[bitset![0, 1], bitset![0, 10], bitset![1, 10]])
         );
         assert_eq!(
-            analysis.minimal_blocking_sets(),
-            &[bitset![0, 1], bitset![0, 10], bitset![1, 10]]
+            describe_with_histogram(analysis.minimal_blocking_sets()),
+            describe_with_histogram(&[bitset![0, 1], bitset![0, 10], bitset![1, 10]])
         );
         assert_eq!(
-            analysis.minimal_intersections(),
-            &[bitset![0], bitset![1], bitset![10]]
+            describe_with_histogram(analysis.minimal_intersections()),
+            describe_with_histogram(&[bitset![0], bitset![1], bitset![10]])
         );
     }
 

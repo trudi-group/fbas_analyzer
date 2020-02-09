@@ -61,7 +61,7 @@ struct Cli {
     organizations_path: Option<PathBuf>,
 
     /// In output, identify nodes by their pretty name (public key, or organization if -o is set);
-    /// default is to print nodes' index in the input JSON
+    /// default is to use the node IDs used internally by the analyzer
     #[structopt(short = "p", long = "output-pretty")]
     output_pretty: bool,
 
@@ -141,7 +141,7 @@ fn main() -> CliResult {
         eprintln!("Nothing to do... (try the -a flag?)");
     } else if !desc && !output_pretty {
         silprintln!(
-            "In the following dumps, nodes are identified by their index in the input JSON."
+            "In the following dumps, nodes are identified by some random (to you) but unique IDs."
         );
     } else if desc {
         silprintln!(
