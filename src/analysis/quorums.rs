@@ -92,6 +92,7 @@ fn find_minimal_quorums_worker(sorted_nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<No
         &mut available,
         &mut found_quorums,
         fbas,
+        true,
     );
     found_quorums
 }
@@ -101,19 +102,30 @@ fn find_minimal_quorums_step(
     available: &mut NodeIdSet,
     found_quorums: &mut Vec<NodeIdSet>,
     fbas: &Fbas,
+    selection_changed: bool,
 ) {
-    if fbas.is_quorum(selection) {
+    if selection_changed && fbas.is_quorum(selection) {
         found_quorums.push(selection.clone());
+        if found_quorums.len() % 100_000 == 0 {
+            debug!("...{} quorums found", found_quorums.len());
+        }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
         selection.insert(current_candidate);
 
-        find_minimal_quorums_step(unprocessed, selection, available, found_quorums, fbas);
+        find_minimal_quorums_step(unprocessed, selection, available, found_quorums, fbas, true);
 
         selection.remove(current_candidate);
         available.remove(current_candidate);
 
         if quorums_possible(selection, available, fbas) {
-            find_minimal_quorums_step(unprocessed, selection, available, found_quorums, fbas);
+            find_minimal_quorums_step(
+                unprocessed,
+                selection,
+                available,
+                found_quorums,
+                fbas,
+                false,
+            );
         }
         unprocessed.push_front(current_candidate);
         available.insert(current_candidate);
@@ -237,20 +249,27 @@ fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -
         .all(|x| fbas.nodes[x].is_quorum_slice(available))
 }
 
-pub fn find_unsatisfiable_nodes(nodes: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
-    let (mut satisfiable, mut unsatisfiable) = (bitset![], bitset![]);
-    for node_id in nodes.iter() {
-        if fbas.nodes[node_id].is_quorum_slice(&nodes) {
-            satisfiable.insert(node_id);
-        } else {
-            unsatisfiable.insert(node_id);
-        }
+fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
+    let mut satisfiable = node_set.clone();
+
+    while let Some(unsatisfiable_node) = satisfiable
+        .iter()
+        .find(|&x| !fbas.nodes[x].is_quorum_slice(&satisfiable))
+    {
+        satisfiable.remove(unsatisfiable_node);
     }
-    if !unsatisfiable.is_empty() {
-        // because more things might have changed now that we can't use some nodes
-        let (new_satisfiable, new_unsatisfiable) = find_unsatisfiable_nodes(&satisfiable, fbas);
-        unsatisfiable.union_with(&new_unsatisfiable);
-        satisfiable = new_satisfiable;
+    !satisfiable.is_empty()
+}
+
+pub fn find_unsatisfiable_nodes(node_set: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
+    let (mut satisfiable, mut unsatisfiable) = (node_set.clone(), bitset![]);
+
+    while let Some(unsatisfiable_node) = satisfiable
+        .iter()
+        .find(|&x| !fbas.nodes[x].is_quorum_slice(&satisfiable))
+    {
+        satisfiable.remove(unsatisfiable_node);
+        unsatisfiable.insert(unsatisfiable_node);
     }
     (satisfiable, unsatisfiable)
 }
@@ -280,13 +299,7 @@ pub(crate) fn reduce_to_strongly_connected_components(
     (nodes, removed_nodes)
 }
 
-fn remove_non_minimal_quorums(mut quorums: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
-    debug!("Removing duplicates...");
-    let len_before = quorums.len();
-    quorums.sort();
-    quorums.dedup();
-    debug!("Done; removed {} duplicates.", len_before - quorums.len());
-
+fn remove_non_minimal_quorums(quorums: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
     let mut minimal_quorums = vec![];
     let mut tester: NodeIdSet;
     let mut is_minimal;
@@ -301,6 +314,7 @@ fn remove_non_minimal_quorums(mut quorums: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<N
             );
         }
         is_minimal = true;
+        // whyever, using clone() here seems to be faster than clone_from()
         tester = quorum.clone();
 
         for node_id in quorum.iter() {
@@ -316,12 +330,10 @@ fn remove_non_minimal_quorums(mut quorums: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<N
         }
     }
     debug!("Filtering done.");
+    debug_assert!(contains_only_minimal_node_sets(&minimal_quorums));
+    minimal_quorums.sort();
     minimal_quorums.sort_by_key(|x| x.len());
     minimal_quorums
-}
-
-fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
-    !find_unsatisfiable_nodes(&node_set, fbas).0.is_empty()
 }
 
 #[cfg(test)]
@@ -357,6 +369,33 @@ mod tests {
         let expected = vec![bitset![2], bitset![0, 1]];
         let actual = find_minimal_quorums(&fbas);
 
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_quorums_when_naive_remove_non_minimal_optimization_doesnt_work() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n3"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n3"] }
+            }
+        ]"#,
+        );
+        let expected = vec![bitset![0, 3], bitset![1, 2]];
+        let actual = find_minimal_quorums(&fbas);
         assert_eq!(expected, actual);
     }
 

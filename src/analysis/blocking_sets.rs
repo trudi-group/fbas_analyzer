@@ -7,7 +7,7 @@ pub fn find_minimal_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
     info!("Found {} blocking sets.", blocking_sets.len());
 
     debug!("Reducing to minimal blocking sets...");
-    let minimal_blocking_sets = remove_non_minimal_node_sets(blocking_sets);
+    let minimal_blocking_sets = remove_non_minimal_blocking_sets(blocking_sets);
     info!(
         "Reduced to {} minimal blocking sets.",
         minimal_blocking_sets.len()
@@ -26,30 +26,39 @@ fn find_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
     let mut selection = NodeIdSet::new();
     let mut found_blocking_sets: Vec<NodeIdSet> = vec![];
     let missing_node_sets: BitSet = (0..node_sets.len()).collect();
+    let mut missing_node_sets_buffer: Vec<BitSet> = vec![BitSet::new(); unprocessed.len()];
 
     debug!("Collecting blocking sets...");
     fn step(
         unprocessed: &mut NodeIdDeque,
         selection: &mut NodeIdSet,
         found_blocking_sets: &mut Vec<NodeIdSet>,
-        missing_node_sets: BitSet,
+        missing_node_sets: &BitSet,
+        missing_node_sets_buffer: &mut [BitSet],
         memberships: &MembershipsMap,
+        selection_changed: bool,
     ) {
-        if missing_node_sets.is_empty() {
+        if selection_changed && missing_node_sets.is_empty() {
             found_blocking_sets.push(selection.clone());
+            if found_blocking_sets.len() % 100_000 == 0 {
+                debug!("...{} blocking sets found", found_blocking_sets.len());
+            }
         } else if let Some(current_candidate) = unprocessed.pop_front() {
             let useful = !missing_node_sets.is_disjoint(&memberships[current_candidate]);
-
             if useful {
                 selection.insert(current_candidate);
-                let mut updated_missing_node_sets = missing_node_sets.clone();
-                updated_missing_node_sets.difference_with(&memberships[current_candidate]);
+                let (missing_node_sets_next, missing_node_sets_buffer) =
+                    missing_node_sets_buffer.split_first_mut().unwrap();
+                missing_node_sets_next.clone_from(&missing_node_sets);
+                missing_node_sets_next.difference_with(&memberships[current_candidate]);
                 step(
                     unprocessed,
                     selection,
                     found_blocking_sets,
-                    updated_missing_node_sets,
+                    missing_node_sets_next,
+                    missing_node_sets_buffer,
                     memberships,
+                    true,
                 );
                 selection.remove(current_candidate);
             }
@@ -58,7 +67,9 @@ fn find_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
                 selection,
                 found_blocking_sets,
                 missing_node_sets,
+                missing_node_sets_buffer,
                 memberships,
+                false,
             );
             unprocessed.push_front(current_candidate);
         }
@@ -67,10 +78,55 @@ fn find_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
         &mut unprocessed,
         &mut selection,
         &mut found_blocking_sets,
-        missing_node_sets,
+        &missing_node_sets,
+        &mut missing_node_sets_buffer,
         &memberships,
+        true,
     );
     found_blocking_sets
+}
+
+// Warning: this is correct only if `blocking_sets` == the output of `find_blocking_sets`.
+// If unsure: use `remove_non_minimal_node_sets` (slower for big inputs).
+fn remove_non_minimal_blocking_sets(blocking_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
+    debug!("Shuffling into set set...");
+    let blocking_sets_set: BTreeSet<NodeIdSet> = blocking_sets.iter().cloned().collect();
+    debug!("Done.");
+    assert!(blocking_sets.len() - blocking_sets_set.len() == 0);
+
+    let mut minimal_blocking_sets = vec![];
+    let mut tester: NodeIdSet;
+    let mut is_minimal;
+
+    debug!("Filtering non-minimal blocking_sets...");
+    for (i, blocking_set) in blocking_sets.into_iter().enumerate() {
+        if i % 100_000 == 0 {
+            debug!(
+                "...at blocking set {}; {} minimal blocking sets",
+                i,
+                minimal_blocking_sets.len()
+            );
+        }
+        is_minimal = true;
+        // whyever, using clone() here seems to be faster than clone_from()
+        tester = blocking_set.clone();
+
+        for node_id in blocking_set.iter() {
+            tester.remove(node_id);
+            if blocking_sets_set.contains(&tester) {
+                is_minimal = false;
+                break;
+            }
+            tester.insert(node_id);
+        }
+        if is_minimal {
+            minimal_blocking_sets.push(blocking_set);
+        }
+    }
+    debug!("Filtering done.");
+    debug_assert!(contains_only_minimal_node_sets(&minimal_blocking_sets));
+    minimal_blocking_sets.sort_by_key(|x| x.len());
+    minimal_blocking_sets
 }
 
 fn extract_nodes_and_node_set_memberships(

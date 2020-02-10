@@ -262,6 +262,15 @@ pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeId
     remove_non_minimal_node_sets_from_buckets(buckets_by_len)
 }
 
+pub fn contains_only_minimal_node_sets(node_sets: &[NodeIdSet]) -> bool {
+    node_sets.iter().all(|x| {
+        node_sets
+            .iter()
+            .filter(|&y| x != y)
+            .all(|y| !y.is_subset(x))
+    })
+}
+
 fn remove_non_minimal_node_sets_from_buckets(
     buckets_by_len: Vec<impl IntoIterator<Item = NodeIdSet>>,
 ) -> Vec<NodeIdSet> {
@@ -282,6 +291,7 @@ fn remove_non_minimal_node_sets_from_buckets(
         minimal_node_sets.append(&mut minimal_node_sets_current_len);
     }
     debug!("Filtering done.");
+    debug_assert!(contains_only_minimal_node_sets(&minimal_node_sets));
     minimal_node_sets
 }
 
