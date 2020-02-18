@@ -1,6 +1,6 @@
 [package]
 name = "fbas_analyzer"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Martin Florian <martin.florian@hu-berlin.de>"]
 edition = "2018"
 

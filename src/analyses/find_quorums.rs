@@ -291,7 +291,7 @@ fn remove_non_minimal_quorums(mut quorums: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<N
 
     debug!("Filtering non-minimal quorums...");
     for (i, quorum) in quorums.into_iter().enumerate() {
-        if i % 100000 == 0 {
+        if i % 100_000 == 0 {
             debug!(
                 "...at quorum {}; {} minimal quorums",
                 i,

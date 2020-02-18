@@ -130,7 +130,14 @@ fn main() -> CliResult {
             println!(
                 "{}: {}",
                 $result_name,
-                format_node_id_sets($result, &id_reference_fbas, &organizations, desc, hist, output_pretty)
+                format_node_id_sets(
+                    $result,
+                    &id_reference_fbas,
+                    &organizations,
+                    desc,
+                    hist,
+                    output_pretty
+                )
             );
         };
     }
@@ -139,7 +146,13 @@ fn main() -> CliResult {
             println!(
                 "{}: {}",
                 $result_name,
-                format_node_ids($result, &id_reference_fbas, &organizations, desc || hist, output_pretty)
+                format_node_ids(
+                    $result,
+                    &id_reference_fbas,
+                    &organizations,
+                    desc || hist,
+                    output_pretty
+                )
             );
         };
     }
