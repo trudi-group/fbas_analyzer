@@ -1,8 +1,9 @@
 # FBAS analyzer
 
 A library and tool for analyzing the quorum structure of federated byzantine agreement systems (FBASs) like [Stellar](https://www.stellar.org/).
+Related research paper: [The Sum of Its Parts: Analysis of Federated Byzantine Agreement Systems](https://arxiv.org/abs/2002.08101).
 
-Among other things, it can:
+Among other things, the implementation here can:
 
 - read node and quorum set data in [stellarbeat](https://www.stellarbeat.io/) format
 - find all minimal quorums (minimal here means that each existing quorum is a superset of one of the minimal quorums)
@@ -37,8 +38,6 @@ target/release/fbas_analyzer -h
 target/release/qsc_sim -h
 ```
 
-## Resources
+## Acknowledgements
 
-- Paper related to this project (TODO; preprint coming soon)
-- Definitions of FBAS and other terms: [The Stellar Consensus Protocol](https://www.stellar.org/papers/stellar-consensus-protocol.pdf)
-- Algorithms for finding minimal quorums and determining some FBAS properties: [Lachowski 2019](https://arxiv.org/abs/1902.06493), respectively this related [repo](https://github.com/fixxxedpoint/quorum_intersection)
+- The code for finding minimal quorums is inspired by [Lachowski 2019](https://arxiv.org/abs/1902.06493), respectively this [implementation](https://github.com/fixxxedpoint/quorum_intersection).
