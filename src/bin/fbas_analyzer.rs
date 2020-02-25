@@ -35,9 +35,9 @@ struct Cli {
     #[structopt(short = "b", long = "get-minimal-blocking-sets")]
     minimal_blocking_sets: bool,
 
-    /// Output minimal quorum intersections (minimal indispensable sets for safety)
-    #[structopt(short = "i", long = "get-minimal-intersections")]
-    minimal_intersections: bool,
+    /// Output minimal splitting sets (minimal indispensable sets for safety)
+    #[structopt(short = "i", long = "get-minimal-splitting-sets")]
+    minimal_splitting_sets: bool,
 
     /// Output (and find) everything we can (use -vv for outputting even more)
     #[structopt(short = "a", long = "all")]
@@ -102,9 +102,9 @@ fn main() -> CliResult {
 
     let (q, c, b, i) = (
         args.minimal_quorums,
-        args.check_quorum_intersection || args.minimal_intersections,
+        args.check_quorum_intersection || args.minimal_splitting_sets,
         args.minimal_blocking_sets,
-        args.minimal_intersections,
+        args.minimal_splitting_sets,
     );
     // -a  => output everything
     let (q, c, b, i) = if args.all {
@@ -230,22 +230,22 @@ fn main() -> CliResult {
     }
     if i {
         silprintln!(
-            "\nWe found {} minimal quorum intersections \
+            "\nWe found {} minimal splitting sets \
              (minimal indispensable sets for safety). \
              Control over any of these sets is sufficient to compromise safety by \
              undermining the quorum intersection of at least two quorums.\n",
-            analysis.minimal_intersections().len()
+            analysis.minimal_splitting_sets().len()
         );
-        print_sets_result!("minimal_intersections", analysis.minimal_intersections());
+        print_sets_result!("minimal_splitting_sets", analysis.minimal_splitting_sets());
     }
     if q || b || i {
-        let all_nodes = analysis.involved_nodes();
+        let top_tier = analysis.top_tier();
         silprintln!(
-            "\nThere is a total of {} distinct nodes involved in all of these sets.\n",
-            all_nodes.len()
+            "\nThere is a total of {} distinct nodes involved in all of these sets (this is the \"top tier\").\n",
+            top_tier.len()
         );
         if !desc {
-            print_ids_result!("involved_nodes", &all_nodes);
+            print_ids_result!("top_tier", &top_tier);
         }
     }
     silprintln!();

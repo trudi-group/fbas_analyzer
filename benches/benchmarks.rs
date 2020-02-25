@@ -48,15 +48,15 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // c.bench_function("find_minimal_blocking_sets_collapsed", |b| {
     //     b.iter(|| find_minimal_blocking_sets(black_box(&minimal_quorums_collapsed)))
     // });
-    // c.bench_function("find_minimal_intersections_collapsed", |b| {
-    //     b.iter(|| find_minimal_intersections(black_box(&minimal_quorums_collapsed)))
+    // c.bench_function("find_minimal_splitting_sets_collapsed", |b| {
+    //     b.iter(|| find_minimal_splitting_sets(black_box(&minimal_quorums_collapsed)))
     // });
 
     c.bench_function("find_minimal_blocking_sets", |b| {
         b.iter(|| find_minimal_blocking_sets(black_box(&minimal_quorums)))
     });
-    c.bench_function("find_minimal_intersections", |b| {
-        b.iter(|| find_minimal_intersections(black_box(&minimal_quorums)))
+    c.bench_function("find_minimal_splitting_sets", |b| {
+        b.iter(|| find_minimal_splitting_sets(black_box(&minimal_quorums)))
     });
 }
 

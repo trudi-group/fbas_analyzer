@@ -8,7 +8,7 @@ Among other things, the implementation here can:
 - read node and quorum set data in [stellarbeat](https://www.stellarbeat.io/) format
 - find all minimal quorums (minimal here means that each existing quorum is a superset of one of the minimal quorums)
 - find all minimal blocking sets (minimal indispensable sets for liveness)
-- determine quorum intersection and find all minimal quorum intersections (i.e., splitting sets; minimal indispensable sets for safety)
+- determine quorum intersection and find all minimal splitting sets (minimal indispensable sets for safety)
 - simulate different quorum set configuration policies, yielding synthetic FBASs for further analysis
 
 **This is an intermediate snapshot, expect heavy refactoring in the coming weeks and months. Neither the API nor the CLI should be considered stable in any way!**
