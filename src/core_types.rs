@@ -44,7 +44,10 @@ impl Fbas {
         self.nodes.len()
     }
     pub fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
-        !node_set.is_empty() && node_set.iter().all(|x| self.nodes[x].is_quorum(&node_set))
+        !node_set.is_empty()
+            && node_set
+                .iter()
+                .all(|x| self.nodes[x].is_quorum_slice(&node_set))
     }
 }
 
@@ -61,8 +64,8 @@ impl Node {
             quorum_set,
         }
     }
-    pub fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
-        self.quorum_set.is_quorum(node_set)
+    pub fn is_quorum_slice(&self, node_set: &NodeIdSet) -> bool {
+        self.quorum_set.is_quorum_slice(node_set)
     }
 }
 
@@ -87,7 +90,7 @@ impl QuorumSet {
         }
         nodes
     }
-    pub fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
+    pub fn is_quorum_slice(&self, node_set: &NodeIdSet) -> bool {
         if self.threshold == 0 {
             false // badly configured quorum set
         } else {
@@ -100,7 +103,7 @@ impl QuorumSet {
             let found_inner_quorum_set_matches = self
                 .inner_quorum_sets
                 .iter()
-                .filter(|x| x.is_quorum(node_set))
+                .filter(|x| x.is_quorum_slice(node_set))
                 .take(self.threshold - found_validator_matches)
                 .count();
 
@@ -249,21 +252,21 @@ mod tests {
     }
 
     #[test]
-    fn is_quorum_if_not_quorum() {
+    fn is_quorum_slice_if_not_quorum_slice() {
         let node = test_node(&[0, 1, 2], 3);
         let node_set = bitset![1, 2, 3];
-        assert!(!node.is_quorum(&node_set));
+        assert!(!node.is_quorum_slice(&node_set));
     }
 
     #[test]
     fn is_quorum_if_quorum() {
         let node = test_node(&[0, 1, 2], 2);
         let node_set = bitset![1, 2, 3];
-        assert!(node.is_quorum(&node_set));
+        assert!(node.is_quorum_slice(&node_set));
     }
 
     #[test]
-    fn is_quorum_with_inner_quorum_sets() {
+    fn is_quorum_slice_with_inner_quorum_sets() {
         let mut node = test_node(&[0, 1], 3);
         node.quorum_set.inner_quorum_sets = vec![
             QuorumSet {
@@ -279,8 +282,8 @@ mod tests {
         ];
         let not_quorum = bitset![1, 2, 3];
         let quorum = bitset![0, 3, 4, 5];
-        assert!(!node.is_quorum(&not_quorum));
-        assert!(node.is_quorum(&quorum));
+        assert!(!node.is_quorum_slice(&not_quorum));
+        assert!(node.is_quorum_slice(&quorum));
     }
 
     #[test]
@@ -292,9 +295,9 @@ mod tests {
     }
 
     #[test]
-    fn empty_set_is_not_quorum() {
+    fn empty_set_is_not_quorum_slice() {
         let node = test_node(&[0, 1, 2], 2);
-        assert!(!node.is_quorum(&bitset![]));
+        assert!(!node.is_quorum_slice(&bitset![]));
 
         let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
         assert!(!fbas.is_quorum(&bitset![]));
@@ -303,9 +306,9 @@ mod tests {
     #[test]
     fn quorum_set_with_threshold_0_trusts_no_one() {
         let node = test_node(&[0, 1, 2], 0);
-        assert!(!node.is_quorum(&bitset![]));
-        assert!(!node.is_quorum(&bitset![0]));
-        assert!(!node.is_quorum(&bitset![0, 1]));
-        assert!(!node.is_quorum(&bitset![0, 1, 2]));
+        assert!(!node.is_quorum_slice(&bitset![]));
+        assert!(!node.is_quorum_slice(&bitset![0]));
+        assert!(!node.is_quorum_slice(&bitset![0, 1]));
+        assert!(!node.is_quorum_slice(&bitset![0, 1, 2]));
     }
 }

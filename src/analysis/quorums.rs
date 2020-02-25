@@ -232,13 +232,15 @@ fn find_symmetric_quorum_clusters_worker(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec
 }
 
 fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
-    selection.iter().all(|x| fbas.nodes[x].is_quorum(available))
+    selection
+        .iter()
+        .all(|x| fbas.nodes[x].is_quorum_slice(available))
 }
 
 pub fn find_unsatisfiable_nodes(nodes: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
     let (mut satisfiable, mut unsatisfiable) = (bitset![], bitset![]);
     for node_id in nodes.iter() {
-        if fbas.nodes[node_id].quorum_set.is_quorum(&nodes) {
+        if fbas.nodes[node_id].is_quorum_slice(&nodes) {
             satisfiable.insert(node_id);
         } else {
             unsatisfiable.insert(node_id);
