@@ -3,7 +3,7 @@ use super::*;
 use std::rc::Rc;
 
 use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng};
+use rand::thread_rng;
 
 pub mod monitors;
 pub mod quorum_set_configurators;

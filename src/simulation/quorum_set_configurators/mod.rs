@@ -4,8 +4,8 @@ use std::cmp;
 
 mod random;
 pub use random::*;
-mod graph;
-pub use graph::*;
+mod graph_based;
+pub use graph_based::*;
 
 /// Dummy Quorum Set Configurator.
 ///

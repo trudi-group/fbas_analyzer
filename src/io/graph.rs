@@ -1,5 +1,5 @@
 use super::*;
-use crate::simulation::quorum_set_configurators::Graph;
+use crate::graph::Graph;
 
 use bzip2::read::BzDecoder;
 use std::cmp::max;

@@ -1,18 +1,14 @@
 use super::*;
 
-mod simple;
-pub use simple::*;
-mod quality;
-pub use quality::*;
-mod tier_based;
-pub use tier_based::*;
-mod rank_based;
-pub use rank_based::*;
+use rand::seq::SliceRandom;
+use rand::{thread_rng, Rng};
+
+pub type RankScore = f64;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Graph {
     // outgoing edges per node
-    outlinks: Vec<Vec<NodeId>>,
+    pub(crate) outlinks: Vec<Vec<NodeId>>,
 }
 impl Graph {
     pub fn new(outlinks: Vec<Vec<NodeId>>) -> Self {
