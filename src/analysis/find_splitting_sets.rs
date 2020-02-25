@@ -23,7 +23,7 @@ fn find_splitting_sets_into_buckets(node_sets: &[NodeIdSet]) -> Vec<BTreeSet<Nod
     let mut buckets_by_len: Vec<BTreeSet<NodeIdSet>> = vec![BTreeSet::new(); max_len_upper_bound];
     let mut intersection; // defining this here saves allocations...
     for (i, ns1) in node_sets.iter().enumerate() {
-        for ns2 in node_sets.iter().skip(i + 1) {
+        for ns2 in node_sets.iter().skip(i) {
             intersection = ns1.clone();
             intersection.intersect_with(ns2);
             buckets_by_len[intersection.len()].insert(intersection);
@@ -64,6 +64,20 @@ mod tests {
     fn find_minimal_splitting_sets_some_dont_intersect() {
         let node_sets = vec![bitset![0, 1], bitset![0, 2], bitset![1, 3]];
         let expected = vec![bitset![]];
+        let actual = find_minimal_splitting_sets(&node_sets);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_splitting_sets_if_one_quorum() {
+        let node_sets = vec![bitset![0, 1, 2]];
+
+        // If there is only one node set, this node set (usually a quorum) is the splitting set.
+        // This ensures correct results in cases with multiple quorums but only one minimal quorum.
+        // This also makes sense if there is only one quorum in the FBAS: if the whole quorum is
+        // faulty, it can fail (and split itself) in arbitrary ways.
+        let expected = vec![bitset![0, 1, 2]];
         let actual = find_minimal_splitting_sets(&node_sets);
 
         assert_eq!(expected, actual);
