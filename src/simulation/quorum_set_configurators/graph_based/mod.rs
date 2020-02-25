@@ -9,4 +9,3 @@ mod tier_based;
 pub use tier_based::*;
 mod rank_based;
 pub use rank_based::*;
-

@@ -1,11 +1,11 @@
 mod analysis;
+mod core_types;
 mod graph;
 mod io;
 mod simulation;
-mod types;
 
-use types::*;
-pub use types::{Fbas, NodeIdSet, Organizations};
+use core_types::*;
+pub use core_types::{Fbas, NodeIdSet, Organizations};
 
 pub use graph::Graph;
 

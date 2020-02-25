@@ -2,20 +2,20 @@ use super::*;
 use log::log_enabled;
 use log::Level::Warn;
 
-mod find_blocking_sets;
-mod find_quorums;
-mod find_splitting_sets;
+mod blocking_sets;
+mod quorums;
+mod splitting_sets;
 
 mod rank;
 pub(crate) use rank::*;
 
-pub use find_blocking_sets::find_minimal_blocking_sets;
-use find_quorums::reduce_to_strongly_connected_components;
-pub use find_quorums::{
+pub use blocking_sets::find_minimal_blocking_sets;
+use quorums::reduce_to_strongly_connected_components;
+pub use quorums::{
     find_minimal_quorums, find_nonintersecting_quorums, find_symmetric_quorum_clusters,
     find_unsatisfiable_nodes,
 };
-pub use find_splitting_sets::find_minimal_splitting_sets;
+pub use splitting_sets::find_minimal_splitting_sets;
 
 /// Most methods require &mut because they cache intermediate results.
 pub struct Analysis<'a> {
