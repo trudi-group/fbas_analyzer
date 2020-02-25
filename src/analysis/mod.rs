@@ -128,7 +128,7 @@ impl<'a> Analysis<'a> {
         find_symmetric_quorum_clusters(self.fbas)
     }
     pub fn top_tier(&mut self) -> Vec<NodeId> {
-        top_tier(self.minimal_quorums())
+        involved_nodes(self.minimal_quorums())
     }
     fn find_and_cache_minimal_quorums(&mut self) {
         warn!("Computing minimal quorums...");
@@ -170,13 +170,13 @@ impl<'a> Analysis<'a> {
             debug!("Collapsing nodes by organization...");
             info!(
                 "{} involved nodes before collapsing by organization.",
-                top_tier(&node_sets).len()
+                involved_nodes(&node_sets).len()
             );
             let collapsed_node_sets =
                 remove_non_minimal_node_sets(orgs.collapse_node_sets(node_sets));
             info!(
                 "{} involved nodes after collapsing by organization.",
-                top_tier(&collapsed_node_sets).len()
+                involved_nodes(&collapsed_node_sets).len()
             );
             collapsed_node_sets
         } else {
@@ -192,15 +192,15 @@ impl<'a> Analysis<'a> {
 /// Returns (number_of_sets, number_of_distinct_nodes, <minmaxmean_set_size>)
 pub fn describe(node_sets: &[NodeIdSet]) -> (usize, usize, usize, usize, f64) {
     let (min, max, mean) = minmaxmean(node_sets);
-    let top_tier = top_tier(node_sets);
-    (node_sets.len(), top_tier.len(), min, max, mean)
+    let involved_nodes = involved_nodes(node_sets);
+    (node_sets.len(), involved_nodes.len(), min, max, mean)
 }
 
 /// Returns (number_of_sets, number_of_distinct_nodes, <histogram>)
 pub fn describe_with_histogram(node_sets: &[NodeIdSet]) -> (usize, usize, Vec<usize>) {
     let histogram = histogram(node_sets);
-    let top_tier = top_tier(node_sets);
-    (node_sets.len(), top_tier.len(), histogram)
+    let involved_nodes = involved_nodes(node_sets);
+    (node_sets.len(), involved_nodes.len(), histogram)
 }
 
 /// Returns (min_set_size, max_set_size, mean_set_size)
@@ -227,18 +227,18 @@ pub fn histogram(node_sets: &[NodeIdSet]) -> Vec<usize> {
 }
 
 pub fn all_intersect(node_sets: &[NodeIdSet]) -> bool {
-    let involved_nodes_len = top_tier(node_sets).len();
+    let number_of_involved_nodes = involved_nodes(node_sets).len();
 
     let mut node_sets_by_size: Vec<(NodeIdSet, usize)> =
         node_sets.iter().map(|ns| (ns.clone(), ns.len())).collect();
     node_sets_by_size.sort_by_key(|x| x.1);
 
     for (i, (ns1, ns1_len)) in node_sets_by_size.iter().enumerate() {
-        if *ns1_len > involved_nodes_len / 2 {
+        if *ns1_len > number_of_involved_nodes / 2 {
             break;
         }
         for (ns2, ns2_len) in node_sets_by_size.iter().skip(i + 1) {
-            if ns1_len + ns2_len > involved_nodes_len {
+            if ns1_len + ns2_len > number_of_involved_nodes {
                 break;
             } else if ns1.is_disjoint(ns2) {
                 return false;
@@ -248,7 +248,7 @@ pub fn all_intersect(node_sets: &[NodeIdSet]) -> bool {
     true
 }
 
-pub fn top_tier(node_sets: &[NodeIdSet]) -> Vec<NodeId> {
+pub fn involved_nodes(node_sets: &[NodeIdSet]) -> Vec<NodeId> {
     let mut all_nodes: NodeIdSet = bitset![];
     for node_set in node_sets {
         all_nodes.union_with(node_set);
