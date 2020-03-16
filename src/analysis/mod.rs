@@ -159,11 +159,7 @@ impl<'a> Analysis<'a> {
         }
     }
     fn unshrink(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
-        if self.organizations.is_some() {
-            unshrink(node_sets, &self.unshrink_table)
-        } else {
-            node_sets
-        }
+        unshrink(node_sets, &self.unshrink_table)
     }
     fn maybe_collapse_minimal_node_sets(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         if let Some(ref orgs) = self.organizations {
@@ -488,6 +484,30 @@ mod tests {
         assert_eq!(analysis.minimal_quorums().len(), 1);
         assert_eq!(analysis.minimal_blocking_sets().len(), 1);
         assert_eq!(analysis.minimal_splitting_sets().len(), 1);
+    }
+
+    #[test]
+    fn minimal_quorums_id_ordering() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            }
+        ]"#,
+        );
+        let mut analysis = Analysis::new(&fbas);
+        let expected = &[bitset![1, 2]];
+        let actual = analysis.minimal_quorums();
+        assert_eq!(expected, actual);
     }
 
     #[test]
