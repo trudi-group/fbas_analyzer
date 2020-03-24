@@ -61,7 +61,7 @@ struct Cli {
     organizations_path: Option<PathBuf>,
 
     /// In output, identify nodes by their pretty name (public key, or organization if -o is set);
-    /// default is to use the node IDs used internally by the analyzer
+    /// default is to use node IDs corresponding to indices in the input file
     #[structopt(short = "p", long = "output-pretty")]
     output_pretty: bool,
 
@@ -92,13 +92,6 @@ fn main() -> CliResult {
 
     let mut analysis =
         Analysis::new_with_options(&fbas, organizations.as_ref(), !args.expect_no_intersection);
-
-    // TODO refactor
-    let id_reference_fbas = if organizations.is_some() {
-        fbas.clone()
-    } else {
-        analysis.internal_fbas_clone()
-    };
 
     let (q, c, b, i) = (
         args.minimal_quorums,
@@ -132,7 +125,7 @@ fn main() -> CliResult {
                 $result_name,
                 format_node_id_sets(
                     $result,
-                    &id_reference_fbas,
+                    &fbas,
                     &organizations,
                     desc,
                     hist,
@@ -148,7 +141,7 @@ fn main() -> CliResult {
                 $result_name,
                 format_node_ids(
                     $result,
-                    &id_reference_fbas,
+                    &fbas,
                     &organizations,
                     desc || hist,
                     output_pretty
