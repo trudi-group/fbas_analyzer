@@ -295,6 +295,44 @@ fn remove_non_minimal_node_sets_from_buckets(
     minimal_node_sets
 }
 
+// For each member node set, check if one of its "smaller by one" subsets is also a member.
+// If yes, then filter it out, as it is obviously non-minimal.
+// This function can be used to reduce (in some cases even eliminate) the workload on the slower
+// `remove_non_minimal_node_sets`.
+fn remove_node_sets_that_are_non_minimal_by_one(node_sets: HashSet<NodeIdSet>) -> Vec<NodeIdSet> {
+    let mut remaining_sets = vec![];
+    let mut tester: NodeIdSet;
+    let mut is_minimal_by_one;
+
+    debug!("Filtering node sets that are non-minimal by one...");
+    for (i, node_set) in node_sets.iter().enumerate() {
+        if i % 100_000 == 0 {
+            debug!(
+                "...at node set {}; {} remaining sets",
+                i,
+                remaining_sets.len()
+            );
+        }
+        is_minimal_by_one = true;
+        // whyever, using clone() here seems to be faster than clone_from()
+        tester = node_set.clone();
+
+        for node_id in node_set.iter() {
+            tester.remove(node_id);
+            if node_sets.contains(&tester) {
+                is_minimal_by_one = false;
+                break;
+            }
+            tester.insert(node_id);
+        }
+        if is_minimal_by_one {
+            remaining_sets.push(node_set.clone());
+        }
+    }
+    debug!("Filtering done.");
+    remaining_sets
+}
+
 fn unshrink(node_sets: Vec<NodeIdSet>, unshrink_table: &[NodeId]) -> Vec<NodeIdSet> {
     node_sets
         .into_iter()

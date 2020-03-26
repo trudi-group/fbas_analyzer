@@ -1,15 +1,16 @@
 use super::*;
 
 pub fn find_minimal_splitting_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
-    debug!("Sorting pairwise intersections by length...");
-    let buckets_by_len = find_splitting_sets_into_buckets(node_sets);
+    debug!("Enumerating all unique pairwise intersections...");
+    let splitting_sets = find_splitting_sets(node_sets);
     info!(
         "Found {} unique pairwise intersections.",
-        buckets_by_len.iter().map(|x| x.len()).sum::<usize>()
+        splitting_sets.len()
     );
 
     debug!("Reducing to minimal splitting sets...");
-    let minimal_splitting_sets = remove_non_minimal_node_sets_from_buckets(buckets_by_len);
+    let minimal_splitting_sets =
+        remove_non_minimal_node_sets(remove_node_sets_that_are_non_minimal_by_one(splitting_sets));
     info!(
         "Found {} minimal splitting sets.",
         minimal_splitting_sets.len()
@@ -17,19 +18,26 @@ pub fn find_minimal_splitting_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
     minimal_splitting_sets
 }
 
-fn find_splitting_sets_into_buckets(node_sets: &[NodeIdSet]) -> Vec<BTreeSet<NodeIdSet>> {
-    // we use BTreeSets here to avoid storing duplicates
-    let max_len_upper_bound = node_sets.iter().map(|x| x.len()).max().unwrap_or(0) + 1;
-    let mut buckets_by_len: Vec<BTreeSet<NodeIdSet>> = vec![BTreeSet::new(); max_len_upper_bound];
+fn find_splitting_sets(node_sets: &[NodeIdSet]) -> HashSet<NodeIdSet> {
+    // we use a HashSet here to avoid storing duplicates
+    let mut splitting_sets: HashSet<NodeIdSet> = HashSet::new();
     let mut intersection; // defining this here saves allocations...
     for (i, ns1) in node_sets.iter().enumerate() {
+        if i % 1000 == 0 {
+            debug!(
+                "...at pair ({}, {}); {} splitting sets",
+                i,
+                i + 1,
+                splitting_sets.len()
+            );
+        }
         for ns2 in node_sets.iter().skip(i) {
             intersection = ns1.clone();
             intersection.intersect_with(ns2);
-            buckets_by_len[intersection.len()].insert(intersection);
+            splitting_sets.insert(intersection);
         }
     }
-    buckets_by_len
+    splitting_sets
 }
 
 #[cfg(test)]

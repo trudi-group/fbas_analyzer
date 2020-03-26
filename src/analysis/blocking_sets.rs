@@ -90,41 +90,14 @@ fn find_blocking_sets(node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
 // If unsure: use `remove_non_minimal_node_sets` (slower for big inputs).
 fn remove_non_minimal_blocking_sets(blocking_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
     debug!("Shuffling into set set...");
-    let blocking_sets_set: BTreeSet<NodeIdSet> = blocking_sets.iter().cloned().collect();
+    let blocking_sets_set: HashSet<NodeIdSet> = blocking_sets.iter().cloned().collect();
     debug!("Done.");
     assert!(blocking_sets.len() - blocking_sets_set.len() == 0);
 
-    let mut minimal_blocking_sets = vec![];
-    let mut tester: NodeIdSet;
-    let mut is_minimal;
+    let mut minimal_blocking_sets = remove_node_sets_that_are_non_minimal_by_one(blocking_sets_set);
 
-    debug!("Filtering non-minimal blocking_sets...");
-    for (i, blocking_set) in blocking_sets.into_iter().enumerate() {
-        if i % 100_000 == 0 {
-            debug!(
-                "...at blocking set {}; {} minimal blocking sets",
-                i,
-                minimal_blocking_sets.len()
-            );
-        }
-        is_minimal = true;
-        // whyever, using clone() here seems to be faster than clone_from()
-        tester = blocking_set.clone();
-
-        for node_id in blocking_set.iter() {
-            tester.remove(node_id);
-            if blocking_sets_set.contains(&tester) {
-                is_minimal = false;
-                break;
-            }
-            tester.insert(node_id);
-        }
-        if is_minimal {
-            minimal_blocking_sets.push(blocking_set);
-        }
-    }
-    debug!("Filtering done.");
     debug_assert!(contains_only_minimal_node_sets(&minimal_blocking_sets));
+    minimal_blocking_sets.sort();
     minimal_blocking_sets.sort_by_key(|x| x.len());
     minimal_blocking_sets
 }
