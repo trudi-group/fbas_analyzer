@@ -60,9 +60,9 @@ where
         debug!("All nodes are satisfiable");
     }
 
-    debug!("Reducing to strongly connected components...");
+    debug!("Reducing to strongly connected nodes...");
     let (strongly_connected, not_strongly_connected) =
-        reduce_to_strongly_connected_components(satisfiable, fbas);
+        reduce_to_strongly_connected_nodes(satisfiable, fbas);
     info!(
         "Ignoring {} not strongly connected nodes ({} nodes left).",
         not_strongly_connected.len(),
@@ -276,11 +276,13 @@ pub fn find_unsatisfiable_nodes(node_set: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet
     (satisfiable, unsatisfiable)
 }
 
-pub(crate) fn reduce_to_strongly_connected_components(
+/// Returns the union of all non-trivial strongly connected components.
+/// We avoid some complexity by not returning (or finding) all actual components.
+pub(crate) fn reduce_to_strongly_connected_nodes(
     mut nodes: NodeIdSet,
     fbas: &Fbas,
 ) -> (NodeIdSet, NodeIdSet) {
-    // can probably be done faster, all of this
+    // We can probably make this faster but it doesn't seem to be a significant bottleneck.
     let mut removed_nodes = nodes.clone();
     for node_id in nodes.iter() {
         let node = &fbas.nodes[node_id];
@@ -293,8 +295,7 @@ pub(crate) fn reduce_to_strongly_connected_components(
     }
     if !removed_nodes.is_empty() {
         nodes.difference_with(&removed_nodes);
-        let (reduced_nodes, new_removed_nodes) =
-            reduce_to_strongly_connected_components(nodes, fbas);
+        let (reduced_nodes, new_removed_nodes) = reduce_to_strongly_connected_nodes(nodes, fbas);
         nodes = reduced_nodes;
         removed_nodes.union_with(&new_removed_nodes);
     }
@@ -464,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    fn unsatisfiable_nodes_dont_end_up_in_strongly_connected_components() {
+    fn unsatisfiable_nodes_not_returned_as_strongly_connected() {
         let mut fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
 
         let directly_unsatisfiable = fbas.add_generic_node(QuorumSet::new());
@@ -485,7 +486,7 @@ mod tests {
 
         let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
         let (satisfiable, _) = find_unsatisfiable_nodes(&all_nodes, &fbas);
-        let (strongly_connected, _) = reduce_to_strongly_connected_components(satisfiable, &fbas);
+        let (strongly_connected, _) = reduce_to_strongly_connected_nodes(satisfiable, &fbas);
 
         assert!(strongly_connected.contains(0));
         assert!(strongly_connected.contains(1));
@@ -494,7 +495,7 @@ mod tests {
     }
 
     #[test]
-    fn reduce_to_strongly_connected_components_ignores_self_links() {
+    fn reduce_to_strongly_connected_nodes_ignores_self_links() {
         let mut fbas = Fbas::new();
         let interconnected_qset = QuorumSet {
             validators: vec![0, 1],
@@ -510,7 +511,7 @@ mod tests {
         fbas.add_generic_node(interconnected_qset);
         fbas.add_generic_node(self_connected_qset);
         let (strongly_connected, not_strongly_connected) =
-            reduce_to_strongly_connected_components(bitset![0, 1, 2], &fbas);
+            reduce_to_strongly_connected_nodes(bitset![0, 1, 2], &fbas);
         assert_eq!(bitset![0, 1], strongly_connected);
         assert_eq!(bitset![2], not_strongly_connected);
     }

@@ -10,7 +10,7 @@ mod rank;
 pub(crate) use rank::*;
 
 pub use blocking_sets::find_minimal_blocking_sets;
-use quorums::reduce_to_strongly_connected_components;
+use quorums::reduce_to_strongly_connected_nodes;
 pub use quorums::{
     find_minimal_quorums, find_nonintersecting_quorums, find_symmetric_quorum_clusters,
     find_unsatisfiable_nodes,
@@ -372,7 +372,7 @@ impl Fbas {
     fn shrunken(fbas: &Self) -> (Self, Vec<NodeId>) {
         let (satisfiable_nodes, _) = fbas.unsatisfiable_nodes();
         let (strongly_connected_nodes, _) =
-            reduce_to_strongly_connected_components(satisfiable_nodes, fbas);
+            reduce_to_strongly_connected_nodes(satisfiable_nodes, fbas);
 
         let shrink_map: HashMap<NodeId, NodeId> = strongly_connected_nodes
             .iter()
