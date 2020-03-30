@@ -4,30 +4,32 @@ use log::Level::Warn;
 
 mod blocking_sets;
 mod quorums;
+mod rank;
 mod shrink;
 mod splitting_sets;
 
-mod rank;
-pub(crate) use rank::*;
-
 pub use blocking_sets::find_minimal_blocking_sets;
-use quorums::reduce_to_strongly_connected_components;
 pub use quorums::{
     find_minimal_quorums, find_nonintersecting_quorums, find_symmetric_quorum_clusters,
     find_unsatisfiable_nodes,
 };
 pub use splitting_sets::find_minimal_splitting_sets;
 
+pub(crate) use rank::*;
+
+use quorums::reduce_to_strongly_connected_components;
+use shrink::{unshrink_set, unshrink_sets};
+
 /// Most methods require &mut because they cache intermediate results.
 pub struct Analysis<'a> {
-    fbas: &'a Fbas,
+    fbas_original: &'a Fbas,
+    organizations_original: Option<&'a Organizations<'a>>,
     fbas_shrunken: Fbas,
     unshrink_table: Vec<NodeId>,
-    organizations: Option<&'a Organizations<'a>>,
-    minimal_quorums: Option<Vec<NodeIdSet>>,
+    shrink_map: HashMap<NodeId, NodeId>,
     minimal_quorums_shrunken: Option<Vec<NodeIdSet>>,
-    minimal_blocking_sets: Option<Vec<NodeIdSet>>,
-    minimal_splitting_sets: Option<Vec<NodeIdSet>>,
+    minimal_blocking_sets_shrunken: Option<Vec<NodeIdSet>>,
+    minimal_splitting_sets_shrunken: Option<Vec<NodeIdSet>>,
     expect_quorum_intersection: bool,
 }
 impl<'a> Analysis<'a> {
@@ -43,105 +45,122 @@ impl<'a> Analysis<'a> {
             "Shrinking FBAS of size {} to save memory...",
             fbas.number_of_nodes()
         );
-        let (fbas_shrunken, unshrink_table) = Fbas::shrunken(fbas);
+        let (fbas_shrunken, unshrink_table, shrink_map) = Fbas::shrunken(fbas);
         debug!(
             "Shrank to an FBAS of size {}.",
             fbas_shrunken.number_of_nodes()
         );
         Analysis {
-            fbas,
+            fbas_original: fbas,
+            organizations_original: organizations,
             fbas_shrunken,
             unshrink_table,
-            organizations,
-            minimal_quorums: None,
+            shrink_map,
             minimal_quorums_shrunken: None,
-            minimal_blocking_sets: None,
-            minimal_splitting_sets: None,
+            minimal_blocking_sets_shrunken: None,
+            minimal_splitting_sets_shrunken: None,
             expect_quorum_intersection,
         }
     }
     pub fn has_quorum_intersection(&mut self) -> bool {
         info!("Checking for intersection of all minimal quorums...");
-        !self.minimal_quorums_shrunken().is_empty()
-            && all_intersect(self.minimal_quorums_shrunken())
+        let minimal_quorums_shrunken = self.minimal_quorums_shrunken();
+        !minimal_quorums_shrunken.is_empty() && all_intersect(&minimal_quorums_shrunken)
     }
     pub fn all_nodes(&self) -> Vec<NodeId> {
-        (0..self.fbas.nodes.len()).collect()
+        (0..self.fbas_original.nodes.len()).collect()
     }
     pub fn all_nodes_collapsed(&self) -> Vec<NodeId> {
         self.maybe_collapse_node_ids(self.all_nodes())
     }
     pub fn satisfiable_nodes(&self) -> Vec<NodeId> {
         let (satisfiable, _) =
-            find_unsatisfiable_nodes(&self.all_nodes().into_iter().collect(), self.fbas);
+            find_unsatisfiable_nodes(&self.all_nodes().into_iter().collect(), self.fbas_original);
         self.maybe_collapse_node_ids(satisfiable.into_iter())
     }
     pub fn unsatisfiable_nodes(&self) -> Vec<NodeId> {
         let (_, unsatisfiable) =
-            find_unsatisfiable_nodes(&self.all_nodes().into_iter().collect(), self.fbas);
+            find_unsatisfiable_nodes(&self.all_nodes().into_iter().collect(), self.fbas_original);
         self.maybe_collapse_node_ids(unsatisfiable.into_iter())
     }
-    pub fn minimal_quorums(&mut self) -> &[NodeIdSet] {
-        if self.minimal_quorums.is_none() {
-            self.find_and_cache_minimal_quorums();
-        } else {
-            info!("Using cached minimal quorums.");
-        }
-        self.minimal_quorums.as_ref().unwrap()
+    pub fn minimal_quorums(&mut self) -> Vec<NodeIdSet> {
+        let minimal_quorums_shrunken = self.minimal_quorums_shrunken();
+        self.unshrink_sets(&minimal_quorums_shrunken)
     }
-    fn minimal_quorums_shrunken(&mut self) -> &[NodeIdSet] {
+    pub fn minimal_blocking_sets(&mut self) -> Vec<NodeIdSet> {
+        let minimal_blocking_sets_shrunken = self.minimal_blocking_sets_shrunken();
+        self.unshrink_sets(&minimal_blocking_sets_shrunken)
+    }
+    pub fn minimal_splitting_sets(&mut self) -> Vec<NodeIdSet> {
+        let minimal_splitting_sets_shrunken = self.minimal_splitting_sets_shrunken();
+        self.unshrink_sets(&minimal_splitting_sets_shrunken)
+    }
+    fn minimal_quorums_shrunken(&mut self) -> Vec<NodeIdSet> {
         if self.minimal_quorums_shrunken.is_none() {
             self.find_and_cache_minimal_quorums();
         } else {
             info!("Using cached minimal quorums.");
         }
-        self.minimal_quorums_shrunken.as_ref().unwrap()
+        self.minimal_quorums_shrunken.clone().unwrap()
     }
-    pub fn minimal_blocking_sets(&mut self) -> &[NodeIdSet] {
-        if self.minimal_blocking_sets.is_none() {
+    fn minimal_blocking_sets_shrunken(&mut self) -> Vec<NodeIdSet> {
+        if self.minimal_blocking_sets_shrunken.is_none() {
             warn!("Computing minimal blocking sets...");
-            let minimal_blocking_sets_shrunken =
-                find_minimal_blocking_sets(self.minimal_quorums_shrunken());
-            self.minimal_blocking_sets =
-                Some(self.maybe_collapse_minimal_node_sets(
-                    self.unshrink(minimal_blocking_sets_shrunken),
-                ));
+            self.minimal_blocking_sets_shrunken =
+                Some(find_minimal_blocking_sets(&self.minimal_quorums_shrunken()));
         } else {
             info!("Using cached minimal blocking sets.");
         }
-        self.minimal_blocking_sets.as_ref().unwrap()
+        self.minimal_blocking_sets_shrunken.clone().unwrap()
     }
-    pub fn minimal_splitting_sets(&mut self) -> &[NodeIdSet] {
-        if self.minimal_splitting_sets.is_none() {
+    pub fn minimal_splitting_sets_shrunken(&mut self) -> Vec<NodeIdSet> {
+        if self.minimal_splitting_sets_shrunken.is_none() {
             warn!("Computing minimal splitting sets...");
-            let minimal_splitting_sets_shrunken =
-                find_minimal_splitting_sets(self.minimal_quorums_shrunken());
-            self.minimal_splitting_sets =
-                Some(self.maybe_collapse_minimal_node_sets(
-                    self.unshrink(minimal_splitting_sets_shrunken),
-                ));
+            self.minimal_splitting_sets_shrunken = Some(find_minimal_splitting_sets(
+                &self.minimal_quorums_shrunken(),
+            ));
         } else {
             info!("Using cached minimal splitting sets.");
         }
-        self.minimal_splitting_sets.as_ref().unwrap()
+        self.minimal_splitting_sets_shrunken.clone().unwrap()
     }
     pub fn symmetric_quorum_clusters(&self) -> Vec<QuorumSet> {
-        find_symmetric_quorum_clusters(self.fbas)
+        find_symmetric_quorum_clusters(self.fbas_original)
     }
     pub fn top_tier(&mut self) -> Vec<NodeId> {
-        involved_nodes(self.minimal_quorums())
+        // TODO Refactor
+        let involved_nodes_shrunken = involved_nodes(&self.minimal_quorums_shrunken());
+        self.unshrink_set(&involved_nodes_shrunken.into_iter().collect())
+            .into_iter()
+            .collect()
     }
     fn find_and_cache_minimal_quorums(&mut self) {
         warn!("Computing minimal quorums...");
-        let minimal_quorums_shrunken = if self.expect_quorum_intersection {
+        let mut minimal_quorums_shrunken = if self.expect_quorum_intersection {
             find_minimal_quorums(&self.fbas_shrunken)
         } else {
+            // FIXME
             find_nonintersecting_quorums(&self.fbas_shrunken)
         };
-        let minimal_quorums =
-            self.maybe_collapse_minimal_node_sets(self.unshrink(minimal_quorums_shrunken.clone()));
-        self.minimal_quorums = Some(minimal_quorums);
+        // maybe collapse
+        if let Some(ref orgs) = self.organizations_original {
+            debug!("Collapsing nodes by organization...");
+            info!(
+                "{} involved nodes before collapsing by organization.",
+                involved_nodes(&minimal_quorums_shrunken).len()
+            );
+            let orgs_shrunken =
+                Organizations::shrunken(&orgs, &self.shrink_map, &self.fbas_shrunken);
+            minimal_quorums_shrunken = remove_non_minimal_node_sets(
+                orgs_shrunken.collapse_node_sets(minimal_quorums_shrunken),
+            );
+            info!(
+                "{} involved nodes after collapsing by organization.",
+                involved_nodes(&minimal_quorums_shrunken).len()
+            );
+        }
         self.minimal_quorums_shrunken = Some(minimal_quorums_shrunken);
+
         if log_enabled!(Warn) {
             if self.has_quorum_intersection() {
                 debug!("FBAS enjoys quorum intersection.");
@@ -151,7 +170,7 @@ impl<'a> Analysis<'a> {
         }
     }
     fn maybe_collapse_node_ids(&self, node_ids: impl IntoIterator<Item = NodeId>) -> Vec<NodeId> {
-        if let Some(ref orgs) = self.organizations {
+        if let Some(ref orgs) = self.organizations_original {
             orgs.collapse_node_set(node_ids.into_iter().collect())
                 .into_iter()
                 .collect()
@@ -159,30 +178,11 @@ impl<'a> Analysis<'a> {
             node_ids.into_iter().collect()
         }
     }
-    fn unshrink(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
-        unshrink(node_sets, &self.unshrink_table)
+    fn unshrink_set(&self, node_set: &NodeIdSet) -> NodeIdSet {
+        unshrink_set(node_set, &self.unshrink_table)
     }
-    fn maybe_collapse_minimal_node_sets(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
-        if let Some(ref orgs) = self.organizations {
-            debug!("Collapsing nodes by organization...");
-            info!(
-                "{} involved nodes before collapsing by organization.",
-                involved_nodes(&node_sets).len()
-            );
-            let collapsed_node_sets =
-                remove_non_minimal_node_sets(orgs.collapse_node_sets(node_sets));
-            info!(
-                "{} involved nodes after collapsing by organization.",
-                involved_nodes(&collapsed_node_sets).len()
-            );
-            collapsed_node_sets
-        } else {
-            node_sets
-        }
-    }
-    /// Temporary workaround for being able to map shrunken IDs to correct pretty names
-    pub fn internal_fbas_clone(&self) -> Fbas {
-        self.fbas_shrunken.clone()
+    fn unshrink_sets(&self, node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
+        unshrink_sets(node_sets, &self.unshrink_table)
     }
 }
 
@@ -286,13 +286,6 @@ fn remove_non_minimal_node_sets_from_buckets(
     minimal_node_sets
 }
 
-fn unshrink(node_sets: Vec<NodeIdSet>, unshrink_table: &[NodeId]) -> Vec<NodeIdSet> {
-    node_sets
-        .into_iter()
-        .map(|node_set| node_set.into_iter().map(|id| unshrink_table[id]).collect())
-        .collect()
-}
-
 impl<'fbas> Organizations<'fbas> {
     /// Collapse a node ID so that all nodes by the same organization get the same ID.
     pub fn collapse_node(self: &Self, node_id: NodeId) -> NodeId {
@@ -394,15 +387,15 @@ mod tests {
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(
-            describe_with_histogram(analysis.minimal_quorums()),
+            describe_with_histogram(&analysis.minimal_quorums()),
             describe_with_histogram(&[bitset![0, 1], bitset![0, 10], bitset![1, 10]])
         );
         assert_eq!(
-            describe_with_histogram(analysis.minimal_blocking_sets()),
+            describe_with_histogram(&analysis.minimal_blocking_sets()),
             describe_with_histogram(&[bitset![0, 1], bitset![0, 10], bitset![1, 10]])
         );
         assert_eq!(
-            describe_with_histogram(analysis.minimal_splitting_sets()),
+            describe_with_histogram(&analysis.minimal_splitting_sets()),
             describe_with_histogram(&[bitset![0], bitset![1], bitset![10]])
         );
     }
@@ -450,7 +443,7 @@ mod tests {
         ]"#,
         );
         let mut analysis = Analysis::new(&fbas);
-        let expected = &[bitset![1, 2]];
+        let expected = vec![bitset![1, 2]];
         let actual = analysis.minimal_quorums();
         assert_eq!(expected, actual);
     }

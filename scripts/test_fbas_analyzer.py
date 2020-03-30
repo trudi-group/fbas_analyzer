@@ -22,11 +22,11 @@ def test_with_organizations():
     command = "target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -o test_data/stellarbeat_organizations_2019-09-17.json -a -p"
     expected_lines = [
         'has_quorum_intersection: true',
-        'minimal_quorums: [["Stellar Development Foundation","LOBSTR","SatoshiPay","COINQVEST Limited"],["Stellar Development Foundation","LOBSTR","SatoshiPay","Keybase"],["Stellar Development Foundation","LOBSTR","COINQVEST Limited","Keybase"],["Stellar Development Foundation","SatoshiPay","COINQVEST Limited","Keybase"],["LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]]',
-        'minimal_blocking_sets: [["Stellar Development Foundation","LOBSTR"],["Stellar Development Foundation","SatoshiPay"],["Stellar Development Foundation","COINQVEST Limited"],["Stellar Development Foundation","Keybase"],["LOBSTR","SatoshiPay"],["LOBSTR","COINQVEST Limited"],["LOBSTR","Keybase"],["SatoshiPay","COINQVEST Limited"],["SatoshiPay","Keybase"],["COINQVEST Limited","Keybase"]]',
-        'minimal_splitting_sets: [["Stellar Development Foundation","LOBSTR","SatoshiPay"],["Stellar Development Foundation","LOBSTR","COINQVEST Limited"],["Stellar Development Foundation","LOBSTR","Keybase"],["Stellar Development Foundation","SatoshiPay","COINQVEST Limited"],["Stellar Development Foundation","SatoshiPay","Keybase"],["Stellar Development Foundation","COINQVEST Limited","Keybase"],["LOBSTR","SatoshiPay","COINQVEST Limited"],["LOBSTR","SatoshiPay","Keybase"],["LOBSTR","COINQVEST Limited","Keybase"],["SatoshiPay","COINQVEST Limited","Keybase"]]',
-        'top_tier: ["Stellar Development Foundation","LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]',
-    ]
+        'minimal_quorums: [["LOBSTR","Stellar Development Foundation","COINQVEST Limited","SatoshiPay"],["LOBSTR","Stellar Development Foundation","COINQVEST Limited","Keybase"],["LOBSTR","Stellar Development Foundation","SatoshiPay","Keybase"],["LOBSTR","COINQVEST Limited","SatoshiPay","Keybase"],["Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase"]]',
+        'minimal_blocking_sets: [["LOBSTR","Stellar Development Foundation"],["LOBSTR","COINQVEST Limited"],["LOBSTR","SatoshiPay"],["LOBSTR","Keybase"],["Stellar Development Foundation","COINQVEST Limited"],["Stellar Development Foundation","SatoshiPay"],["Stellar Development Foundation","Keybase"],["COINQVEST Limited","SatoshiPay"],["COINQVEST Limited","Keybase"],["SatoshiPay","Keybase"]]',
+        'minimal_splitting_sets: [["LOBSTR","Stellar Development Foundation","COINQVEST Limited"],["LOBSTR","Stellar Development Foundation","SatoshiPay"],["LOBSTR","Stellar Development Foundation","Keybase"],["LOBSTR","COINQVEST Limited","SatoshiPay"],["LOBSTR","COINQVEST Limited","Keybase"],["LOBSTR","SatoshiPay","Keybase"],["Stellar Development Foundation","COINQVEST Limited","SatoshiPay"],["Stellar Development Foundation","COINQVEST Limited","Keybase"],["Stellar Development Foundation","SatoshiPay","Keybase"],["COINQVEST Limited","SatoshiPay","Keybase"]]',
+        'top_tier: ["LOBSTR","Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase"]',
+        ]
     run_and_check(command, expected_lines)
 
 
