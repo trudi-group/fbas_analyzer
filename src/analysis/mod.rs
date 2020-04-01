@@ -18,7 +18,7 @@ pub use splitting_sets::find_minimal_splitting_sets;
 pub(crate) use rank::*;
 
 use quorums::reduce_to_strongly_connected_nodes;
-use shrink::{unshrink_set, unshrink_sets};
+use shrink::{reshrink_sets, unshrink_set, unshrink_sets};
 
 /// Most methods require &mut because they cache intermediate results.
 pub struct Analysis<'a> {
@@ -26,7 +26,6 @@ pub struct Analysis<'a> {
     organizations_original: Option<&'a Organizations<'a>>,
     fbas_shrunken: Fbas,
     unshrink_table: Vec<NodeId>,
-    shrink_map: HashMap<NodeId, NodeId>,
     minimal_quorums_shrunken: Option<Vec<NodeIdSet>>,
     minimal_blocking_sets_shrunken: Option<Vec<NodeIdSet>>,
     minimal_splitting_sets_shrunken: Option<Vec<NodeIdSet>>,
@@ -42,10 +41,12 @@ impl<'a> Analysis<'a> {
         expect_quorum_intersection: bool,
     ) -> Self {
         debug!(
-            "Shrinking FBAS of size {} to save memory...",
+            "Shrinking FBAS of size {} to set of strongly connected nodes (for performance)...",
             fbas.number_of_nodes()
         );
-        let (fbas_shrunken, unshrink_table, shrink_map) = Fbas::shrunken(fbas);
+        let strongly_connected_nodes =
+            reduce_to_strongly_connected_nodes(fbas.unsatisfiable_nodes().0, fbas).0;
+        let (fbas_shrunken, unshrink_table, _) = Fbas::shrunken(fbas, strongly_connected_nodes);
         debug!(
             "Shrank to an FBAS of size {}.",
             fbas_shrunken.number_of_nodes()
@@ -55,7 +56,6 @@ impl<'a> Analysis<'a> {
             organizations_original: organizations,
             fbas_shrunken,
             unshrink_table,
-            shrink_map,
             minimal_quorums_shrunken: None,
             minimal_blocking_sets_shrunken: None,
             minimal_splitting_sets_shrunken: None,
@@ -139,18 +139,35 @@ impl<'a> Analysis<'a> {
         let mut minimal_quorums_shrunken = if self.expect_quorum_intersection {
             find_minimal_quorums(&self.fbas_shrunken)
         } else {
-            // FIXME
+            // FIXME : this should be handled differently
             find_nonintersecting_quorums(&self.fbas_shrunken)
         };
-        // maybe collapse
+        debug!("Shrinking FBAS again, to top tier (for performance)...",);
+        let top_tier = self.unshrink_set(&involved_nodes(&minimal_quorums_shrunken));
+        let (new_fbas_shrunken, new_unshrink_table, new_shrink_map) =
+            Fbas::shrunken(&self.fbas_original, top_tier);
+        debug!(
+            "Shrank to an FBAS of size {} (from size {}).",
+            new_fbas_shrunken.number_of_nodes(),
+            self.fbas_shrunken.number_of_nodes(),
+        );
+        minimal_quorums_shrunken = reshrink_sets(
+            &minimal_quorums_shrunken,
+            &self.unshrink_table,
+            &new_shrink_map,
+        );
+        self.fbas_shrunken = new_fbas_shrunken;
+        self.unshrink_table = new_unshrink_table;
+        let shrink_map = new_shrink_map;
+
+        // if an organizations structure has been passed: collapse
         if let Some(ref orgs) = self.organizations_original {
             debug!("Collapsing nodes by organization...");
             info!(
                 "{} involved nodes before collapsing by organization.",
                 involved_nodes(&minimal_quorums_shrunken).len()
             );
-            let orgs_shrunken =
-                Organizations::shrunken(&orgs, &self.shrink_map, &self.fbas_shrunken);
+            let orgs_shrunken = Organizations::shrunken(&orgs, &shrink_map, &self.fbas_shrunken);
             minimal_quorums_shrunken = remove_non_minimal_node_sets(
                 orgs_shrunken.collapse_node_sets(minimal_quorums_shrunken),
             );
@@ -230,12 +247,12 @@ pub fn all_intersect(node_sets: &[NodeIdSet]) -> bool {
         .all(|(i, x)| node_sets.iter().skip(i + 1).all(|y| !x.is_disjoint(y)))
 }
 
-pub fn involved_nodes(node_sets: &[NodeIdSet]) -> Vec<NodeId> {
+pub fn involved_nodes(node_sets: &[NodeIdSet]) -> NodeIdSet {
     let mut all_nodes: NodeIdSet = bitset![];
     for node_set in node_sets {
         all_nodes.union_with(node_set);
     }
-    all_nodes.into_iter().collect()
+    all_nodes
 }
 
 /// Reduce to minimal node sets, i.e. to a set of node sets so that no member set is a superset of another.
