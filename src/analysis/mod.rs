@@ -26,6 +26,7 @@ pub struct Analysis<'a> {
     organizations_original: Option<&'a Organizations<'a>>,
     fbas_shrunken: Fbas,
     unshrink_table: Vec<NodeId>,
+    has_quorum_intersection: Option<bool>,
     minimal_quorums_shrunken: Option<Vec<NodeIdSet>>,
     minimal_blocking_sets_shrunken: Option<Vec<NodeIdSet>>,
     minimal_splitting_sets_shrunken: Option<Vec<NodeIdSet>>,
@@ -56,6 +57,7 @@ impl<'a> Analysis<'a> {
             organizations_original: organizations,
             fbas_shrunken,
             unshrink_table,
+            has_quorum_intersection: None,
             minimal_quorums_shrunken: None,
             minimal_blocking_sets_shrunken: None,
             minimal_splitting_sets_shrunken: None,
@@ -63,9 +65,14 @@ impl<'a> Analysis<'a> {
         }
     }
     pub fn has_quorum_intersection(&mut self) -> bool {
-        info!("Checking for intersection of all minimal quorums...");
-        let minimal_quorums_shrunken = self.minimal_quorums_shrunken();
-        !minimal_quorums_shrunken.is_empty() && all_intersect(&minimal_quorums_shrunken)
+        if self.has_quorum_intersection.is_none() {
+            info!("Checking for intersection of all minimal quorums...");
+            let minimal_quorums_shrunken = self.minimal_quorums_shrunken();
+            self.has_quorum_intersection = Some(
+                !minimal_quorums_shrunken.is_empty() && all_intersect(&minimal_quorums_shrunken),
+            )
+        }
+        self.has_quorum_intersection.unwrap()
     }
     pub fn all_nodes(&self) -> Vec<NodeId> {
         (0..self.fbas_original.nodes.len()).collect()
