@@ -113,6 +113,7 @@ impl QuorumSet {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Organizations<'fbas> {
     pub(crate) organizations: Vec<Organization>,
     pub(crate) collapsed_ids: Vec<NodeId>,
@@ -120,6 +121,7 @@ pub struct Organizations<'fbas> {
     // for ensuring fbas remains stable + serializeability via Serialize trait
     pub(crate) fbas: &'fbas Fbas,
 }
+#[derive(Debug, PartialEq)]
 pub struct Organization {
     pub(crate) name: String,
     pub(crate) validators: Vec<NodeId>,
