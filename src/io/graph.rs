@@ -2,7 +2,12 @@ use super::*;
 use crate::graph::Graph;
 
 use bzip2::read::BzDecoder;
+use bzip2::write;
+use bzip2::Compression;
 use std::cmp::max;
+
+use std::fs;
+use std::fs::File;
 
 impl Graph {
     pub fn from_as_rel_file(path: &Path) -> Self {
@@ -29,6 +34,31 @@ impl Graph {
             .map(|x| x.into_iter().collect())
             .collect();
         Graph::new(outlinks)
+    }
+    pub fn to_as_rel_file(graph: &Self, path: &Path) -> std::io::Result<()> {
+        let file = File::create(&path)?;
+        let mut compresser = write::BzEncoder::new(file, Compression::Default);
+        let graph_as_string = Self::to_as_rel_string(graph).unwrap();
+        for line in graph_as_string.iter() {
+            compresser
+                .write_all(format!("{}{}", line, "\n").as_bytes())
+                .unwrap();
+        }
+        compresser.finish()?;
+        Ok(())
+    }
+    pub fn to_as_rel_string(graph: &Self) -> io::Result<Vec<String>> {
+        let mut edge_as_string: String;
+        let mut graph_as_string = vec![];
+        const SEPARATOR: &str = "|";
+        for n in 0..graph.number_of_nodes() {
+            let nbrs = &graph.outlinks[n];
+            for i in nbrs {
+                edge_as_string = format!("{}{}{}{}{}", n, SEPARATOR, i, SEPARATOR, "0");
+                graph_as_string.push(edge_as_string);
+            }
+        }
+        Ok(graph_as_string)
     }
 }
 
@@ -112,5 +142,15 @@ mod tests {
         let expected = Graph::new(vec![vec![], vec![2], vec![1]]);
         let actual = Graph::from_as_rel_string(&contents);
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn writes_graph_correctly() {
+        let path = Path::new("test_data/test_graph.txt.bz2");
+        let expected = Graph::new_random_small_world(4, 2, 0.05);
+        Some(Graph::to_as_rel_file(&expected, &path));
+        let actual = Graph::from_as_rel_file(path);
+        assert_eq!(expected, actual);
+        Some(fs::remove_file(path));
     }
 }
