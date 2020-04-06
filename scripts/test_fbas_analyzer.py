@@ -33,7 +33,7 @@ def test_with_organizations():
 def test_with_ids():
     command = "target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -a"
     expected_lines = [
-        'top_tier: [1,4,7,16,20,26,27,32,37,41,49,64,73,114,115,118]',
+        'top_tier: [1,4,8,23,29,36,37,43,44,52,56,69,86,105,167,168,171]',
     ]
     run_and_check(command, expected_lines)
 

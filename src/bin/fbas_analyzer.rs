@@ -21,13 +21,13 @@ struct Cli {
     #[structopt(short = "c", long = "check-quorum-intersection")]
     check_quorum_intersection: bool,
 
-    /// Use quorum finding algorithm that works faster for FBAS that do not enjoy quorum
-    /// intersection. In case that there is, indeed, no quorum intersection, causes
-    /// `minimal_quorums` to hold the first non-intersecting pair of quorums found.
+    /// Use quorum finding algorithm that works faster for FBASs that do not enjoy quorum
+    /// intersection. In case that there is, indeed, no quorum intersection, outputs two
+    /// non-intersecting quorums.
     #[structopt(long = "expect-no-intersection")]
     expect_no_intersection: bool,
 
-    /// TODO
+    /// TODO: describe this
     #[structopt(long = "symmetric-clusters")]
     symmetric_clusters: bool,
 
@@ -55,7 +55,7 @@ struct Cli {
     #[structopt(short = "s", long = "silent")]
     silent: bool,
 
-    /// Collapse nodes by organization - nodes from the same organization are handled as one;
+    /// Merge nodes by organization - nodes from the same organization are handled as one;
     /// you must provide the path to a stellarbeat.org "organizations" JSON file
     #[structopt(short = "o", long = "use-organizations")]
     organizations_path: Option<PathBuf>,
@@ -82,16 +82,14 @@ fn main() -> CliResult {
     };
     eprintln!("Loaded FBAS with {} nodes.", fbas.number_of_nodes());
     let organizations = if let Some(organizations_path) = args.organizations_path {
-        eprintln!("Will collapse nodes by organization; reading organizations JSON from file...");
+        eprintln!("Will merge nodes by organization; reading organizations JSON from file...");
         let orgs = Organizations::from_json_file(&organizations_path, &fbas);
         eprintln!("Loaded {} organizations.", orgs.number_of_organizations());
         Some(orgs)
     } else {
         None
     };
-
-    let mut analysis =
-        Analysis::new_with_options(&fbas, organizations.as_ref(), !args.expect_no_intersection);
+    let mut analysis = Analysis::new(&fbas, organizations.as_ref());
 
     let (q, c, b, i) = (
         args.minimal_quorums,
@@ -105,7 +103,6 @@ fn main() -> CliResult {
     } else {
         (q, c, b, i)
     };
-
     let silent = args.silent;
     // silenceable println
     macro_rules! silprintln {
@@ -115,65 +112,57 @@ fn main() -> CliResult {
             }
         })
     }
+    // TODO make sure that only one of those can be chosen
     let output_pretty = args.output_pretty;
     let desc = args.describe;
     let hist = args.histogram;
-    macro_rules! print_sets_result {
+    macro_rules! print_result {
         ($result_name:expr, $result:expr) => {
-            println!(
-                "{}: {}",
-                $result_name,
-                format_node_id_sets(&$result, &fbas, &organizations, desc, hist, output_pretty)
-            );
+            let result_string = if hist {
+                $result.into_long_describe_string()
+            } else if desc {
+                $result.into_describe_string()
+            } else if output_pretty {
+                $result.into_pretty_string(&fbas, &organizations)
+            } else {
+                $result.into_id_string()
+            };
+            println!("{}: {}", $result_name, result_string,);
         };
     }
-    macro_rules! print_ids_result {
-        ($result_name:expr, $result:expr) => {
-            println!(
-                "{}: {}",
-                $result_name,
-                format_node_ids($result, &fbas, &organizations, desc || hist, output_pretty)
-            );
-        };
-    }
-
     if (q, c, b, i) == (false, false, false, false) {
+        // FIXME
         eprintln!("Nothing to do... (try the -a flag?)");
     } else if !desc && !output_pretty {
         silprintln!(
-            "In the following dumps, nodes are identified by some random (to you) but unique IDs."
+            "In the following dumps, nodes are identified by \
+            node IDs corresponding to their index in the input file."
         );
     } else if desc {
         silprintln!(
             "Set list descriptions have the format \
-            (number_of_sets, min_set_size, max_set_size, mean_set_size, number_of_distinct_nodes)."
+            (number_of_sets, number_of_distinct_nodes, (min_set_size, max_set_size, mean_set_size))."
+        );
+    } else if hist {
+        silprintln!(
+            "Set list descriptions have the format \
+            (number_of_sets, number_of_distinct_nodes, (min_set_size, max_set_size, mean_set_size), \
+            [ #members with size 0, #members with size 1, ... , #members with maximum size ]"
         );
     }
 
-    let all_nodes = &analysis.all_nodes_collapsed();
+    silprintln!("FBAS has {} nodes...", analysis.all_nodes().len());
+    // print_result!("all_nodes", analysis.all_nodes());
     if organizations.is_some() {
         silprintln!(
-            "\nThere are {} nodes in the FBAS (nodes belonging to the same organization are collapsed to count as one).\n",
-            all_nodes.len()
+            "(Nodes belonging to the same organization are merged into one; there are {} physical nodes.\n",
+            analysis.all_physical_nodes().len(),
         );
-    } else {
-        silprintln!("\nThere are {} nodes in the FBAS.\n", all_nodes.len());
     }
-    // print_ids_result!("all_nodes", &all_nodes);
-
-    let unsatisfiable_nodes = analysis.unsatisfiable_nodes();
-    silprintln!(
-        "\n{} nodes are unsatisfiable (broken configuration?).\n",
-        unsatisfiable_nodes.len()
-    );
-    // print_ids_result!("unsatisfiable_nodes", &unsatisfiable_nodes);
-
-    let satisfiable_nodes = analysis.satisfiable_nodes();
-    silprintln!("\n{} nodes are satisfiable.\n", satisfiable_nodes.len());
-    //print_ids_result!("satisfiable_nodes", &satisfiable_nodes);
 
     if args.symmetric_clusters {
         silprintln!("\nLooking for symmetric quorum clusters...\n");
+        // TODO: print this prettily too
         println!(
             "symmetric_quorum_clusters: {:?}",
             analysis.symmetric_quorum_clusters()
@@ -181,23 +170,32 @@ fn main() -> CliResult {
     }
 
     if c {
-        if analysis.has_quorum_intersection() {
+        let has_quorum_intersection = if args.expect_no_intersection {
+            let (has_quorum_intersection, quorums) =
+                analysis.has_quorum_intersection_via_alternative_check();
+            if let Some(nonintersecting_quorums) = quorums {
+                print_result!("nonintersecting_quorums", nonintersecting_quorums);
+            }
+            has_quorum_intersection
+        } else {
+            analysis.has_quorum_intersection()
+        };
+        if has_quorum_intersection {
             silprintln!("\nAll quorums intersect 👍\n");
-            println!("has_quorum_intersection: true");
         } else {
             silprintln!(
                 "\nSome quorums don't intersect 👎 Safety severely threatened for some nodes!\n\
                  (Also, the remaining results here might not make much sense.)\n"
             );
-            println!("quorum_intersection: false");
         }
+        print_result!("has_quorum_intersection", has_quorum_intersection);
     }
     if q {
         silprintln!(
             "\nWe found {} minimal quorums.\n",
             analysis.minimal_quorums().len()
         );
-        print_sets_result!("minimal_quorums", analysis.minimal_quorums());
+        print_result!("minimal_quorums", analysis.minimal_quorums());
     }
     if b {
         silprintln!(
@@ -206,7 +204,7 @@ fn main() -> CliResult {
             and to censor future transactions.\n",
             analysis.minimal_blocking_sets().len()
         );
-        print_sets_result!("minimal_blocking_sets", analysis.minimal_blocking_sets());
+        print_result!("minimal_blocking_sets", analysis.minimal_blocking_sets());
     }
     if i {
         silprintln!(
@@ -216,7 +214,7 @@ fn main() -> CliResult {
              undermining the quorum intersection of at least two quorums.\n",
             analysis.minimal_splitting_sets().len()
         );
-        print_sets_result!("minimal_splitting_sets", analysis.minimal_splitting_sets());
+        print_result!("minimal_splitting_sets", analysis.minimal_splitting_sets());
     }
     if q || b || i {
         let top_tier = analysis.top_tier();
@@ -225,7 +223,7 @@ fn main() -> CliResult {
             top_tier.len()
         );
         if !desc {
-            print_ids_result!("top_tier", &top_tier);
+            print_result!("top_tier", top_tier);
         }
     }
     silprintln!();

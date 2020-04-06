@@ -44,6 +44,9 @@ impl Fbas {
     pub fn number_of_nodes(&self) -> usize {
         self.nodes.len()
     }
+    pub fn all_nodes(&self) -> NodeIdSet {
+        (0..self.nodes.len()).collect()
+    }
     pub fn is_quorum(&self, node_set: &NodeIdSet) -> bool {
         !node_set.is_empty()
             && node_set
@@ -116,7 +119,7 @@ impl QuorumSet {
 #[derive(Debug, PartialEq)]
 pub struct Organizations<'fbas> {
     pub(crate) organizations: Vec<Organization>,
-    pub(crate) collapsed_ids: Vec<NodeId>,
+    pub(crate) merged_ids: Vec<NodeId>,
     node_id_to_org_idx: HashMap<NodeId, usize>,
     // for ensuring fbas remains stable + serializeability via Serialize trait
     pub(crate) fbas: &'fbas Fbas,
@@ -128,22 +131,22 @@ pub struct Organization {
 }
 impl<'fbas> Organizations<'fbas> {
     pub fn new(organizations: Vec<Organization>, fbas: &'fbas Fbas) -> Self {
-        let mut collapsed_ids: Vec<NodeId> = (0..fbas.nodes.len()).collect();
+        let mut merged_ids: Vec<NodeId> = (0..fbas.nodes.len()).collect();
         let mut node_id_to_org_idx: HashMap<NodeId, usize> = HashMap::new();
 
         for (org_idx, org) in organizations.iter().enumerate() {
             let mut validator_it = org.validators.iter().copied();
-            if let Some(collapsed_id) = validator_it.next() {
-                node_id_to_org_idx.insert(collapsed_id, org_idx);
+            if let Some(merged_id) = validator_it.next() {
+                node_id_to_org_idx.insert(merged_id, org_idx);
                 for validator in validator_it {
-                    collapsed_ids[validator] = collapsed_id;
+                    merged_ids[validator] = merged_id;
                     node_id_to_org_idx.insert(validator, org_idx);
                 }
             }
         }
         Organizations {
             organizations,
-            collapsed_ids,
+            merged_ids,
             node_id_to_org_idx,
             fbas,
         }

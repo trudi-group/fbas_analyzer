@@ -15,15 +15,17 @@ pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
 /// quorums to each found quorum and stops once such a quorum is found. Returns either two
 /// non-intersecting quorums or one very big quorum. Use this function if it is very likely that
 /// the FBAS lacks quorum intersection and you want to stop early in such cases.
-pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
+pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Option<[NodeIdSet; 2]> {
     info!("Starting to look for potentially non-intersecting quorums...");
     let quorums = find_quorums(fbas, true, find_nonintersecting_quorums_worker);
     if quorums.len() < 2 {
         info!("Found no non-intersecting quorums.");
+        None
     } else {
+        assert!(quorums.len() == 2);
         warn!("Found two non-intersecting quorums!");
+        Some([quorums[0].clone(), quorums[1].clone()])
     }
-    quorums
 }
 
 /// Finds groups of nodes (represented as quorum sets) such that all members of the same group have
@@ -406,7 +408,7 @@ mod tests {
     fn find_nonintersecting_quorums_in_broken() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
 
-        let expected = vec![bitset![3, 10], bitset![4, 6]];
+        let expected = Some([bitset![3, 10], bitset![4, 6]]);
         let actual = find_nonintersecting_quorums(&fbas);
 
         assert_eq!(expected, actual);

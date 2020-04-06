@@ -11,7 +11,6 @@ struct RawNode {
     public_key: PublicKey,
     #[serde(rename = "quorumSet", default)]
     quorum_set: RawQuorumSet,
-    active: Option<bool>,
 }
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
 struct RawQuorumSet {
@@ -40,11 +39,7 @@ impl Fbas {
         serde_json::to_string_pretty(&self).expect("Error converting FBAS to pretty JSON!")
     }
     fn from_raw(raw_fbas: RawFbas) -> Self {
-        let raw_nodes: Vec<RawNode> = raw_fbas
-            .0
-            .into_iter()
-            .filter(|x| x.active.unwrap_or(true))
-            .collect();
+        let raw_nodes: Vec<RawNode> = raw_fbas.0.into_iter().collect();
 
         let pk_to_id: HashMap<PublicKey, NodeId> = raw_nodes
             .iter()
@@ -91,7 +86,6 @@ impl Node {
         RawNode {
             public_key: self.public_key.clone(),
             quorum_set: self.quorum_set.to_raw(&fbas),
-            active: None, // it's a fake node, most likely...
         }
     }
 }
@@ -315,7 +309,8 @@ mod tests {
     }
 
     #[test]
-    fn from_json_ignores_inactive_nodes() {
+    fn from_json_keeps_inactive_nodes() {
+        // otherwise IDs don't match indices
         let input = r#"[
             {
                 "publicKey": "GCGB2",
@@ -331,7 +326,7 @@ mod tests {
 
         let fbas = Fbas::from_json_str(&input);
 
-        let expected = vec!["GCM6Q", "GABMK"];
+        let expected = vec!["GCGB2", "GCM6Q", "GABMK"];
         let actual: Vec<PublicKey> = fbas.nodes.into_iter().map(|x| x.public_key).collect();
 
         assert_eq!(expected, actual);

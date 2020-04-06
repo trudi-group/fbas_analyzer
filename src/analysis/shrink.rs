@@ -221,7 +221,7 @@ mod tests {
     fn shrink_unshrink_find_minimal_quorums() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
         let strongly_connected_nodes =
-            reduce_to_strongly_connected_nodes(fbas.unsatisfiable_nodes().0, &fbas).0;
+            reduce_to_strongly_connected_nodes(fbas.unsatisfiable_nodes(), &fbas).0;
         let (fbas_shrunken, unshrink_table, _) = Fbas::shrunken(&fbas, strongly_connected_nodes);
 
         let expected = find_minimal_quorums(&fbas);

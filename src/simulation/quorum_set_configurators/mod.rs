@@ -24,7 +24,7 @@ impl QuorumSetConfigurator for DummyQsc {
 ///
 /// ```
 /// #[macro_use] extern crate fbas_analyzer;
-/// use fbas_analyzer::{Fbas, Simulator};
+/// use fbas_analyzer::{Fbas, Analysis, Simulator};
 /// use fbas_analyzer::quorum_set_configurators::SuperSafeQsc;
 /// use fbas_analyzer::monitors::DummyMonitor;
 /// use std::rc::Rc;
@@ -39,7 +39,7 @@ impl QuorumSetConfigurator for DummyQsc {
 /// let fbas = simulator.finalize();
 /// assert!(fbas.is_quorum(&bitset![0, 1, 2, 3]));
 /// assert!(!fbas.is_quorum(&bitset![0, 1, 2]));
-/// assert!(fbas.has_quorum_intersection());
+/// assert!(Analysis::new(&fbas, None).has_quorum_intersection());
 /// ```
 #[derive(Default)]
 pub struct SuperSafeQsc;
@@ -80,7 +80,7 @@ impl SuperSafeQsc {
 ///
 /// ```
 /// #[macro_use] extern crate fbas_analyzer;
-/// use fbas_analyzer::{Fbas, Simulator};
+/// use fbas_analyzer::{Fbas, Analysis, Simulator};
 /// use fbas_analyzer::quorum_set_configurators::IdealQsc;
 /// use fbas_analyzer::monitors::DummyMonitor;
 /// use std::rc::Rc;
@@ -95,7 +95,7 @@ impl SuperSafeQsc {
 /// let fbas = simulator.finalize();
 /// assert!(fbas.is_quorum(&bitset![0, 1, 2]));
 /// assert!(!fbas.is_quorum(&bitset![0, 1]));
-/// assert!(fbas.has_quorum_intersection());
+/// assert!(Analysis::new(&fbas, None).has_quorum_intersection());
 /// ```
 #[derive(Default)]
 pub struct IdealQsc;
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn super_safe_qsc_makes_quorum_intersection() {
         let fbas = simulate!(SuperSafeQsc::new(), 8);
-        assert!(fbas.has_quorum_intersection());
+        assert!(Analysis::new(&fbas, None).has_quorum_intersection());
     }
 
     #[test]
@@ -214,8 +214,8 @@ mod tests {
         let n = 3 * f + 1;
         let fbas = simulate!(IdealQsc::new(), n);
 
-        let mut analysis = Analysis::new(&fbas);
-        let actual = analysis.minimal_quorums();
+        let mut analysis = Analysis::new(&fbas, None);
+        let actual = analysis.minimal_quorums().unwrap();
         let expected = bitsetvec![{0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}];
         assert_eq!(expected, actual);
     }
