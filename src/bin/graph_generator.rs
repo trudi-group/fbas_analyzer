@@ -64,7 +64,7 @@ fn main() -> CliResult {
     if stdout || path.is_none() {
         let graph_as_string = fbas_analyzer::Graph::to_as_rel_string(&graph);
         eprintln!("Printing graph with {} nodes...", graph.number_of_nodes());
-        println!("Graph generated using {:?}", &gga);
+        eprintln!("Graph generated using {:?}", &gga);
         for line in graph_as_string.iter() {
             println!("{:?}", line);
         }
