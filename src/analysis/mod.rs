@@ -285,16 +285,8 @@ impl<'a> NodeIdSetVecResult<'a> {
     pub fn is_empty(&self) -> bool {
         self.node_sets.is_empty()
     }
-    /// Returns (number_of_sets, number_of_distinct_nodes, <minmaxmean_set_size>)
-    pub fn describe(&self) -> (usize, usize, (usize, usize, f64)) {
-        (
-            self.node_sets.len(),
-            self.involved_nodes().len(),
-            self.minmaxmean(),
-        )
-    }
     /// Returns (number_of_sets, number_of_distinct_nodes, <minmaxmean_set_size>, <histogram>)
-    pub fn describe_with_histogram(&self) -> (usize, usize, (usize, usize, f64), Vec<usize>) {
+    pub fn describe(&self) -> (usize, usize, (usize, usize, f64), Vec<usize>) {
         (
             self.node_sets.len(),
             self.involved_nodes().len(),
@@ -541,19 +533,18 @@ mod tests {
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(
-            analysis.minimal_quorums().describe_with_histogram(),
+            analysis.minimal_quorums().describe(),
             NodeIdSetVecResult::new(vec![bitset![0, 1], bitset![0, 10], bitset![1, 10]], None)
-                .describe_with_histogram()
+                .describe()
         );
         assert_eq!(
-            analysis.minimal_blocking_sets().describe_with_histogram(),
+            analysis.minimal_blocking_sets().describe(),
             NodeIdSetVecResult::new(vec![bitset![0, 1], bitset![0, 10], bitset![1, 10]], None)
-                .describe_with_histogram()
+                .describe()
         );
         assert_eq!(
-            analysis.minimal_splitting_sets().describe_with_histogram(),
-            NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![10]], None)
-                .describe_with_histogram()
+            analysis.minimal_splitting_sets().describe(),
+            NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![10]], None).describe()
         );
     }
 
@@ -619,22 +610,6 @@ mod tests {
     }
 
     #[test]
-    fn node_sets_describe() {
-        let node_sets_result = NodeIdSetVecResult::new(
-            vec![
-                bitset![0, 1],
-                bitset![2, 3],
-                bitset![4, 5, 6, 7],
-                bitset![1, 4],
-            ],
-            None,
-        );
-        let actual = node_sets_result.describe();
-        let expected = (4, 8, (2, 4, 2.5));
-        assert_eq!(expected, actual)
-    }
-
-    #[test]
     fn node_sets_histogram() {
         let node_sets_result = NodeIdSetVecResult::new(
             vec![
@@ -647,6 +622,22 @@ mod tests {
         );
         let actual = node_sets_result.histogram();
         let expected = vec![0, 0, 3, 0, 1];
+        assert_eq!(expected, actual)
+    }
+
+    #[test]
+    fn node_sets_describe() {
+        let node_sets_result = NodeIdSetVecResult::new(
+            vec![
+                bitset![0, 1],
+                bitset![2, 3],
+                bitset![4, 5, 6, 7],
+                bitset![1, 4],
+            ],
+            None,
+        );
+        let actual = node_sets_result.describe();
+        let expected = (4, 8, (2, 4, 2.5), vec![0, 0, 3, 0, 1]);
         assert_eq!(expected, actual)
     }
 

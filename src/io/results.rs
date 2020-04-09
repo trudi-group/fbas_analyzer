@@ -12,9 +12,6 @@ pub trait AnalysisResult: Sized {
         self.into_id_string()
     }
     fn into_describe_string(self) -> String;
-    fn into_long_describe_string(self) -> String {
-        self.into_describe_string()
-    }
 }
 
 // semantically strange, but for convenience
@@ -56,9 +53,6 @@ impl<'a> AnalysisResult for NodeIdSetVecResult<'a> {
     }
     fn into_describe_string(self) -> String {
         json_format!(self.describe())
-    }
-    fn into_long_describe_string(self) -> String {
-        json_format!(self.describe_with_histogram())
     }
 }
 
@@ -125,7 +119,6 @@ mod tests {
         assert_eq!(qi.clone().into_id_string(), "true");
         assert_eq!(qi.clone().into_pretty_string(&fbas, &organizations), "true");
         assert_eq!(qi.clone().into_describe_string(), "true");
-        assert_eq!(qi.into_long_describe_string(), "true");
 
         let tt = analysis.top_tier();
         assert_eq!(
@@ -137,7 +130,6 @@ mod tests {
             r#"["GDXQB3OMMQ6MGG43PWFBZWBFKBBDUZIVSUDAZZTRAWQZKES2CDSE5HKJ","GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ","GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH","GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T","GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE","GDKWELGJURRKXECG3HHFHXMRX64YWQPUHKCVRESOX3E5PM6DM4YXLZJM","GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J","GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63","GA35T3723UP2XJLC2H7MNL6VMKZZIFL2VW7XHMFFJKKIA2FJCYTLKFBW","GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7","GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK","GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z","GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7","GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT","GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY","GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN","GCWJKM4EGTGJUVSWUJDPCQEOEP5LHSOFKSA4HALBTOO4T4H3HCHOM6UX"]"#
         );
         assert_eq!(tt.clone().into_describe_string(), "17");
-        assert_eq!(tt.into_long_describe_string(), "17");
 
         let mq = analysis.minimal_quorums();
         assert_eq!(mq.len(), 1161);
@@ -155,10 +147,6 @@ mod tests {
         );
         assert_eq!(
             mq.clone().into_describe_string(),
-            "[1161,17,[8,9,8.930232558139535]]"
-        );
-        assert_eq!(
-            mq.into_long_describe_string(),
             "[1161,17,[8,9,8.930232558139535],[0,0,0,0,0,0,0,0,81,1080]]"
         );
     }
@@ -179,7 +167,6 @@ mod tests {
         assert_eq!(qi.clone().into_id_string(), "true");
         assert_eq!(qi.clone().into_pretty_string(&fbas, &organizations), "true");
         assert_eq!(qi.clone().into_describe_string(), "true");
-        assert_eq!(qi.into_long_describe_string(), "true");
 
         let tt = analysis.top_tier();
         assert_eq!(tt.clone().into_id_string(), "[1,4,23,29,36]");
@@ -188,7 +175,6 @@ mod tests {
             r#"["LOBSTR","Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase"]"#
         );
         assert_eq!(tt.clone().into_describe_string(), "5");
-        assert_eq!(tt.into_long_describe_string(), "5");
 
         let mq = analysis.minimal_quorums();
         assert_eq!(
@@ -200,9 +186,8 @@ mod tests {
             // [1,23,29,36]
             r#"["LOBSTR","COINQVEST Limited","SatoshiPay","Keybase"]"#
         );
-        assert_eq!(mq.clone().into_describe_string(), "[5,5,[4,4,4.0]]");
         assert_eq!(
-            mq.into_long_describe_string(),
+            mq.clone().into_describe_string(),
             "[5,5,[4,4,4.0],[0,0,0,0,5]]"
         );
     }
