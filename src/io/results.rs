@@ -24,6 +24,16 @@ impl AnalysisResult for bool {
     }
 }
 
+// semantically strange, but for convenience
+impl AnalysisResult for usize {
+    fn into_id_string(self) -> String {
+        self.to_string()
+    }
+    fn into_describe_string(self) -> String {
+        self.to_string()
+    }
+}
+
 impl<'a> AnalysisResult for NodeIdSetResult<'a> {
     fn into_id_string(self) -> String {
         json_format!(self.into_vec())

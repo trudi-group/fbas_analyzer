@@ -210,6 +210,9 @@ impl<'a> Analysis<'a> {
             node_set
         }
     }
+    pub fn merging_by_organization(&self) -> bool {
+        self.organizations_original.is_some()
+    }
 }
 
 #[derive(Debug, Clone)]

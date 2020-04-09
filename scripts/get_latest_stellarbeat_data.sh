@@ -23,4 +23,4 @@ curl $organizations_link > $organizations_file
 echo
 echo "To analyze, try (for example):"
 echo
-echo "${fbas_analyzer_path} ${nodes_file} -o ${organizations_file} -a -p"
+echo "${fbas_analyzer_path} ${nodes_file} -o ${organizations_file} -apd"
