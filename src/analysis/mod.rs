@@ -95,7 +95,13 @@ impl<'a> Analysis<'a> {
     ) -> (bool, Option<NodeIdSetVecResult>) {
         if let Some(quorums) = find_nonintersecting_quorums(&self.fbas_shrunken) {
             assert!(quorums[0].is_disjoint(&quorums[1]));
-            (false, Some(NodeIdSetVecResult::new(quorums.to_vec(), None)))
+            (
+                false,
+                Some(NodeIdSetVecResult::new(
+                    quorums.to_vec(),
+                    Some(&self.unshrink_table),
+                )),
+            )
         } else {
             (true, None)
         }
@@ -549,6 +555,23 @@ mod tests {
             analysis.minimal_splitting_sets().describe(),
             NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![10]], None).describe()
         );
+    }
+
+    #[test]
+    fn alternative_check_on_broken() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
+        let analysis = Analysis::new(&fbas, None);
+
+        let (has_intersection, quorums) = analysis.has_quorum_intersection_via_alternative_check();
+
+        assert!(!has_intersection);
+
+        let quorums: Vec<NodeIdSet> = quorums.unwrap().unwrap();
+
+        assert_eq!(quorums.len(), 2);
+        assert!(fbas.is_quorum(&quorums[0]));
+        assert!(fbas.is_quorum(&quorums[1]));
+        assert!(quorums[0].is_disjoint(&quorums[1]));
     }
 
     #[test]
