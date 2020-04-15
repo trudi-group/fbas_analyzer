@@ -18,6 +18,7 @@ quicli = "0.4"
 structopt = "0.2"
 rand = "0.7"
 bzip2 = "0.3.2"
+pathfinding = "2.0.4"
 
 [[bench]]
 name = "benchmarks"
