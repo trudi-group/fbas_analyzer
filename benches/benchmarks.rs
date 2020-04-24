@@ -35,21 +35,21 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     //     b.iter(|| find_nonintersecting_quorums(black_box(&fbas)))
     // });
 
-    // c.bench_function("collapse_by_organization", |b| {
+    // c.bench_function("merge_by_organization", |b| {
     //     b.iter(|| {
     //         remove_non_minimal_node_sets(
-    //             orgs.collapse_node_sets(black_box(minimal_quorums.clone())),
+    //             orgs.merge_node_sets(black_box(minimal_quorums.clone())),
     //         )
     //     })
     // });
-    // let minimal_quorums_collapsed =
-    //     remove_non_minimal_node_sets(orgs.collapse_node_sets(minimal_quorums.clone()));
+    // let minimal_quorums_merged =
+    //     remove_non_minimal_node_sets(orgs.merge_node_sets(minimal_quorums.clone()));
 
-    // c.bench_function("find_minimal_blocking_sets_collapsed", |b| {
-    //     b.iter(|| find_minimal_blocking_sets(black_box(&minimal_quorums_collapsed)))
+    // c.bench_function("find_minimal_blocking_sets_merged", |b| {
+    //     b.iter(|| find_minimal_blocking_sets(black_box(&minimal_quorums_merged)))
     // });
-    // c.bench_function("find_minimal_splitting_sets_collapsed", |b| {
-    //     b.iter(|| find_minimal_splitting_sets(black_box(&minimal_quorums_collapsed)))
+    // c.bench_function("find_minimal_splitting_sets_merged", |b| {
+    //     b.iter(|| find_minimal_splitting_sets(black_box(&minimal_quorums_merged)))
     // });
 
     c.bench_function("find_minimal_blocking_sets", |b| {

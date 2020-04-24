@@ -510,12 +510,12 @@ mod tests {
         let fbas = Fbas::from_json_str(
             r#"[
             {
-                "publicKey": "n1",
-                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
             },
             {
-                "publicKey": "n2",
-                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
             }
         ]"#,
         );
@@ -527,8 +527,8 @@ mod tests {
         let fbas = Fbas::from_json_str(
             r#"[
             {
-                "publicKey": "n1",
-                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
             }
         ]"#,
         );
