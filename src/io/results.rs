@@ -34,6 +34,15 @@ impl AnalysisResult for usize {
     }
 }
 
+impl AnalysisResult for Vec<QuorumSet> {
+    fn into_id_string(self) -> String {
+        json_format!(self)
+    }
+    fn into_describe_string(self) -> String {
+        self.into_id_string()
+    }
+}
+
 impl<'a> AnalysisResult for NodeIdSetResult<'a> {
     fn into_id_string(self) -> String {
         json_format!(self.into_vec())

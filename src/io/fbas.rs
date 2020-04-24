@@ -1,5 +1,5 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json;
+use std::fmt;
 
 use super::*;
 
@@ -56,6 +56,11 @@ impl Fbas {
     }
     fn to_raw(&self) -> RawFbas {
         RawFbas(self.nodes.iter().map(|n| n.to_raw(&self)).collect())
+    }
+}
+impl fmt::Display for Fbas {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_json_string_pretty())
     }
 }
 impl Serialize for Fbas {

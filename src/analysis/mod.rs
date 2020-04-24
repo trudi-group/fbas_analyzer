@@ -9,9 +9,7 @@ mod shrink;
 mod splitting_sets;
 
 pub use blocking_sets::find_minimal_blocking_sets;
-pub use quorums::{
-    find_minimal_quorums, find_nonintersecting_quorums, find_symmetric_quorum_clusters,
-};
+pub use quorums::{find_minimal_quorums, find_nonintersecting_quorums, find_symmetric_clusters};
 pub use splitting_sets::find_minimal_splitting_sets;
 
 pub(crate) use rank::*;
@@ -150,8 +148,8 @@ impl<'a> Analysis<'a> {
         }
         self.minimal_splitting_sets_shrunken.clone().unwrap()
     }
-    pub fn symmetric_quorum_clusters(&self) -> Vec<QuorumSet> {
-        find_symmetric_quorum_clusters(self.fbas_original)
+    pub fn symmetric_clusters(&self) -> Vec<QuorumSet> {
+        find_symmetric_clusters(self.fbas_original)
     }
     pub fn top_tier(&mut self) -> NodeIdSetResult {
         NodeIdSetResult::new(

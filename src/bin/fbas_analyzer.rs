@@ -36,10 +36,6 @@ struct Cli {
     #[structopt(long = "expect-no-intersection")]
     expect_no_intersection: bool,
 
-    // TODO: describe this
-    #[structopt(long = "symmetric-clusters")]
-    symmetric_clusters: bool,
-
     /// Output metrics instead of lists of node lists
     #[structopt(short = "d", long = "describe")]
     describe: bool,
@@ -76,9 +72,8 @@ fn main() -> CliResult {
     report_overview(&mut analysis, &output);
     output.comment_newline();
 
-    if args.symmetric_clusters {
-        find_and_report_symmetric_clusters(&mut analysis, &output);
-    }
+    find_and_report_symmetric_clusters(&mut analysis, &output);
+
     if q {
         find_and_report_minimal_quorums(&mut analysis, &output);
     }
@@ -191,12 +186,7 @@ fn check_and_report_if_has_quorum_intersection(
     }
 }
 fn find_and_report_symmetric_clusters(analysis: &mut Analysis, output: &Output) {
-    output.comment("Looking for symmetric quorum clusters...");
-    // FIXME: print this prettily too + measure time
-    println!(
-        "symmetric_quorum_clusters: {:?}",
-        analysis.symmetric_quorum_clusters()
-    );
+    do_time_and_report!("symmetric_clusters", analysis.symmetric_clusters(), output);
     output.comment_newline();
 }
 fn find_and_report_minimal_quorums(analysis: &mut Analysis, output: &Output) {
