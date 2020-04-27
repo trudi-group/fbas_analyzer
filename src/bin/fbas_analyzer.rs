@@ -148,9 +148,11 @@ macro_rules! do_time_and_report {
 }
 
 fn report_overview(analysis: &mut Analysis, output: &Output) {
-    output.result("nodes_total", analysis.all_nodes().len());
     if analysis.merging_by_organization() {
         output.result("nodes_total_unmerged", analysis.all_physical_nodes().len());
+    }
+    output.result("nodes_total", analysis.all_nodes().len());
+    if analysis.merging_by_organization() {
         output.comment("(Nodes belonging to the same organization are counted as one.)");
     }
 }
@@ -186,7 +188,13 @@ fn check_and_report_if_has_quorum_intersection(
     }
 }
 fn find_and_report_symmetric_clusters(analysis: &mut Analysis, output: &Output) {
-    do_time_and_report!("symmetric_clusters", analysis.symmetric_clusters(), output);
+    let mut output_uncondensed = output.clone();
+    output_uncondensed.describe = false;
+    do_time_and_report!(
+        "symmetric_clusters",
+        analysis.symmetric_clusters(),
+        output_uncondensed
+    );
     output.comment_newline();
 }
 fn find_and_report_minimal_quorums(analysis: &mut Analysis, output: &Output) {

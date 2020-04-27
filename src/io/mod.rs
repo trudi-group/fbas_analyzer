@@ -6,7 +6,7 @@ use std::path::Path;
 use crate::*;
 
 mod fbas;
-pub use fbas::*;
+use fbas::*;
 
 mod results;
 pub use results::*;

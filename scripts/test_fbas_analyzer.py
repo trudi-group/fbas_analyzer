@@ -4,12 +4,22 @@ import subprocess
 
 
 def main():
+    cargo_test()
     cargo_build()
 
     test_with_organizations()
     test_with_ids()
 
     print("All tests completed successfully!")
+
+
+def cargo_test():
+    test_command_1 = 'cargo test'
+    print('Running unit tests: `%s`' % test_command_1)
+    subprocess.run(test_command_1, shell=True)
+    test_command_2 = 'cargo test -- --ignored'
+    print('Running slow unit tests: `%s`' % test_command_2)
+    subprocess.run(test_command_2, shell=True)
 
 
 def cargo_build():

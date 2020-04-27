@@ -149,7 +149,12 @@ impl<'a> Analysis<'a> {
         self.minimal_splitting_sets_shrunken.clone().unwrap()
     }
     pub fn symmetric_clusters(&self) -> Vec<QuorumSet> {
-        find_symmetric_clusters(self.fbas_original)
+        let clusters = find_symmetric_clusters(self.fbas_original);
+        if let Some(ref orgs) = self.organizations_original {
+            orgs.merge_quorum_sets(clusters)
+        } else {
+            clusters
+        }
     }
     pub fn top_tier(&mut self) -> NodeIdSetResult {
         NodeIdSetResult::new(
@@ -444,19 +449,58 @@ fn remove_node_sets_that_are_non_minimal_by_one(node_sets: HashSet<NodeIdSet>) -
 }
 
 impl<'fbas> Organizations<'fbas> {
-    /// merge a node ID so that all nodes by the same organization get the same ID.
+    /// Merge a node ID so that all nodes by the same organization get the same ID.
     pub fn merge_node(self: &Self, node_id: NodeId) -> NodeId {
         self.merged_ids[node_id]
     }
-    /// merge a node ID set so that all nodes by the same organization get the same ID.
+    /// Merge a node ID set so that all nodes by the same organization get the same ID.
     pub fn merge_node_set(self: &Self, node_set: NodeIdSet) -> NodeIdSet {
         node_set.into_iter().map(|x| self.merge_node(x)).collect()
     }
-    /// merge a list of node ID sets so that all nodes by the same organization get the same ID.
+    /// Merge a list of node ID sets so that all nodes by the same organization get the same ID.
     pub fn merge_node_sets(self: &Self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         node_sets
             .into_iter()
             .map(|x| self.merge_node_set(x))
+            .collect()
+    }
+    /// Merge a quorum set so that all nodes by the same organization get the same ID and
+    /// validator lists consisting of only of one organization are collapsed into one validator.
+    pub fn merge_quorum_set(self: &Self, quorum_set: QuorumSet) -> QuorumSet {
+        let mut threshold = quorum_set.threshold;
+        let mut validators: Vec<NodeId> = quorum_set
+            .validators
+            .iter()
+            .map(|&x| self.merge_node(x))
+            .collect();
+
+        let (new_validator_candidates, inner_quorum_sets): (Vec<QuorumSet>, Vec<QuorumSet>) =
+            quorum_set
+                .inner_quorum_sets
+                .into_iter()
+                .map(|q| self.merge_quorum_set(q))
+                .partition(|q| q.validators.len() == 1);
+
+        validators.extend(
+            new_validator_candidates
+                .into_iter()
+                .map(|q| q.validators[0]),
+        );
+        if !validators.is_empty() && validators.iter().all(|&v| v == validators[0]) {
+            validators = vec![validators[0]];
+            threshold = 1;
+        }
+        QuorumSet {
+            threshold,
+            validators,
+            inner_quorum_sets,
+        }
+    }
+    /// calls `merge_quorum_set` on each vector element
+    pub fn merge_quorum_sets(self: &Self, quorum_set: Vec<QuorumSet>) -> Vec<QuorumSet> {
+        quorum_set
+            .into_iter()
+            .map(|q| self.merge_quorum_set(q))
             .collect()
     }
 }

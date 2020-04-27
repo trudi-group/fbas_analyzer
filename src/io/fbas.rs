@@ -6,18 +6,19 @@ use super::*;
 #[derive(Serialize, Deserialize)]
 struct RawFbas(Vec<RawNode>);
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawNode {
-    #[serde(rename = "publicKey")]
     public_key: PublicKey,
-    #[serde(rename = "quorumSet", default)]
+    #[serde(default)]
     quorum_set: RawQuorumSet,
 }
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
-struct RawQuorumSet {
-    threshold: usize,
-    validators: Vec<PublicKey>,
-    #[serde(rename = "innerQuorumSets", default)]
-    inner_quorum_sets: Vec<RawQuorumSet>,
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RawQuorumSet {
+    pub(crate) threshold: usize,
+    pub(crate) validators: Vec<PublicKey>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) inner_quorum_sets: Vec<RawQuorumSet>,
 }
 
 impl Fbas {

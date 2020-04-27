@@ -125,9 +125,12 @@ impl Node {
 }
 
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct QuorumSet {
     pub(crate) threshold: usize,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) validators: Vec<NodeId>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) inner_quorum_sets: Vec<QuorumSet>,
 }
 impl QuorumSet {

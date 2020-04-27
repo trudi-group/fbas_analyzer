@@ -1,8 +1,13 @@
 use super::*;
 
-macro_rules! json_format {
+macro_rules! json_format_single_line {
     ($x:expr) => {
         serde_json::to_string(&$x).expect("Error formatting as JSON")
+    };
+}
+macro_rules! json_format_pretty {
+    ($x:expr) => {
+        serde_json::to_string_pretty(&$x).expect("Error formatting as JSON")
     };
 }
 
@@ -36,7 +41,14 @@ impl AnalysisResult for usize {
 
 impl AnalysisResult for Vec<QuorumSet> {
     fn into_id_string(self) -> String {
-        json_format!(self)
+        json_format_single_line!(self)
+    }
+    fn into_pretty_string(self, fbas: &Fbas, organizations: &Option<Organizations>) -> String {
+        let raw_self: Vec<RawQuorumSet> = self
+            .into_iter()
+            .map(|q| q.into_raw(fbas, organizations))
+            .collect();
+        json_format_pretty!(raw_self)
     }
     fn into_describe_string(self) -> String {
         self.into_id_string()
@@ -45,10 +57,10 @@ impl AnalysisResult for Vec<QuorumSet> {
 
 impl<'a> AnalysisResult for NodeIdSetResult<'a> {
     fn into_id_string(self) -> String {
-        json_format!(self.into_vec())
+        json_format_single_line!(self.into_vec())
     }
     fn into_pretty_string(self, fbas: &Fbas, organizations: &Option<Organizations>) -> String {
-        json_format!(self.into_pretty_vec(fbas, organizations))
+        json_format_single_line!(self.into_pretty_vec(fbas, organizations))
     }
     fn into_describe_string(self) -> String {
         self.len().to_string()
@@ -57,7 +69,7 @@ impl<'a> AnalysisResult for NodeIdSetResult<'a> {
 
 impl<'a> AnalysisResult for NodeIdSetVecResult<'a> {
     fn into_id_string(self) -> String {
-        json_format!(self.into_vec_vec())
+        json_format_single_line!(self.into_vec_vec())
     }
     fn into_pretty_string(self, fbas: &Fbas, organizations: &Option<Organizations>) -> String {
         let result: Vec<Vec<&PublicKey>> = self
@@ -68,10 +80,37 @@ impl<'a> AnalysisResult for NodeIdSetVecResult<'a> {
                     .into_pretty_vec(fbas, organizations)
             })
             .collect();
-        json_format!(result)
+        json_format_single_line!(result)
     }
     fn into_describe_string(self) -> String {
-        json_format!(self.describe())
+        json_format_single_line!(self.describe())
+    }
+}
+
+impl QuorumSet {
+    fn into_raw(self, fbas: &Fbas, organizations: &Option<Organizations>) -> RawQuorumSet {
+        let QuorumSet {
+            threshold,
+            validators,
+            inner_quorum_sets,
+        } = self;
+        let validators = if let Some(ref orgs) = organizations {
+            to_organization_names(validators, fbas, orgs)
+        } else {
+            to_public_keys(validators, fbas)
+        }
+        .into_iter()
+        .cloned()
+        .collect();
+        let inner_quorum_sets = inner_quorum_sets
+            .into_iter()
+            .map(|q| q.into_raw(fbas, organizations))
+            .collect();
+        RawQuorumSet {
+            threshold,
+            validators,
+            inner_quorum_sets,
+        }
     }
 }
 
@@ -89,19 +128,22 @@ impl<'a> NodeIdSetResult<'a> {
     }
 }
 
-fn to_public_keys<'a>(node_set: &NodeIdSet, fbas: &'a Fbas) -> Vec<&'a PublicKey> {
-    node_set
-        .iter()
+fn to_public_keys<'a>(
+    nodes: impl IntoIterator<Item = NodeId>,
+    fbas: &'a Fbas,
+) -> Vec<&'a PublicKey> {
+    nodes
+        .into_iter()
         .map(|id| &fbas.nodes[id].public_key)
         .collect()
 }
 fn to_organization_names<'a>(
-    node_set: &NodeIdSet,
+    nodes: impl IntoIterator<Item = NodeId>,
     fbas: &'a Fbas,
     organizations: &'a Organizations,
 ) -> Vec<&'a PublicKey> {
-    node_set
-        .iter()
+    nodes
+        .into_iter()
         .map(|id| match &organizations.get_by_member(id) {
             Some(org) => &org.name,
             None => &fbas.nodes[id].public_key,
@@ -122,6 +164,16 @@ mod tests {
                     $actual_collection, $expected_element
                 )
             );
+        };
+    }
+
+    macro_rules! assert_eq_ex_whitespace {
+        ($actual:expr, $expected:expr) => {
+            let mut actual = String::from($actual);
+            let mut expected = String::from($expected);
+            actual.retain(|c| !c.is_whitespace());
+            expected.retain(|c| !c.is_whitespace());
+            assert_eq!(expected, actual);
         };
     }
 
@@ -209,5 +261,35 @@ mod tests {
             mq.clone().into_describe_string(),
             "[5,5,[4,4,4.0],[0,0,0,0,5]]"
         );
+    }
+
+    #[test]
+    fn symmetric_clusters_id_output_correctly() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
+        let organizations = None;
+        let analysis = Analysis::new(&fbas, organizations.as_ref());
+
+        let clusters = analysis.symmetric_clusters();
+
+        let expected = r#"[{"threshold":4,"innerQuorumSets":[{"threshold":2,"validators":[4,8,56]},{"threshold":2,"validators":[23,69,168]},{"threshold":2,"validators":[29,105,167]},{"threshold":2,"validators":[36,44,171]},{"threshold":3,"validators":[1,37,43,52,86]}]}]"#;
+        let actual = clusters.into_id_string();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn symmetric_clusters_by_organization_pretty_output_correctly() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
+        let organizations = Some(Organizations::from_json_file(
+            Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
+            &fbas,
+        ));
+        let analysis = Analysis::new(&fbas, organizations.as_ref());
+
+        let clusters = analysis.symmetric_clusters();
+
+        let expected = r#"[{"threshold":4,"validators":["Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase","LOBSTR"]}]"#;
+        let actual = clusters.into_pretty_string(&fbas, &organizations);
+
+        assert_eq_ex_whitespace!(expected, actual);
     }
 }
