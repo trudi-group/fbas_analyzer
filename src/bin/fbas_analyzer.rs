@@ -11,22 +11,23 @@ use std::time::{Duration, Instant};
 /// Learn things about a given FBAS (parses data from stellarbeat.org)
 #[derive(Debug, StructOpt)]
 struct Cli {
-    /// Path to JSON file describing the FBAS in stellarbeat.org "nodes" format
+    /// Path to JSON file describing the FBAS in stellarbeat.org "nodes" format.
+    /// Will use STDIN if omitted.
     nodes_path: Option<PathBuf>,
 
-    /// Output (and find) minimal quorums
+    /// Output (and find) minimal quorums.
     #[structopt(short = "q", long = "minimal-quorums")]
     minimal_quorums: bool,
 
-    /// Output (and find) minimal blocking sets (minimal indispensable sets for global liveness)
+    /// Output (and find) minimal blocking sets (minimal indispensable sets for global liveness).
     #[structopt(short = "b", long = "minimal-blocking-sets")]
     minimal_blocking_sets: bool,
 
-    /// Output (and find) minimal splitting sets (minimal indispensable sets for safety)
+    /// Output (and find) minimal splitting sets (minimal indispensable sets for safety).
     #[structopt(short = "s", long = "minimal-splitting-sets")]
     minimal_splitting_sets: bool,
 
-    /// Output (and find) all minimal quorums, minimal blocking sets and minimal splitting sets
+    /// Output (and find) all minimal quorums, minimal blocking sets and minimal splitting sets.
     #[structopt(short = "a", long = "all")]
     all: bool,
 
@@ -36,22 +37,22 @@ struct Cli {
     #[structopt(long = "expect-no-intersection")]
     expect_no_intersection: bool,
 
-    /// Output metrics instead of lists of node lists
+    /// Output metrics instead of lists of node lists.
     #[structopt(short = "d", long = "describe")]
     describe: bool,
 
     /// In output, identify nodes by their pretty name (public key, or organization if -o is set);
-    /// default is to use node IDs corresponding to indices in the input file
+    /// default is to use node IDs corresponding to indices in the input file.
     #[structopt(short = "p", long = "pretty")]
     output_pretty: bool,
 
-    /// Silence the commentary about what is what and what it means
+    /// Silence the commentary about what is what and what it means.
     #[structopt(long = "results-only")]
     results_only: bool,
 
     /// Merge nodes by organization - nodes from the same organization are handled as one;
-    /// you must provide the path to a stellarbeat.org "organizations" JSON file
-    #[structopt(short = "o", long = "organizations")]
+    /// you must provide the path to a stellarbeat.org "organizations" JSON file.
+    #[structopt(short = "m", long = "merge-by-org")]
     organizations_path: Option<PathBuf>,
 
     #[structopt(flatten)]
@@ -263,9 +264,9 @@ impl<'a> Output<'a> {
             }
             if describe {
                 println!(
-                    "Description strings of any \"set of sets\" have the format \
-                    (number_of_sets, number_of_distinct_nodes, (min_set_size, max_set_size, mean_set_size), \
-                    [ #members with size 0, #members with size 1, ... , #members with maximum size ]"
+                    "\"Set of sets\"-type results are described as: \
+                    [#sets, #distinct_nodes, [min_set_size, max_set_size, mean_set_size], \
+                    [#sets_with_size_0, #sets_with_size_1, ..., #sets_with_max_set_size]]"
                 );
             }
         }

@@ -29,7 +29,7 @@ def cargo_build():
 
 
 def test_with_organizations():
-    command = "target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -o test_data/stellarbeat_organizations_2019-09-17.json -a -p"
+    command = "target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -m test_data/stellarbeat_organizations_2019-09-17.json -a -p"
     expected_lines = [
         'has_quorum_intersection: true',
         'minimal_quorums: [["LOBSTR","Stellar Development Foundation","COINQVEST Limited","SatoshiPay"],["LOBSTR","Stellar Development Foundation","COINQVEST Limited","Keybase"],["LOBSTR","Stellar Development Foundation","SatoshiPay","Keybase"],["LOBSTR","COINQVEST Limited","SatoshiPay","Keybase"],["Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase"]]',

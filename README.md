@@ -26,7 +26,7 @@ cargo build --release
 ```
 4. Try tool using older data from stellarbeat
 ```
-target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -o test_data/stellarbeat_organizations_2019-09-17.json -a -p
+target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -m test_data/stellarbeat_organizations_2019-09-17.json -a -p
 ```
 5. Get some new data from stellarbeat (if their API didn't change too much...)
 ```
