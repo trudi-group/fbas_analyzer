@@ -11,9 +11,14 @@ use std::fs::File;
 
 impl Graph {
     pub fn from_as_rel_file(path: &Path) -> Self {
-        Self::from_as_rel_string(
-            &read_bz2_file_to_string(path).expect("Error reading AS Relationships file"),
-        )
+        let contents = read_bz2_file_to_string(path);
+        match contents {
+            Ok(contents) => Self::from_as_rel_string(&contents),
+            Err(_e) => match read_file_to_string(path) {
+                Ok(contents) => Self::from_as_rel_string(&contents),
+                Err(e) => panic!("Error reading AS Relationships file {:?}", e),
+            },
+        }
     }
     pub fn from_as_rel_string(as_rel_file_contents: &str) -> Self {
         let mut outlinks: Vec<BTreeSet<NodeId>> = vec![];
@@ -39,7 +44,7 @@ impl Graph {
         let file = File::create(&path)?;
         let mut compresser = write::BzEncoder::new(file, Compression::Default);
         let graph_as_string = Self::to_as_rel_string(graph).unwrap();
-        for line in graph_as_string.iter() {
+        for line in graph_as_string.lines() {
             compresser
                 .write_all(format!("{}{}", line, "\n").as_bytes())
                 .unwrap();
@@ -47,15 +52,15 @@ impl Graph {
         compresser.finish()?;
         Ok(())
     }
-    pub fn to_as_rel_string(graph: &Self) -> io::Result<Vec<String>> {
+    pub fn to_as_rel_string(graph: &Self) -> io::Result<String> {
         let mut edge_as_string: String;
-        let mut graph_as_string = vec![];
+        let mut graph_as_string = String::new();
         const SEPARATOR: &str = "|";
         for n in 0..graph.number_of_nodes() {
             let nbrs = &graph.outlinks[n];
             for i in nbrs {
-                edge_as_string = format!("{}{}{}{}{}", n, SEPARATOR, i, SEPARATOR, "0");
-                graph_as_string.push(edge_as_string);
+                edge_as_string = format!("{}{}{}{}{}{}", n, SEPARATOR, i, SEPARATOR, "0", "\n");
+                graph_as_string.push_str(&edge_as_string);
             }
         }
         Ok(graph_as_string)
@@ -92,7 +97,12 @@ fn read_bz2_file_to_string(path: &Path) -> io::Result<String> {
     decompressor.read_to_string(&mut contents)?;
     Ok(contents)
 }
-
+fn read_file_to_string(path: &Path) -> io::Result<String> {
+    let mut f = fs::File::open(path)?;
+    let mut contents = String::new();
+    f.read_to_string(&mut contents)?;
+    Ok(contents)
+}
 #[cfg(test)]
 mod tests {
     use super::*;

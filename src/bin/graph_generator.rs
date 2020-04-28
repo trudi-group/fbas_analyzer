@@ -1,7 +1,7 @@
 extern crate fbas_analyzer;
 use fbas_analyzer::*;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use quicli::prelude::*;
 use structopt::StructOpt;
@@ -34,8 +34,6 @@ pub enum GraphGenerationAlgorithm {
     /// arguments are the number of nodes in the graph, the number of neighbours each node should
     /// have, and the probability of rewiring the neighbours.
     WattsStrogatz { n: usize, k: usize, beta: f64 },
-    /// Reads a graph in the AS relationship format from a file given the path to the file.
-    ReadGraphFromFile { file_path: PathBuf },
 }
 
 pub fn apply_graph_gen_alg(gga: &GraphGenerationAlgorithm) -> Graph {
@@ -43,12 +41,7 @@ pub fn apply_graph_gen_alg(gga: &GraphGenerationAlgorithm) -> Graph {
     match gga {
         BarabasiAlbert { n, m0, m } => Graph::new_random_scale_free(*n, *m0, *m),
         WattsStrogatz { n, k, beta } => Graph::new_random_small_world(*n, *k, *beta),
-        ReadGraphFromFile { file_path } => Graph::from_as_rel_file(&file_path),
     }
-}
-
-pub fn write_graph_to_file(graph: &Graph, path: &Path) -> std::io::Result<()> {
-    Graph::to_as_rel_file(graph, path)
 }
 
 fn main() -> CliResult {
@@ -61,15 +54,14 @@ fn main() -> CliResult {
 
     let graph = apply_graph_gen_alg(&gga);
 
-    if stdout || path.is_none() {
-        let graph_as_string = fbas_analyzer::Graph::to_as_rel_string(&graph);
-        eprintln!("Printing graph with {} nodes...", graph.number_of_nodes());
-        eprintln!("Graph generated using {:?}", &gga);
-        for line in graph_as_string.iter() {
-            println!("{:?}", line);
-        }
-    } else if path.is_some() {
-        write_graph_to_file(&graph, &path.unwrap())?;
+    if let Some(is_path) = &path {
+        Graph::to_as_rel_file(&graph, &is_path)?;
     }
+    if stdout || path.is_none() {
+        let graph_as_string = fbas_analyzer::Graph::to_as_rel_string(&graph).unwrap();
+        eprintln!("Printing graph with {} nodes...", graph.number_of_nodes());
+        println!("# Graph generated using {:?}", &gga);
+        println!("{}", graph_as_string);
+    };
     Ok(())
 }
