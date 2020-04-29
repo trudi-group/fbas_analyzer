@@ -5,6 +5,7 @@ use fbas_analyzer::*;
 use quicli::prelude::*;
 use structopt::StructOpt;
 
+use std::io::{self, Read};
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -41,47 +42,22 @@ enum QuorumSetConfiguratorConfig {
     /// If threshold is ommitted, uses as 67% threshold as in "Ideal".
     FameWeightedRandom {
         desired_quorum_set_size: usize,
+        graph_data_path: PathBuf,
         desired_threshold: Option<usize>,
-        graph_size: Option<usize>,
     },
-    /// Chooses quorum sets based on a synthetic scale-free graph (BA with m0=m=mean_degree/2) and
-    /// a relative threshold. All graph neighbors are validators, independent of node existence,
-    /// quorum intersection or anything else.
+    /// Chooses quorum sets based on a relative threshold. All graph neighbors
+    /// are validators, independent of node existence, quorum intersection or
+    /// anything else.
     /// If threshold is ommitted, uses as 67% threshold as in "Ideal".
-    SimpleScaleFree {
-        mean_degree: usize,
-        relative_threshold: Option<f64>,
-        graph_size: Option<usize>,
-    },
-    /// Chooses quorum sets based on a synthetic small world graph (Watts-Strogatz with beta = 0.05)
-    /// and a relative threshold. All graph neighbors are validators, independent of node
-    /// existence, quorum intersection or anything else.
-    /// If threshold is ommitted, uses as 67% threshold as in "Ideal".
-    SimpleSmallWorld {
-        mean_degree: usize,
-        relative_threshold: Option<f64>,
-        graph_size: Option<usize>,
-    },
-    /// Chooses quorum sets based on a snapshot of the CAIDA AS Relationships dataset given as input
-    /// and a relative threshold. All graph neighbors are validators, independent of node
-    /// existence, quorum intersection or anything else. If threshold is ommitted, uses as 67%
-    /// threshold as in "Ideal".
-    SimpleASGraph {
+    SimpleQsc {
         graph_data_path: PathBuf,
         relative_threshold: Option<f64>,
     },
     /// Docstring -> TODO
-    HigherTierASGraph {
+    HigherTierQsc {
         graph_data_path: PathBuf,
         make_symmetric_top_tier: bool,
         relative_threshold: Option<f64>,
-    },
-    /// Docstring -> TODO
-    HigherTierScaleFree {
-        mean_degree: usize,
-        make_symmetric_top_tier: bool,
-        relative_threshold: Option<f64>,
-        graph_size: Option<usize>,
     },
     /// Docstring -> TODO
     GlobalRankASGraph {
@@ -89,105 +65,91 @@ enum QuorumSetConfiguratorConfig {
         relative_threshold: Option<f64>,
     },
     /// TODO - might be removed again soon
-    QualityAware { graph_size: Option<usize> },
+    QualityAware { graph_data_path: PathBuf },
 }
 
-fn parse_qscc(
-    qscc: QuorumSetConfiguratorConfig,
-    fbas_size: usize,
-) -> Rc<dyn QuorumSetConfigurator> {
+fn parse_graph_path(graph_data_path: PathBuf) -> (Graph, usize) {
+    let piped = graph_data_path.to_str().unwrap();
+    let graph = if piped == "-" {
+        eprintln!("Reading graph from STDIN...");
+        let mut buf = String::new();
+        io::stdin()
+            .read_to_string(&mut buf)
+            .expect("Error reading from STDIN");
+        Graph::from_as_rel_string(&buf)
+    } else {
+        eprintln!("Reading graph from file...");
+        Graph::from_as_rel_file(&graph_data_path)
+    };
+
+    eprintln!("Read graph with {} nodes.", graph.number_of_nodes());
+    let nr_of_nodes = &graph.number_of_nodes();
+    (graph, *nr_of_nodes)
+}
+
+fn parse_qscc(qscc: QuorumSetConfiguratorConfig) -> (Rc<dyn QuorumSetConfigurator>, usize) {
     use quorum_set_configurators::*;
     use QuorumSetConfiguratorConfig::*;
     match qscc {
-        SuperSafe => Rc::new(SuperSafeQsc::new()),
-        Ideal => Rc::new(IdealQsc::new()),
+        SuperSafe => (Rc::new(SuperSafeQsc::new()), 0),
+        Ideal => (Rc::new(IdealQsc::new()), 0),
         SimpleRandom {
             desired_quorum_set_size,
-        } => Rc::new(RandomQsc::new_simple(desired_quorum_set_size)),
+        } => (Rc::new(RandomQsc::new_simple(desired_quorum_set_size)), 0),
         FameWeightedRandom {
             desired_quorum_set_size,
             desired_threshold,
-            graph_size,
-        } => Rc::new(RandomQsc::new(
-            desired_quorum_set_size,
-            desired_threshold,
-            Some(
-                Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size * 100), 2, 2)
-                    .shuffled()
-                    .get_in_degrees(),
-            ),
-        )),
-        SimpleScaleFree {
-            mean_degree,
-            relative_threshold,
-            graph_size,
-        } => {
-            let n = graph_size.unwrap_or(fbas_size);
-            let m = mean_degree / 2;
-            let m0 = m;
-            // shuffled because fbas join order shouldn't be correlated with importance in graph
-            let graph = Graph::new_random_scale_free(n, m, m0).shuffled();
-            Rc::new(SimpleGraphQsc::new(graph, relative_threshold))
-        }
-        SimpleSmallWorld {
-            mean_degree,
-            relative_threshold,
-            graph_size,
-        } => {
-            let n = graph_size.unwrap_or(fbas_size);
-            let k = mean_degree;
-            // shuffled because fbas join order shouldn't be correlated with importance in graph
-            let graph = Graph::new_random_small_world(n, k, 0.05).shuffled();
-            Rc::new(SimpleGraphQsc::new(graph, relative_threshold))
-        }
-        SimpleASGraph {
             graph_data_path,
-            relative_threshold,
         } => {
-            let graph = Graph::from_as_rel_file(&graph_data_path);
-            Rc::new(SimpleGraphQsc::new(graph, relative_threshold))
+            let (graph, nodes) = parse_graph_path(graph_data_path);
+            (
+                Rc::new(RandomQsc::new(
+                    desired_quorum_set_size,
+                    desired_threshold,
+                    Some(graph.get_in_degrees()),
+                )),
+                nodes,
+            )
         }
-        HigherTierASGraph {
+        SimpleQsc {
+            relative_threshold,
+            graph_data_path,
+        } => {
+            let (graph, nodes) = parse_graph_path(graph_data_path);
+            (
+                Rc::new(SimpleGraphQsc::new(graph, relative_threshold)),
+                nodes,
+            )
+        }
+        HigherTierQsc {
             graph_data_path,
             make_symmetric_top_tier,
             relative_threshold,
         } => {
-            let graph = Graph::from_as_rel_file(&graph_data_path);
-            Rc::new(HigherTiersGraphQsc::new(
-                graph,
-                relative_threshold,
-                make_symmetric_top_tier,
-            ))
-        }
-        HigherTierScaleFree {
-            mean_degree,
-            make_symmetric_top_tier,
-            relative_threshold,
-            graph_size,
-        } => {
-            // TODO code deduplication
-            let n = graph_size.unwrap_or(fbas_size);
-            let m = mean_degree / 2;
-            let m0 = m;
-            // shuffled because fbas join order shouldn't be correlated with importance in graph
-            let graph = Graph::new_random_scale_free(n, m, m0).shuffled();
-            Rc::new(HigherTiersGraphQsc::new(
-                graph,
-                relative_threshold,
-                make_symmetric_top_tier,
-            ))
+            let (graph, nodes) = parse_graph_path(graph_data_path);
+            (
+                Rc::new(HigherTiersGraphQsc::new(
+                    graph,
+                    relative_threshold,
+                    make_symmetric_top_tier,
+                )),
+                nodes,
+            )
         }
         GlobalRankASGraph {
             graph_data_path,
             relative_threshold,
         } => {
-            let graph = Graph::from_as_rel_file(&graph_data_path);
-            Rc::new(GlobalRankGraphQsc::new(graph, relative_threshold))
+            let (graph, nodes) = parse_graph_path(graph_data_path);
+            (
+                Rc::new(GlobalRankGraphQsc::new(graph, relative_threshold)),
+                nodes,
+            )
         }
-        QualityAware { graph_size } => Rc::new(QualityAwareGraphQsc::new(
-            // shuffled because fbas join order shouldn't be correlated with importance in graph
-            Graph::new_random_scale_free(graph_size.unwrap_or(fbas_size), 2, 2).shuffled(),
-        )),
+        QualityAware { graph_data_path } => {
+            let (graph, nodes) = parse_graph_path(graph_data_path);
+            (Rc::new(QualityAwareGraphQsc::new(graph)), nodes)
+        }
     }
 }
 
@@ -195,19 +157,25 @@ fn main() -> CliResult {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
-    let n = args.initial_n + args.grow_by_n;
+    let (qsc, nodes_in_graph) = parse_qscc(args.qscc);
 
-    let qsc = parse_qscc(args.qscc, n);
+    let initial_n = if args.initial_n > 0 || args.grow_by_n > 0 {
+        args.initial_n
+    } else {
+        nodes_in_graph
+    };
+    let grow_by_n = args.grow_by_n;
+
     let monitor = Rc::new(monitors::DebugMonitor::new());
 
     let mut simulator = Simulator::new(
-        Fbas::new_generic_unconfigured(args.initial_n),
+        Fbas::new_generic_unconfigured(initial_n),
         qsc,
         Rc::clone(&monitor) as Rc<dyn SimulationMonitor>,
     );
     eprintln!("Starting simulation...");
-    simulator.simulate_global_reevaluation(args.initial_n);
-    simulator.simulate_growth(args.grow_by_n);
+    simulator.simulate_global_reevaluation(initial_n);
+    simulator.simulate_growth(grow_by_n);
     let fbas = simulator.finalize();
     eprintln!("Finished simulation, dumping FBAS...");
     println!("{}", fbas.to_json_string_pretty());
