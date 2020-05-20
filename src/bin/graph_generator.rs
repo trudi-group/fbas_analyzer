@@ -22,6 +22,11 @@ struct Cli {
     #[structopt(long = "stdout")]
     stdout: bool,
 
+    /// By default the generated graph is shuffled.
+    /// If passed, the graph will not be shuffled.
+    #[structopt(short = "d", long = "dont-shuffle")]
+    dont_shuffle: bool,
+
     #[structopt(flatten)]
     verbosity: Verbosity,
 }
@@ -51,8 +56,13 @@ fn main() -> CliResult {
     let path = args.path;
     let stdout = args.stdout;
     let gga = args.gga;
+    let dont_shuffle = args.dont_shuffle;
 
-    let graph = apply_graph_gen_alg(&gga);
+    let graph = if !dont_shuffle {
+        apply_graph_gen_alg(&gga)
+    } else {
+        apply_graph_gen_alg(&gga).shuffled()
+    };
 
     if let Some(is_path) = &path {
         Graph::to_as_rel_file(&graph, &is_path)?;
