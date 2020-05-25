@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-import os
 import subprocess
+from subprocess import Popen
 
 def main():
 	cargo_build()
@@ -27,7 +27,9 @@ def cargo_build():
 
 
 def test_graph_pipe():
-	command = 'echo -e "0|1|0\n0|2|0\n1|0|0\n1|2|0\n2|0|0\n2|1|0" | target/release/qsc_sim SimpleQsc -'
+	graph = b"0|1|0\n0|2|0\n1|0|0\n1|2|0\n2|0|0\n2|1|0"
+	executable = 'target/release/qsc_sim'
+	args = ['SimpleQsc','-']
 
 	expected_lines = [
 			'[',
@@ -67,16 +69,18 @@ def test_graph_pipe():
 			']',
 			]
 
-	run_and_check(command, expected_lines)
+	run_and_check(executable, args, graph, expected_lines)
 
-def run_and_check(command, expected_lines):
-	print("Running command: '%s'" % repr(command))
-	completed_process = subprocess.run(command, capture_output=True, universal_newlines=True, shell=True)
-	stdout_lines = completed_process.stdout
+def run_and_check(executable, args, to_stdin, expected_lines):
+	print("Running command: {} | {} {} {}" .format(repr(to_stdin), executable, args[0], '-'))
+	completed_process = subprocess.Popen([executable, args[0],args[1]], stdin=subprocess.PIPE,
+			stdout=subprocess.PIPE, shell=False)
+	completed_process.stdin.write(to_stdin)
+	stdout_lines, stderr_lines = completed_process.communicate()
 
 	print("Checking output for expected important lines...")
 	for line in expected_lines:
-		assert line in stdout_lines, "Missing output line: '%s'" % line
+		assert line in stdout_lines.decode('utf-8'), "Missing output line: '%s'" % line
 
 if __name__ == "__main__":
 	main()
