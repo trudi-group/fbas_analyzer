@@ -16,18 +16,23 @@ use std::time::Instant;
 
 use std::collections::BTreeMap;
 
-/// Learn things about a given FBAS (parses data from stellarbeat.org)
+/// Bulk analyze multiple FBASs (in stellarbeat.org JSON format)
 #[derive(Debug, StructOpt)]
 struct Cli {
     /// Paths to JSON files describing FBASs and organizations in stellarbeat.org "nodes" format.
-    /// Files must follow the naming scheme `label_*_nodes.json`/`label_*_organizations.json`
-    /// where `*` is something arbitrary, `label` is typically a timestamp and nodes and
-    /// organizations files are matched based on their label.
+    /// Files folowing the naming scheme `(X_)organizations(_Y).json` are interpreted as
+    /// organizations for a `X_Y.json` or `X_nodes_Y.json` file with matching `X`/`Y` contents.
+    /// A data point label is extracted from the file name by removing `(_)nodes(_)` and
+    /// `(_)organizations(_)` substrings and the string supplied as `--ignore-for-label`
+    /// (e.g., `2020-06-03_stellarbeat_nodes.json` gets the label `2020-06-03`).
     input_paths: Vec<PathBuf>,
 
     /// Output CSV file (will output to STDOUT if omitted)
     #[structopt(short = "o", long = "out")]
     output_path: Option<PathBuf>,
+
+    #[structopt(short = "i", long = "ignore-for-label", default_value = "stellarbeat")]
+    ignore_for_label: String,
 
     #[structopt(flatten)]
     verbosity: Verbosity,
@@ -37,7 +42,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
-    let mut inputs: Vec<InputDataPoint> = extract_inputs(&args.input_paths)?;
+    let mut inputs: Vec<InputDataPoint> =
+        extract_inputs(&args.input_paths, &args.ignore_for_label)?;
     inputs.sort();
 
     let outputs = inputs.into_iter().map(analyze);
@@ -76,17 +82,26 @@ struct OutputDataPoint {
     analysis_duration: f64,
 }
 
-fn extract_inputs(input_paths: &[PathBuf]) -> Result<Vec<InputDataPoint>, &str> {
+fn extract_inputs(
+    input_paths: &[PathBuf],
+    substring_to_ignore_for_label: &str,
+) -> Result<Vec<InputDataPoint>, io::Error> {
     let nodes_paths = extract_nodes_paths(input_paths);
-    let organizations_paths_by_label = extract_organizations_paths_by_label(input_paths);
+    let organizations_paths_by_label =
+        extract_organizations_paths_by_label(input_paths, substring_to_ignore_for_label);
 
     if nodes_paths.len() + organizations_paths_by_label.keys().len() < input_paths.len() {
-        Err(
-            "Some input files could not be recognized; input file names should end with either
-            `nodes.json` or `organizations.json`.",
-        )
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Some input files could not be recognized based on their file name; \
+                input file names must end with `.json`.",
+        ))
     } else {
-        Ok(build_inputs(nodes_paths, organizations_paths_by_label))
+        Ok(build_inputs(
+            nodes_paths,
+            organizations_paths_by_label,
+            substring_to_ignore_for_label,
+        ))
     }
 }
 
@@ -131,7 +146,14 @@ fn write_csv(
     output_path: Option<PathBuf>,
 ) -> Result<(), Box<dyn Error>> {
     if let Some(path) = output_path {
-        write_csv_to_file(data_points, path)
+        if path.exists() {
+            Err(Box::new(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "Output file exists, refusing to overwrite.",
+            )))
+        } else {
+            write_csv_to_file(data_points, path)
+        }
     } else {
         write_csv_to_stdout(data_points)
     }
@@ -140,25 +162,31 @@ fn write_csv(
 fn extract_nodes_paths(input_paths: &[PathBuf]) -> Vec<PathBuf> {
     input_paths
         .iter()
-        .filter(|&p| extract_file_name(p).ends_with("nodes.json"))
+        .filter(|&p| extract_file_name(p).ends_with(".json"))
+        .filter(|&p| !extract_file_name(p).contains("organizations"))
         .cloned()
         .collect()
 }
-fn extract_organizations_paths_by_label(input_paths: &[PathBuf]) -> BTreeMap<String, PathBuf> {
+fn extract_organizations_paths_by_label(
+    input_paths: &[PathBuf],
+    substring_to_ignore_for_label: &str,
+) -> BTreeMap<String, PathBuf> {
     input_paths
         .iter()
-        .filter(|&p| extract_file_name(p).ends_with("organizations.json"))
-        .map(|p| (extract_label(&p), p.clone()))
+        .filter(|&p| extract_file_name(p).ends_with(".json"))
+        .filter(|&p| extract_file_name(p).contains("organizations"))
+        .map(|p| (extract_label(&p, substring_to_ignore_for_label), p.clone()))
         .collect()
 }
 fn build_inputs(
     nodes_paths: Vec<PathBuf>,
     organizations_paths_by_label: BTreeMap<String, PathBuf>,
+    substring_to_ignore_for_label: &str,
 ) -> Vec<InputDataPoint> {
     nodes_paths
         .into_iter()
         .map(|p| {
-            let label = extract_label(&p);
+            let label = extract_label(&p, substring_to_ignore_for_label);
             let nodes_path = p;
             let organizations_path = organizations_paths_by_label.get(&label).cloned();
             InputDataPoint {
@@ -176,12 +204,15 @@ fn extract_file_name(path: &PathBuf) -> String {
         .into_string()
         .unwrap()
 }
-fn extract_label(path: &PathBuf) -> String {
-    extract_file_name(&path)
+fn extract_label(path: &PathBuf, substring_to_ignore_for_label: &str) -> String {
+    let ignore_list = vec!["nodes", "organizations", substring_to_ignore_for_label];
+    let label_parts: Vec<String> = extract_file_name(&path)
+        .replace(".json", "")
         .split_terminator('_')
-        .next()
-        .unwrap()
-        .to_string()
+        .filter(|s| !ignore_list.contains(s))
+        .map(|s| s.to_string())
+        .collect();
+    label_parts.join("_")
 }
 
 fn load_fbas(nodes_path: &PathBuf) -> Fbas {
