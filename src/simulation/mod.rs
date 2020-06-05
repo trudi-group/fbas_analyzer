@@ -110,29 +110,6 @@ impl ChangeEffect {
 }
 use ChangeEffect::*;
 
-impl Fbas {
-    /// FBAS of `n` nodes with empty quorum sets
-    pub fn new_generic_unconfigured(n: usize) -> Self {
-        let mut fbas = Fbas::new();
-        for _ in 0..n {
-            fbas.add_generic_node(QuorumSet::new());
-        }
-        fbas
-    }
-    /// Add a node with generic "`public_key`"
-    pub fn add_generic_node(&mut self, quorum_set: QuorumSet) -> NodeId {
-        let node_id = self.nodes.len();
-        self.add_node(Node {
-            public_key: generate_generic_node_name(node_id),
-            quorum_set,
-        });
-        node_id
-    }
-}
-fn generate_generic_node_name(node_id: NodeId) -> String {
-    format!("n{}", node_id)
-}
-
 #[cfg(test)]
 mod tests {
     use super::monitors::*;

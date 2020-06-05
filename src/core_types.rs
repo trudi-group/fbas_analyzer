@@ -74,11 +74,20 @@ pub struct Fbas {
     pub(crate) pk_to_id: HashMap<PublicKey, NodeId>,
 }
 impl Fbas {
+    /// FBAS of 0 nodes.
     pub fn new() -> Self {
         Fbas {
             nodes: vec![],
             pk_to_id: HashMap::new(),
         }
+    }
+    /// FBAS of `n` nodes with empty quorum sets
+    pub fn new_generic_unconfigured(n: usize) -> Self {
+        let mut fbas = Fbas::new();
+        for _ in 0..n {
+            fbas.add_generic_node(QuorumSet::new());
+        }
+        fbas
     }
     pub fn add_node(&mut self, node: Node) -> NodeId {
         let node_id = self.nodes.len();
@@ -90,6 +99,15 @@ impl Fbas {
             );
         }
         self.nodes.push(node);
+        node_id
+    }
+    /// Add a node with generic `public_key`
+    pub fn add_generic_node(&mut self, quorum_set: QuorumSet) -> NodeId {
+        let node_id = self.nodes.len();
+        self.add_node(Node {
+            public_key: generate_generic_node_name(node_id),
+            quorum_set,
+        });
         node_id
     }
     pub fn number_of_nodes(&self) -> usize {
@@ -104,6 +122,9 @@ impl Fbas {
                 .iter()
                 .all(|x| self.nodes[x].is_quorum_slice(&node_set))
     }
+}
+fn generate_generic_node_name(node_id: NodeId) -> String {
+    format!("n{}", node_id)
 }
 
 #[derive(Clone, Debug, PartialEq)]

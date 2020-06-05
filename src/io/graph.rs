@@ -9,6 +9,8 @@ use std::cmp::max;
 use std::fs;
 use std::fs::File;
 
+use std::io::prelude::*;
+
 impl Graph {
     pub fn from_as_rel_file(path: &Path) -> Self {
         let contents = read_bz2_file_to_string(path);

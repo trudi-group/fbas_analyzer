@@ -1,6 +1,6 @@
 use super::*;
 
-pub type RankScore = f64;
+type RankScore = f64;
 
 /// Rank nodes using an adaptation of the page rank algorithm (no dampening, fixed number of runs,
 /// no distinction between validators and inner quorum set validators). Links from nodes not in

@@ -1,6 +1,5 @@
 use std::fs;
 use std::io;
-use std::io::prelude::*;
 use std::path::Path;
 
 use crate::*;
@@ -11,5 +10,7 @@ use fbas::*;
 mod results;
 pub use results::*;
 
+#[cfg(feature = "qsc-simulation")]
 mod graph;
+#[cfg(feature = "qsc-simulation")]
 pub use graph::*;

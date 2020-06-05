@@ -15,7 +15,8 @@ def main():
 
 
 def cargo_test():
-    run_and_check_return('cargo test', 'Running unit tests')
+    run_and_check_return('cargo test --no-default-features', 'Running unit tests with minimal feature set')
+    run_and_check_return('cargo test', 'Running unit tests with regular feature set')
     run_and_check_return('cargo test -- --ignored', 'Running slow unit tests')
 
 
@@ -37,7 +38,7 @@ def test_fbas_analyzer_with_organizations():
         'minimal_splitting_sets: [["LOBSTR","Stellar Development Foundation","COINQVEST Limited"],["LOBSTR","Stellar Development Foundation","SatoshiPay"],["LOBSTR","Stellar Development Foundation","Keybase"],["LOBSTR","COINQVEST Limited","SatoshiPay"],["LOBSTR","COINQVEST Limited","Keybase"],["LOBSTR","SatoshiPay","Keybase"],["Stellar Development Foundation","COINQVEST Limited","SatoshiPay"],["Stellar Development Foundation","COINQVEST Limited","Keybase"],["Stellar Development Foundation","SatoshiPay","Keybase"],["COINQVEST Limited","SatoshiPay","Keybase"]]',
         'top_tier: ["LOBSTR","Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase"]',
         ]
-    run_and_check_output(command, expected_strings)
+    run_and_check_output(command, expected_strings=expected_strings)
 
 
 def test_fbas_analyzer_with_ids():
@@ -45,7 +46,7 @@ def test_fbas_analyzer_with_ids():
     expected_strings = [
         'top_tier: [1,4,8,23,29,36,37,43,44,52,56,69,86,105,167,168,171]',
     ]
-    run_and_check_output(command, expected_strings)
+    run_and_check_output(command, expected_strings=expected_strings)
 
 
 def test_bulk_fbas_analyzer():
@@ -69,7 +70,7 @@ def test_bulk_fbas_analyzer_to_stdout():
         '2019-09-17,true,true,5,2,2,2.0,3,3,3.0,4,4,4.0',
         '2020-01-16_broken_by_hand,false,false,22,5,6,5.625,0,0,0.0,2,11,10.9413',
         ]
-    run_and_check_output(command, expected_strings)
+    run_and_check_output(command, expected_strings=expected_strings)
 
 
 def test_qsc_simulator():
@@ -114,7 +115,7 @@ def test_qsc_simulator():
         ']',
         ])
 
-    run_and_check_output(command, [expected], stdin=graph)
+    run_and_check_output(command, expected_strings=[expected], stdin=graph)
 
 
 def run_and_check_return(command, log_message, expected_returncode=0):
