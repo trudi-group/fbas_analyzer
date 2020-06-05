@@ -14,6 +14,8 @@ use std::error::Error;
 use std::path::PathBuf;
 use std::time::Instant;
 
+use par_map::ParMap;
+
 use std::collections::BTreeMap;
 
 /// Bulk analyze multiple FBASs (in stellarbeat.org JSON format)
@@ -46,7 +48,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         extract_inputs(&args.input_paths, &args.ignore_for_label)?;
     inputs.sort();
 
-    let outputs = inputs.into_iter().map(analyze);
+    let outputs = inputs.into_iter().par_map(analyze);
 
     write_csv(outputs, args.output_path)?;
     Ok(())
