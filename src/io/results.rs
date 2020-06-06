@@ -1,3 +1,4 @@
+use serde::{Serialize, Serializer};
 use super::*;
 
 macro_rules! json_format_single_line {
@@ -66,6 +67,14 @@ impl<'a> AnalysisResult for NodeIdSetResult<'a> {
         self.len().to_string()
     }
 }
+impl<'a> Serialize for NodeIdSetResult<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.clone().into_vec().serialize(serializer)
+    }
+}
 
 impl<'a> AnalysisResult for NodeIdSetVecResult<'a> {
     fn into_id_string(self) -> String {
@@ -84,6 +93,14 @@ impl<'a> AnalysisResult for NodeIdSetVecResult<'a> {
     }
     fn into_describe_string(self) -> String {
         json_format_single_line!(self.describe())
+    }
+}
+impl<'a> Serialize for NodeIdSetVecResult<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.clone().into_vec_vec().serialize(serializer)
     }
 }
 
