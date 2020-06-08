@@ -16,7 +16,6 @@ pub type NodeIdDeque = VecDeque<NodeId>;
 /// Create a **BitSet** from a list of elements.
 ///
 /// ## Example
-///
 /// ```
 /// #[macro_use] extern crate fbas_analyzer;
 ///
@@ -47,7 +46,6 @@ macro_rules! bitset {
 /// Create a **Vec<BitSet>** from a list of sets.
 ///
 /// ## Example
-///
 /// ```
 /// #[macro_use] extern crate fbas_analyzer;
 ///

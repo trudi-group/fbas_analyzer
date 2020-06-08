@@ -48,6 +48,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         extract_inputs(&args.input_paths, &args.ignore_for_label)?;
     inputs.sort();
 
+    // `par_map` is `map` with parallel processing
     let outputs = inputs.into_iter().par_map(analyze);
 
     write_csv(outputs, args.output_path)?;

@@ -21,7 +21,7 @@ def cargo_test():
 
 
 def cargo_build():
-    run_and_check_return('cargo build --release', 'Building project to make sure we have an up to date binary')
+    run_and_check_return('cargo build --release', 'Building project to make sure we have up to date binaries')
 
 
 def test_fbas_analyzer():

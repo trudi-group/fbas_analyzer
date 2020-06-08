@@ -30,6 +30,8 @@ pub struct Analysis<'a> {
     minimal_splitting_sets_shrunken: Option<Vec<NodeIdSet>>,
 }
 impl<'a> Analysis<'a> {
+    /// Start a new `Analysis`. If `organizations` is set, nodes belonging to the same organization
+    /// will be merged into one node in analysis results.
     pub fn new(fbas: &'a Fbas, organizations: Option<&'a Organizations<'a>>) -> Self {
         debug!(
             "Shrinking FBAS of size {} to set of strongly connected nodes (for performance)...",
@@ -53,41 +55,45 @@ impl<'a> Analysis<'a> {
             minimal_splitting_sets_shrunken: None,
         }
     }
-    /// Actual raw nodes, not filtered and not merged by organization
+    /// Whether nodes belonging to the same organization will be merged in analysis results.
+    pub fn merging_by_organization(&self) -> bool {
+        self.organizations_original.is_some()
+    }
+    /// Raw nodes in the analyzed FBAS, not filtered and not merged by organization.
     pub fn all_physical_nodes(&self) -> NodeIdSetResult {
-        NodeIdSetResult::new(self.fbas_original.all_nodes(), None)
+        self.make_unshrunken_set_result(self.fbas_original.all_nodes())
     }
-    /// Nodes of the organization merged into one (default for all results returned by `Analysis`)
+    /// Nodes in the analyzed FBAS. Raw nodes if no organizations are given, one node per
+    /// organization else. Not filtered.
     pub fn all_nodes(&self) -> NodeIdSetResult {
-        NodeIdSetResult::new(
-            self.maybe_merge_node_ids(self.fbas_original.all_nodes()),
-            None,
+        self.make_unshrunken_set_result(
+            self.maybe_merge_node_ids_by_organization(self.fbas_original.all_nodes()),
         )
     }
+    /// Nodes in the analyzed FBAS that can be satisfied given their quorum sets and the nodes
+    /// existing in the FBAS.
     pub fn satisfiable_nodes(&self) -> NodeIdSetResult {
-        NodeIdSetResult::new(
-            self.maybe_merge_node_ids(self.fbas_original.satisfiable_nodes()),
-            None,
-        )
+        let satisfiable_nodes =
+            self.maybe_merge_node_ids_by_organization(self.fbas_original.satisfiable_nodes());
+        self.make_unshrunken_set_result(satisfiable_nodes)
     }
+    /// Nodes in the analyzed FBAS that can never be satisfied given their quorum sets and the
+    /// nodes existing in the FBAS.
     pub fn unsatisfiable_nodes(&self) -> NodeIdSetResult {
-        NodeIdSetResult::new(
-            self.maybe_merge_node_ids(self.fbas_original.unsatisfiable_nodes()),
-            None,
-        )
+        let unsatisfiable_nodes =
+            self.maybe_merge_node_ids_by_organization(self.fbas_original.unsatisfiable_nodes());
+        self.make_unshrunken_set_result(unsatisfiable_nodes)
     }
-    /// Regular check via finding all minimal quorums.
+    /// Regular quorum intersection check via finding all minimal quorums.
+    /// Algorithm inspired by [Lachowski 2019](https://arxiv.org/abs/1902.06493)).
     pub fn has_quorum_intersection(&mut self) -> bool {
         if self.has_quorum_intersection.is_none() {
-            info!("Checking for intersection of all minimal quorums...");
-            let minimal_quorums_shrunken = self.minimal_quorums_shrunken();
-            self.has_quorum_intersection = Some(
-                !minimal_quorums_shrunken.is_empty() && all_intersect(&minimal_quorums_shrunken),
-            )
+            self.find_and_cache_has_quorum_intersection();
         }
         self.has_quorum_intersection.unwrap()
     }
-    /// Works faster for FBASs that do not enjoy quorum intersection.
+    /// Quorum intersection check that works faster for FBASs that do not enjoy quorum
+    /// intersection.
     pub fn has_quorum_intersection_via_alternative_check(
         &self,
     ) -> (bool, Option<NodeIdSetVecResult>) {
@@ -104,21 +110,38 @@ impl<'a> Analysis<'a> {
             (true, None)
         }
     }
+    /// Minimal quorums - no proper subset of any of these node sets is a quorum.
     pub fn minimal_quorums(&mut self) -> NodeIdSetVecResult {
-        NodeIdSetVecResult::new(self.minimal_quorums_shrunken(), Some(&self.unshrink_table))
+        let minimal_quorums_shrunken = self.minimal_quorums_shrunken();
+        self.make_shrunken_set_vec_result(minimal_quorums_shrunken)
     }
+    /// Minimal blocking sets - minimal indispensable sets for global liveness.
     pub fn minimal_blocking_sets(&mut self) -> NodeIdSetVecResult {
-        NodeIdSetVecResult::new(
-            self.minimal_blocking_sets_shrunken(),
-            Some(&self.unshrink_table),
-        )
+        let minimal_blocking_sets_shrunken = self.minimal_blocking_sets_shrunken();
+        self.make_shrunken_set_vec_result(minimal_blocking_sets_shrunken)
     }
+    /// Minimal splitting sets - minimal indispensable sets for safety.
     pub fn minimal_splitting_sets(&mut self) -> NodeIdSetVecResult {
-        NodeIdSetVecResult::new(
-            self.minimal_splitting_sets_shrunken(),
-            Some(&self.unshrink_table),
-        )
+        let minimal_splitting_sets_shrunken = self.minimal_splitting_sets_shrunken();
+        self.make_shrunken_set_vec_result(minimal_splitting_sets_shrunken)
     }
+    /// Top tier - the set of nodes exclusively relevant when determining minimal blocking sets and
+    /// minimal splitting sets.
+    pub fn top_tier(&mut self) -> NodeIdSetResult {
+        let top_tier = involved_nodes(&self.minimal_quorums_shrunken());
+        self.make_shrunken_set_result(top_tier)
+    }
+    /// Symmetric clusters - sets of nodes in which each two nodes have the same quorum set.
+    /// Here, each found symmetric cluster is represented by its common quorum set.
+    pub fn symmetric_clusters(&self) -> Vec<QuorumSet> {
+        let clusters = find_symmetric_clusters(self.fbas_original);
+        if let Some(ref orgs) = self.organizations_original {
+            orgs.merge_quorum_sets(clusters)
+        } else {
+            clusters
+        }
+    }
+
     fn minimal_quorums_shrunken(&mut self) -> Vec<NodeIdSet> {
         if self.minimal_quorums_shrunken.is_none() {
             self.find_and_cache_minimal_quorums();
@@ -129,9 +152,7 @@ impl<'a> Analysis<'a> {
     }
     fn minimal_blocking_sets_shrunken(&mut self) -> Vec<NodeIdSet> {
         if self.minimal_blocking_sets_shrunken.is_none() {
-            warn!("Computing minimal blocking sets...");
-            self.minimal_blocking_sets_shrunken =
-                Some(find_minimal_blocking_sets(&self.minimal_quorums_shrunken()));
+            self.find_and_cache_minimal_blocking_sets();
         } else {
             info!("Using cached minimal blocking sets.");
         }
@@ -139,31 +160,21 @@ impl<'a> Analysis<'a> {
     }
     fn minimal_splitting_sets_shrunken(&mut self) -> Vec<NodeIdSet> {
         if self.minimal_splitting_sets_shrunken.is_none() {
-            warn!("Computing minimal splitting sets...");
-            self.minimal_splitting_sets_shrunken = Some(find_minimal_splitting_sets(
-                &self.minimal_quorums_shrunken(),
-            ));
+            self.find_and_cache_minimal_splitting_sets();
         } else {
             info!("Using cached minimal splitting sets.");
         }
         self.minimal_splitting_sets_shrunken.clone().unwrap()
     }
-    pub fn symmetric_clusters(&self) -> Vec<QuorumSet> {
-        let clusters = find_symmetric_clusters(self.fbas_original);
-        if let Some(ref orgs) = self.organizations_original {
-            orgs.merge_quorum_sets(clusters)
-        } else {
-            clusters
-        }
-    }
-    pub fn top_tier(&mut self) -> NodeIdSetResult {
-        NodeIdSetResult::new(
-            involved_nodes(&self.minimal_quorums_shrunken()),
-            Some(&self.unshrink_table),
-        )
+
+    fn find_and_cache_has_quorum_intersection(&mut self) {
+        info!("Checking for intersection of all minimal quorums...");
+        let minimal_quorums_shrunken = self.minimal_quorums_shrunken();
+        self.has_quorum_intersection =
+            Some(!minimal_quorums_shrunken.is_empty() && all_intersect(&minimal_quorums_shrunken));
     }
     fn find_and_cache_minimal_quorums(&mut self) {
-        warn!("Computing minimal quorums...");
+        info!("Computing minimal quorums...");
         let mut minimal_quorums_shrunken = find_minimal_quorums(&self.fbas_shrunken);
         debug!("Shrinking FBAS again, to top tier (for performance)...",);
         let top_tier_original = unshrink_set(
@@ -212,15 +223,32 @@ impl<'a> Analysis<'a> {
             }
         }
     }
-    fn maybe_merge_node_ids(&self, node_set: NodeIdSet) -> NodeIdSet {
+    fn find_and_cache_minimal_blocking_sets(&mut self) {
+        info!("Computing minimal blocking sets...");
+        self.minimal_blocking_sets_shrunken =
+            Some(find_minimal_blocking_sets(&self.minimal_quorums_shrunken()));
+    }
+    fn find_and_cache_minimal_splitting_sets(&mut self) {
+        info!("Computing minimal splitting sets...");
+        self.minimal_splitting_sets_shrunken = Some(find_minimal_splitting_sets(
+            &self.minimal_quorums_shrunken(),
+        ));
+    }
+    fn maybe_merge_node_ids_by_organization(&self, node_set: NodeIdSet) -> NodeIdSet {
         if let Some(ref orgs) = self.organizations_original {
             orgs.merge_node_set(node_set)
         } else {
             node_set
         }
     }
-    pub fn merging_by_organization(&self) -> bool {
-        self.organizations_original.is_some()
+    fn make_unshrunken_set_result(&self, payload: NodeIdSet) -> NodeIdSetResult {
+        NodeIdSetResult::new(payload, None)
+    }
+    fn make_shrunken_set_result(&self, payload: NodeIdSet) -> NodeIdSetResult {
+        NodeIdSetResult::new(payload, Some(&self.unshrink_table))
+    }
+    fn make_shrunken_set_vec_result(&self, payload: Vec<NodeIdSet>) -> NodeIdSetVecResult {
+        NodeIdSetVecResult::new(payload, Some(&self.unshrink_table))
     }
 }
 

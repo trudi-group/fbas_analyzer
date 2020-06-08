@@ -1,5 +1,5 @@
-use serde::{Serialize, Serializer};
 use super::*;
+use serde::{Serialize, Serializer};
 
 macro_rules! json_format_single_line {
     ($x:expr) => {
@@ -12,7 +12,7 @@ macro_rules! json_format_pretty {
     };
 }
 
-pub trait AnalysisResult: Sized {
+pub trait AnalysisResult: Sized + Serialize {
     fn into_id_string(self) -> String;
     fn into_pretty_string(self, _: &Fbas, _: &Option<Organizations>) -> String {
         self.into_id_string()

@@ -14,7 +14,7 @@ impl RandomQsc {
         RandomQsc {
             desired_quorum_set_size,
             desired_threshold,
-            weights: weights.unwrap_or_else(|| vec![]),
+            weights: weights.unwrap_or_else(Vec::new),
         }
     }
     pub fn new_simple(desired_quorum_set_size: usize) -> Self {
