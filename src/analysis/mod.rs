@@ -12,6 +12,7 @@ mod splitting_sets;
 mod merge_by_org;
 mod preprocessing;
 mod sets;
+mod timing;
 
 pub use front_end::Analysis;
 pub use results::{NodeIdSetResult, NodeIdSetVecResult};
@@ -22,6 +23,7 @@ pub use splitting_sets::find_minimal_splitting_sets;
 
 pub(crate) use preprocessing::*;
 pub use sets::*;
+pub use timing::*;
 
 #[cfg(test)]
 mod tests {

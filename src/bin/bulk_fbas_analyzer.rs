@@ -12,7 +12,6 @@ use std::io;
 
 use std::error::Error;
 use std::path::PathBuf;
-use std::time::Instant;
 
 use par_map::ParMap;
 
@@ -33,8 +32,13 @@ struct Cli {
     #[structopt(short = "o", long = "out")]
     output_path: Option<PathBuf>,
 
+    /// Filter out this string when constructing data point labels from file names.
     #[structopt(short = "i", long = "ignore-for-label", default_value = "stellarbeat")]
     ignore_for_label: String,
+
+    /// Number of threads to use. Defaults to number of CPUs available.
+    #[structopt(short = "j", long = "jobs")]
+    jobs: Option<usize>,
 
     #[structopt(flatten)]
     verbosity: Verbosity,
@@ -48,8 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         extract_inputs(&args.input_paths, &args.ignore_for_label)?;
     inputs.sort();
 
-    // `par_map` is `map` with parallel processing
-    let outputs = inputs.into_iter().par_map(analyze);
+    let outputs = bulk_analyze(inputs, args.jobs);
 
     write_csv(outputs, args.output_path)?;
     Ok(())
@@ -82,7 +85,10 @@ struct OutputDataPoint {
     mq_min: usize,
     mq_max: usize,
     mq_mean: f64,
-    analysis_duration: f64,
+    analysis_duration_mq: f64,
+    analysis_duration_mbs: f64,
+    analysis_duration_mss: f64,
+    analysis_duration_total: f64,
 }
 
 fn extract_inputs(
@@ -108,39 +114,60 @@ fn extract_inputs(
     }
 }
 
+fn bulk_analyze(
+    inputs: Vec<InputDataPoint>,
+    number_of_threads: Option<usize>,
+) -> impl Iterator<Item = OutputDataPoint> {
+    if let Some(n) = number_of_threads {
+        inputs.into_iter().with_nb_threads(n).par_map(analyze)
+    } else {
+        inputs.into_iter().par_map(analyze)
+    }
+}
 fn analyze(input: InputDataPoint) -> OutputDataPoint {
-    let time_measurement_start = Instant::now();
+    let (result_without_total_duration, analysis_duration_total) = timed_secs!({
+        let fbas = load_fbas(&input.nodes_path);
+        let organizations = maybe_load_organizations(input.organizations_path.as_ref(), &fbas);
+        let analysis = Analysis::new(&fbas, organizations.as_ref());
 
-    let fbas = load_fbas(&input.nodes_path);
-    let organizations = maybe_load_organizations(input.organizations_path.as_ref(), &fbas);
-    let analysis = Analysis::new(&fbas, organizations.as_ref());
+        let label = input.label.clone();
+        let merged_by_organizations = input.organizations_path.is_some();
 
-    let label = input.label.clone();
-    let merged_by_organizations = input.organizations_path.is_some();
-    let has_quorum_intersection = analysis.has_quorum_intersection();
-    let top_tier_size = analysis.top_tier().len();
+        let ((mq_min, mq_max, mq_mean), analysis_duration_mq) =
+            timed_secs!(analysis.minimal_quorums().minmaxmean());
 
-    let (mbs_min, mbs_max, mbs_mean) = analysis.minimal_blocking_sets().minmaxmean();
-    let (mss_min, mss_max, mss_mean) = analysis.minimal_splitting_sets().minmaxmean();
-    let (mq_min, mq_max, mq_mean) = analysis.minimal_quorums().minmaxmean();
+        let has_quorum_intersection = analysis.has_quorum_intersection();
+        let top_tier_size = analysis.top_tier().len();
 
-    let analysis_duration = time_measurement_start.elapsed().as_secs_f64();
+        let ((mbs_min, mbs_max, mbs_mean), analysis_duration_mbs) =
+            timed_secs!(analysis.minimal_blocking_sets().minmaxmean());
 
+        let ((mss_min, mss_max, mss_mean), analysis_duration_mss) =
+            timed_secs!(analysis.minimal_splitting_sets().minmaxmean());
+
+        OutputDataPoint {
+            label,
+            merged_by_organizations,
+            has_quorum_intersection,
+            top_tier_size,
+            mbs_min,
+            mbs_max,
+            mbs_mean,
+            mss_min,
+            mss_max,
+            mss_mean,
+            mq_min,
+            mq_max,
+            mq_mean,
+            analysis_duration_mq,
+            analysis_duration_mbs,
+            analysis_duration_mss,
+            analysis_duration_total: 0.,
+        }
+    });
     OutputDataPoint {
-        label,
-        merged_by_organizations,
-        has_quorum_intersection,
-        top_tier_size,
-        mbs_min,
-        mbs_max,
-        mbs_mean,
-        mss_min,
-        mss_max,
-        mss_mean,
-        mq_min,
-        mq_max,
-        mq_mean,
-        analysis_duration,
+        analysis_duration_total,
+        ..result_without_total_duration
     }
 }
 

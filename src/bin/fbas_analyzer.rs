@@ -6,7 +6,6 @@ use quicli::prelude::*;
 use structopt::StructOpt;
 
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
 
 /// Learn things about a given FBAS (parses data from stellarbeat.org)
 #[derive(Debug, StructOpt)]
@@ -129,17 +128,9 @@ fn extract_main_todos(args: &Cli) -> (bool, bool, bool) {
     }
 }
 
-macro_rules! time_measured {
-    ($operation:expr) => {{
-        let measurement_start = Instant::now();
-        let return_value = $operation;
-        let duration = measurement_start.elapsed();
-        (return_value, duration)
-    }};
-}
 macro_rules! do_time_and_report {
     ($result_name:expr, $operation:expr, $output:expr) => {{
-        let (result, duration) = time_measured!($operation);
+        let (result, duration) = timed!($operation);
         $output.timed_result($result_name, result, duration);
     }};
 }
@@ -161,7 +152,7 @@ fn check_and_report_if_has_quorum_intersection(
     let has_quorum_intersection = if alternative_check {
         output.comment("Alternative quorum intersection check...");
         let ((has_quorum_intersection, quorums), duration) =
-            time_measured!(analysis.has_quorum_intersection_via_alternative_check());
+            timed!(analysis.has_quorum_intersection_via_alternative_check());
         output.timed_result("has_quorum_intersection", has_quorum_intersection, duration);
         if let Some(nonintersecting_quorums) = quorums {
             output.result("nonintersecting_quorums", nonintersecting_quorums);
