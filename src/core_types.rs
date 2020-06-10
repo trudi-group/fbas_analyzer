@@ -13,7 +13,7 @@ pub type PublicKey = String;
 pub type NodeIdSet = BitSet;
 pub type NodeIdDeque = VecDeque<NodeId>;
 
-/// Create a **BitSet** from a list of elements.
+/// Create a `BitSet` from a list of elements.
 ///
 /// ## Example
 /// ```
@@ -43,7 +43,7 @@ macro_rules! bitset {
     };
 }
 
-/// Create a **Vec<BitSet>** from a list of sets.
+/// Create a `Vec<BitSet>` from a list of sets.
 ///
 /// ## Example
 /// ```

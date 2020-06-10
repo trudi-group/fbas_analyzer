@@ -5,8 +5,7 @@ use super::*;
 /// Creates threshold=n quorum sets containing all n nodes in the FBAS.
 ///
 /// ```
-/// #[macro_use] extern crate fbas_analyzer;
-/// use fbas_analyzer::{Fbas, Analysis};
+/// use fbas_analyzer::{Fbas, Analysis, bitset};
 /// use fbas_analyzer::simulation::{Simulator, qsc, monitors};
 /// use std::rc::Rc;
 ///

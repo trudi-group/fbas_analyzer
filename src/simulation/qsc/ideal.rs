@@ -7,8 +7,7 @@ use super::*;
 /// a maximum of f nodes can fail, where (n-1) < (3f+1) <= n.
 ///
 /// ```
-/// #[macro_use] extern crate fbas_analyzer;
-/// use fbas_analyzer::{Fbas, Analysis};
+/// use fbas_analyzer::{Fbas, Analysis, bitset};
 /// use fbas_analyzer::simulation::{Simulator, qsc, monitors};
 /// use std::rc::Rc;
 ///

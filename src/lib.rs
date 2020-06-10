@@ -8,10 +8,7 @@
 //! We will load a simple FBAS from the `test_data` folder. We will not use an organizations file;
 //! analyses will be based on raw nodes.
 //! ```
-//! #[macro_use] extern crate fbas_analyzer; // for `bitset!` and `bitsetvec!`
-//!
-//! use fbas_analyzer::Fbas;
-//! use fbas_analyzer::Analysis;
+//! use fbas_analyzer::{Fbas, Analysis, bitset, bitsetvec};
 //!
 //! let fbas = Fbas::from_json_file(std::path::Path::new("test_data/correct.json"));
 //! let analysis = Analysis::new(&fbas, None);
