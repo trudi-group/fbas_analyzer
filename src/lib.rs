@@ -13,9 +13,8 @@
 //! use fbas_analyzer::Fbas;
 //! use fbas_analyzer::Analysis;
 //!
-//! // `Analysis` caches analysis results, hence we want `analysis` to be mutable.
 //! let fbas = Fbas::from_json_file(std::path::Path::new("test_data/correct.json"));
-//! let mut analysis = Analysis::new(&fbas, None);
+//! let analysis = Analysis::new(&fbas, None);
 //!
 //! assert!(analysis.has_quorum_intersection());
 //!
@@ -35,12 +34,15 @@
 mod analysis;
 mod core_types;
 mod io;
+mod shrinking;
 
 pub use analysis::*;
 pub use core_types::{Fbas, NodeId, NodeIdSet, Organizations, QuorumSet};
 pub use io::AnalysisResult;
 
 use core_types::*;
+use shrinking::*;
+
 use log::{debug, info, warn};
 
 #[cfg(feature = "qsc-simulation")]

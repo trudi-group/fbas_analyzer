@@ -1,9 +1,6 @@
 use super::*;
 use std::collections::BTreeMap;
 
-extern crate pathfinding;
-use pathfinding::directed::strongly_connected_components::strongly_connected_components;
-
 /// Find all minimal quorums in the FBAS...
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal quorums...");
@@ -290,61 +287,6 @@ fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
         satisfiable.remove(unsatisfiable_node);
     }
     !satisfiable.is_empty()
-}
-
-/// Partitions `node_set` into the sets of `(satisfiable, unsatisfiable)' nodes.
-pub fn find_unsatisfiable_nodes(node_set: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
-    let (mut satisfiable, mut unsatisfiable): (NodeIdSet, NodeIdSet) = node_set
-        .iter()
-        .partition(|&x| fbas.nodes[x].is_quorum_slice(&node_set));
-
-    while let Some(unsatisfiable_node) = satisfiable
-        .iter()
-        .find(|&x| !fbas.nodes[x].is_quorum_slice(&satisfiable))
-    {
-        satisfiable.remove(unsatisfiable_node);
-        unsatisfiable.insert(unsatisfiable_node);
-    }
-    (satisfiable, unsatisfiable)
-}
-
-/// Using implementation from `pathfinding` crate.
-fn partition_into_strongly_connected_components(nodes: &NodeIdSet, fbas: &Fbas) -> Vec<NodeIdSet> {
-    let sucessors = |&node_id: &NodeId| -> Vec<NodeId> {
-        fbas.nodes[node_id]
-            .quorum_set
-            .contained_nodes()
-            .into_iter()
-            .collect()
-    };
-    let nodes: Vec<NodeId> = nodes.iter().collect();
-
-    let sccs = strongly_connected_components(&nodes, sucessors);
-    sccs.into_iter().map(|x| x.into_iter().collect()).collect()
-}
-
-/// Returns the union of all strongly connected components with cardinality > 1
-pub(crate) fn reduce_to_strongly_connected_nodes(
-    mut nodes: NodeIdSet,
-    fbas: &Fbas,
-) -> (NodeIdSet, NodeIdSet) {
-    let mut removed_nodes = nodes.clone();
-    for node_id in nodes.iter() {
-        let node = &fbas.nodes[node_id];
-        for included_node in node.quorum_set.contained_nodes().into_iter() {
-            if included_node == node_id {
-                continue;
-            }
-            removed_nodes.remove(included_node);
-        }
-    }
-    if !removed_nodes.is_empty() {
-        nodes.difference_with(&removed_nodes);
-        let (reduced_nodes, new_removed_nodes) = reduce_to_strongly_connected_nodes(nodes, fbas);
-        nodes = reduced_nodes;
-        removed_nodes.union_with(&new_removed_nodes);
-    }
-    (nodes, removed_nodes)
 }
 
 fn remove_non_minimal_quorums(quorums: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {

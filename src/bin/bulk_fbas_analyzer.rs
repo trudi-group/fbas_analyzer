@@ -113,7 +113,7 @@ fn analyze(input: InputDataPoint) -> OutputDataPoint {
 
     let fbas = load_fbas(&input.nodes_path);
     let organizations = maybe_load_organizations(input.organizations_path.as_ref(), &fbas);
-    let mut analysis = Analysis::new(&fbas, organizations.as_ref());
+    let analysis = Analysis::new(&fbas, organizations.as_ref());
 
     let label = input.label.clone();
     let merged_by_organizations = input.organizations_path.is_some();

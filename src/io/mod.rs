@@ -4,8 +4,8 @@ use std::path::Path;
 
 use crate::*;
 
-mod fbas;
-use fbas::*;
+mod core_types;
+use core_types::*;
 
 mod results;
 pub use results::*;

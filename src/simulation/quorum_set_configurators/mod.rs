@@ -214,7 +214,7 @@ mod tests {
         let n = 3 * f + 1;
         let fbas = simulate!(IdealQsc::new(), n);
 
-        let mut analysis = Analysis::new(&fbas, None);
+        let analysis = Analysis::new(&fbas, None);
         let actual = analysis.minimal_quorums().unwrap();
         let expected = bitsetvec![{0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}];
         assert_eq!(expected, actual);

@@ -1,4 +1,58 @@
+//! Shrinking means reducing the node ID space, which results in smaller bit sets, which results in
+//! faster computation and a vastly lower memory footprint.
+
 use super::*;
+
+pub struct ShrinkManager {
+    unshrink_table: Vec<NodeId>,
+    shrink_map: HashMap<NodeId, NodeId>,
+}
+impl ShrinkManager {
+    pub fn new(ids_to_keep: NodeIdSet) -> Self {
+        let shrink_map: HashMap<NodeId, NodeId> = ids_to_keep
+            .iter()
+            .enumerate()
+            .map(|(new, old)| (old, new))
+            .collect();
+        let unshrink_table: Vec<NodeId> = ids_to_keep.into_iter().collect();
+        ShrinkManager {
+            unshrink_table,
+            shrink_map,
+        }
+    }
+    pub fn shrink_set(&self, node_set: &NodeIdSet) -> NodeIdSet {
+        shrink_set(node_set, &self.shrink_map)
+    }
+    pub fn shrink_sets(&self, node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
+        shrink_sets(node_sets, &self.shrink_map)
+    }
+    pub fn unshrink_set(&self, node_set: &NodeIdSet) -> NodeIdSet {
+        unshrink_set(node_set, &self.unshrink_table)
+    }
+    pub fn unshrink_sets(&self, node_sets: &[NodeIdSet]) -> Vec<NodeIdSet> {
+        unshrink_sets(node_sets, &self.unshrink_table)
+    }
+    pub fn reshrink_sets(
+        &self,
+        node_sets: &[NodeIdSet],
+        old_shrink_manager: &ShrinkManager,
+    ) -> Vec<NodeIdSet> {
+        let reshrink_map: HashMap<NodeId, NodeId> = old_shrink_manager
+            .unshrink_table
+            .iter()
+            .enumerate()
+            .filter_map(|(current_id, original_id)| {
+                self.shrink_map
+                    .get(original_id)
+                    .map(|&new_id| (current_id, new_id))
+            })
+            .collect();
+        shrink_sets(node_sets, &reshrink_map)
+    }
+    pub fn unshrink_table<'a>(&'a self) -> &'a Vec<NodeId> {
+        &self.unshrink_table
+    }
+}
 
 pub fn shrink_set(node_set: &NodeIdSet, shrink_map: &HashMap<NodeId, NodeId>) -> NodeIdSet {
     node_set
@@ -29,34 +83,11 @@ pub fn unshrink_sets(node_sets: &[NodeIdSet], unshrink_table: &[NodeId]) -> Vec<
         .collect()
 }
 
-pub fn reshrink_sets(
-    node_sets: &[NodeIdSet],
-    old_unshrink_table: &[NodeId],
-    new_shrink_map: &HashMap<NodeId, NodeId>,
-) -> Vec<NodeIdSet> {
-    let reshrink_map: HashMap<NodeId, NodeId> = old_unshrink_table
-        .iter()
-        .enumerate()
-        .filter_map(|(current_id, original_id)| {
-            new_shrink_map
-                .get(original_id)
-                .map(|&new_id| (current_id, new_id))
-        })
-        .collect();
-    shrink_sets(node_sets, &reshrink_map)
-}
-
 impl Fbas {
-    pub fn shrunken(
-        fbas: &Self,
-        ids_to_keep: NodeIdSet,
-    ) -> (Self, Vec<NodeId>, HashMap<NodeId, NodeId>) {
-        let shrink_map: HashMap<NodeId, NodeId> = ids_to_keep
-            .iter()
-            .enumerate()
-            .map(|(new, old)| (old, new))
-            .collect();
-        let unshrink_table: Vec<NodeId> = ids_to_keep.into_iter().collect();
+    pub fn shrunken(fbas: &Self, ids_to_keep: NodeIdSet) -> (Self, ShrinkManager) {
+        let shrink_manager = ShrinkManager::new(ids_to_keep);
+        let unshrink_table = &shrink_manager.unshrink_table;
+        let shrink_map = &shrink_manager.shrink_map;
 
         let mut fbas_shrunken = Fbas::new_generic_unconfigured(unshrink_table.len());
         for old_id in 0..fbas.nodes.len() {
@@ -64,7 +95,7 @@ impl Fbas {
                 fbas_shrunken.nodes[new_id] = Node::shrunken(&fbas.nodes[old_id], &shrink_map);
             }
         }
-        (fbas_shrunken, unshrink_table, shrink_map)
+        (fbas_shrunken, shrink_manager)
     }
 }
 impl Node {
@@ -107,13 +138,13 @@ impl QuorumSet {
 impl<'fbas> Organizations<'fbas> {
     pub fn shrunken(
         orgs: &Self,
-        shrink_map: &HashMap<NodeId, NodeId>,
+        shrink_manager: &ShrinkManager,
         shrunken_fbas: &'fbas Fbas,
     ) -> Self {
         let organizations = orgs
             .organizations
             .iter()
-            .map(|org| Organization::shrunken(org, shrink_map))
+            .map(|org| Organization::shrunken(org, &shrink_manager.shrink_map))
             .collect();
         Self::new(organizations, shrunken_fbas)
     }
@@ -143,7 +174,7 @@ mod tests {
     fn shrunken_fbas_has_correct_size() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
         let reduce_to = bitset![0, 23, 42];
-        let (fbas_shrunken, _, _) = Fbas::shrunken(&fbas, reduce_to);
+        let (fbas_shrunken, _) = Fbas::shrunken(&fbas, reduce_to);
         let expected = 3;
         let actual = fbas_shrunken.number_of_nodes();
         assert_eq!(expected, actual);
@@ -198,8 +229,10 @@ mod tests {
             &fbas,
         );
         let fbas_shrunken = Fbas::new_generic_unconfigured(4);
-        let shrink_map: HashMap<NodeId, NodeId> =
-            vec![(2, 0), (4, 1), (23, 2), (42, 3)].into_iter().collect();
+        let shrink_manager = ShrinkManager {
+            unshrink_table: vec![],
+            shrink_map: vec![(2, 0), (4, 1), (23, 2), (42, 3)].into_iter().collect(),
+        };
         let expected = Organizations::new(
             vec![
                 Organization {
@@ -213,7 +246,7 @@ mod tests {
             ],
             &fbas_shrunken,
         );
-        let actual = Organizations::shrunken(&organizations, &shrink_map, &fbas_shrunken);
+        let actual = Organizations::shrunken(&organizations, &shrink_manager, &fbas_shrunken);
         assert_eq!(expected, actual);
     }
 
@@ -222,10 +255,10 @@ mod tests {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
         let strongly_connected_nodes =
             reduce_to_strongly_connected_nodes(fbas.unsatisfiable_nodes(), &fbas).0;
-        let (fbas_shrunken, unshrink_table, _) = Fbas::shrunken(&fbas, strongly_connected_nodes);
+        let (fbas_shrunken, shrink_manager) = Fbas::shrunken(&fbas, strongly_connected_nodes);
 
         let expected = find_minimal_quorums(&fbas);
-        let actual = unshrink_sets(&find_minimal_quorums(&fbas_shrunken), &unshrink_table);
+        let actual = shrink_manager.unshrink_sets(&find_minimal_quorums(&fbas_shrunken));
         assert_eq!(expected, actual);
     }
 
@@ -262,13 +295,18 @@ mod tests {
     #[test]
     fn reshrink_sets_reencodes_sets() {
         let sets = vec![bitset![0, 1, 2], bitset![2, 3, 4]];
-        let old_unshrink_table = vec![2, 4, 23, 42, 404];
-        let new_shrink_map: HashMap<NodeId, NodeId> =
-            vec![(2, 0), (4, 1), (23, 2), (42, 3), (99, 4), (404, 5)]
+        let old_shrink_manager = ShrinkManager {
+            unshrink_table: vec![2, 4, 23, 42, 404],
+            shrink_map: HashMap::new(),
+        };
+        let new_shrink_manager = ShrinkManager {
+            unshrink_table: vec![],
+            shrink_map: vec![(2, 0), (4, 1), (23, 2), (42, 3), (99, 4), (404, 5)]
                 .into_iter()
-                .collect();
+                .collect(),
+        };
         let expected = vec![bitset![0, 1, 2], bitset![2, 3, 5]];
-        let actual = reshrink_sets(&sets, &old_unshrink_table, &new_shrink_map);
+        let actual = new_shrink_manager.reshrink_sets(&sets, &old_shrink_manager);
         assert_eq!(expected, actual);
     }
 }

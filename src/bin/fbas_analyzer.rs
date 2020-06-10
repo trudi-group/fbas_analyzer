@@ -65,34 +65,30 @@ fn main() -> CliResult {
 
     let fbas = load_fbas(args.nodes_path.as_ref());
     let organizations = maybe_load_organizations(args.organizations_path.as_ref(), &fbas);
-    let mut analysis = Analysis::new(&fbas, organizations.as_ref());
+    let analysis = Analysis::new(&fbas, organizations.as_ref());
 
     let (q, b, s) = extract_main_todos(&args);
     let output = Output::init(&args, &fbas, &organizations);
 
-    report_overview(&mut analysis, &output);
+    report_overview(&analysis, &output);
     output.comment_newline();
 
-    find_and_report_symmetric_clusters(&mut analysis, &output);
+    find_and_report_symmetric_clusters(&analysis, &output);
 
     if q {
-        find_and_report_minimal_quorums(&mut analysis, &output);
+        find_and_report_minimal_quorums(&analysis, &output);
     }
 
-    check_and_report_if_has_quorum_intersection(
-        &mut analysis,
-        &output,
-        args.expect_no_intersection,
-    );
+    check_and_report_if_has_quorum_intersection(&analysis, &output, args.expect_no_intersection);
 
     if b {
-        find_and_report_minimal_blocking_sets(&mut analysis, &output);
+        find_and_report_minimal_blocking_sets(&analysis, &output);
     }
     if s {
-        find_and_report_minimal_splitting_sets(&mut analysis, &output);
+        find_and_report_minimal_splitting_sets(&analysis, &output);
     }
     if q || b || s {
-        report_top_tier_uncondensed(&mut analysis, &output);
+        report_top_tier_uncondensed(&analysis, &output);
     }
     Ok(())
 }
@@ -148,7 +144,7 @@ macro_rules! do_time_and_report {
     }};
 }
 
-fn report_overview(analysis: &mut Analysis, output: &Output) {
+fn report_overview(analysis: &Analysis, output: &Output) {
     if analysis.merging_by_organization() {
         output.result("nodes_total_unmerged", analysis.all_physical_nodes().len());
     }
@@ -158,7 +154,7 @@ fn report_overview(analysis: &mut Analysis, output: &Output) {
     }
 }
 fn check_and_report_if_has_quorum_intersection(
-    analysis: &mut Analysis,
+    analysis: &Analysis,
     output: &Output,
     alternative_check: bool,
 ) {
@@ -188,7 +184,7 @@ fn check_and_report_if_has_quorum_intersection(
         );
     }
 }
-fn find_and_report_symmetric_clusters(analysis: &mut Analysis, output: &Output) {
+fn find_and_report_symmetric_clusters(analysis: &Analysis, output: &Output) {
     let mut output_uncondensed = output.clone();
     output_uncondensed.describe = false;
     do_time_and_report!(
@@ -198,14 +194,14 @@ fn find_and_report_symmetric_clusters(analysis: &mut Analysis, output: &Output) 
     );
     output.comment_newline();
 }
-fn find_and_report_minimal_quorums(analysis: &mut Analysis, output: &Output) {
+fn find_and_report_minimal_quorums(analysis: &Analysis, output: &Output) {
     do_time_and_report!("minimal_quorums", analysis.minimal_quorums(), output);
     output.comment(&format!(
         "\nWe found {} minimal quorums.\n",
         analysis.minimal_quorums().len()
     ));
 }
-fn find_and_report_minimal_blocking_sets(analysis: &mut Analysis, output: &Output) {
+fn find_and_report_minimal_blocking_sets(analysis: &Analysis, output: &Output) {
     do_time_and_report!(
         "minimal_blocking_sets",
         analysis.minimal_blocking_sets(),
@@ -218,7 +214,7 @@ fn find_and_report_minimal_blocking_sets(analysis: &mut Analysis, output: &Outpu
         analysis.minimal_blocking_sets().len()
     ));
 }
-fn find_and_report_minimal_splitting_sets(analysis: &mut Analysis, output: &Output) {
+fn find_and_report_minimal_splitting_sets(analysis: &Analysis, output: &Output) {
     do_time_and_report!(
         "minimal_splitting_sets",
         analysis.minimal_splitting_sets(),
@@ -232,7 +228,7 @@ fn find_and_report_minimal_splitting_sets(analysis: &mut Analysis, output: &Outp
         analysis.minimal_splitting_sets().len()
     ));
 }
-fn report_top_tier_uncondensed(analysis: &mut Analysis, output: &Output) {
+fn report_top_tier_uncondensed(analysis: &Analysis, output: &Output) {
     output.result_uncondensed("top_tier", analysis.top_tier());
     output.comment(
         &format!(

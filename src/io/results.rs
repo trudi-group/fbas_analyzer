@@ -56,7 +56,7 @@ impl AnalysisResult for Vec<QuorumSet> {
     }
 }
 
-impl<'a> AnalysisResult for NodeIdSetResult<'a> {
+impl AnalysisResult for NodeIdSetResult {
     fn into_id_string(self) -> String {
         json_format_single_line!(self.into_vec())
     }
@@ -67,7 +67,7 @@ impl<'a> AnalysisResult for NodeIdSetResult<'a> {
         self.len().to_string()
     }
 }
-impl<'a> Serialize for NodeIdSetResult<'a> {
+impl Serialize for NodeIdSetResult {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -76,7 +76,7 @@ impl<'a> Serialize for NodeIdSetResult<'a> {
     }
 }
 
-impl<'a> AnalysisResult for NodeIdSetVecResult<'a> {
+impl AnalysisResult for NodeIdSetVecResult {
     fn into_id_string(self) -> String {
         json_format_single_line!(self.into_vec_vec())
     }
@@ -85,8 +85,16 @@ impl<'a> AnalysisResult for NodeIdSetVecResult<'a> {
             .node_sets
             .iter()
             .map(|node_set| {
-                NodeIdSetResult::new(node_set.clone(), self.unshrink_table)
-                    .into_pretty_vec(fbas, organizations)
+                if let Some(unshrink_table) = self.unshrink_table.as_ref() {
+                    NodeIdSetResult {
+                        node_set: shrinking::unshrink_set(node_set, unshrink_table),
+                    }
+                } else {
+                    NodeIdSetResult {
+                        node_set: node_set.clone(),
+                    }
+                }
+                .into_pretty_vec(fbas, organizations)
             })
             .collect();
         json_format_single_line!(result)
@@ -95,7 +103,7 @@ impl<'a> AnalysisResult for NodeIdSetVecResult<'a> {
         json_format_single_line!(self.describe())
     }
 }
-impl<'a> Serialize for NodeIdSetVecResult<'a> {
+impl Serialize for NodeIdSetVecResult {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -131,8 +139,8 @@ impl QuorumSet {
     }
 }
 
-impl<'a> NodeIdSetResult<'a> {
-    fn into_pretty_vec(
+impl NodeIdSetResult {
+    fn into_pretty_vec<'a>(
         self,
         fbas: &'a Fbas,
         organizations: &'a Option<Organizations>,
@@ -199,7 +207,7 @@ mod tests {
     fn results_output_correctly() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
         let organizations = None;
-        let mut analysis = Analysis::new(&fbas, organizations.as_ref());
+        let analysis = Analysis::new(&fbas, organizations.as_ref());
 
         // all in one test to share the analysis (it is not *that* fast)
         // values found with fbas_analyzer v0.1 + some python and jq
@@ -247,7 +255,7 @@ mod tests {
             Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
             &fbas,
         ));
-        let mut analysis = Analysis::new(&fbas, organizations.as_ref());
+        let analysis = Analysis::new(&fbas, organizations.as_ref());
 
         // all in one test to share the analysis (it is not *that* fast)
         // values found with v0.1 of fbas_analyzer
