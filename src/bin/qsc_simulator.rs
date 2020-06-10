@@ -1,6 +1,7 @@
 extern crate fbas_analyzer;
 
-use fbas_analyzer::*;
+use fbas_analyzer::simulation::*;
+use fbas_analyzer::Fbas;
 
 use quicli::prelude::*;
 use structopt::StructOpt;
@@ -10,10 +11,11 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 /// FBAS quorum set configuration (QSC) simulation sandbox.
-/// QSC strategies selected via SUBCOMMAND.
+/// QSC policies selected via SUBCOMMAND.
 #[derive(Debug, StructOpt)]
 struct Cli {
-    /// Initial size of the simulated FBAS. Default is 0.
+    /// Initial size of the simulated FBAS. Default is 0 or, for graph-based QSC policies, the size
+    /// of the input graph.
     #[structopt(short = "i", long = "initial", default_value = "0")]
     initial_n: usize,
 
@@ -21,9 +23,9 @@ struct Cli {
     #[structopt(short = "g", long = "grow-by", default_value = "0")]
     grow_by_n: usize,
 
-    /// Quorum set configuration strategy to simulate
+    /// Quorum set configuration policy to simulate
     #[structopt(subcommand)]
-    qscc: QuorumSetConfiguratorConfig,
+    qsc_config: QuorumSetConfiguratorConfig,
 
     #[structopt(flatten)]
     verbosity: Verbosity,
@@ -36,7 +38,7 @@ enum QuorumSetConfiguratorConfig {
     /// a maximum of f nodes can fail, where (n-1) < (3f+1) <= n
     Ideal,
     /// Creates random quorum sets of the given size, using 67% thresholds as in "Ideal".
-    SimpleRandom { desired_quorum_set_size: usize },
+    Random { desired_quorum_set_size: usize },
     /// Creates random quorum sets of the given size and threshold. The probability of picking a
     /// node as a validator is weighted by that node's degree in a scale free graph ("famousness")
     /// If threshold is ommitted, uses as 67% threshold as in "Ideal".
@@ -49,23 +51,27 @@ enum QuorumSetConfiguratorConfig {
     /// are validators, independent of node existence, quorum intersection or
     /// anything else.
     /// If threshold is ommitted, uses as 67% threshold as in "Ideal".
-    SimpleQsc {
+    AllNeighbors {
         graph_data_path: PathBuf,
         relative_threshold: Option<f64>,
     },
-    /// Docstring -> TODO
-    HigherTierQsc {
-        graph_data_path: PathBuf,
-        make_symmetric_top_tier: bool,
-        relative_threshold: Option<f64>,
-    },
-    /// Docstring -> TODO
-    GlobalRankASGraph {
+    /// Only use neighbors perceived as higher-tier as validators, or only nodes perceived as
+    /// same-tier, if there are no higher-tier neighbors.
+    HigherTierNeighbors {
         graph_data_path: PathBuf,
         relative_threshold: Option<f64>,
     },
-    /// TODO - might be removed again soon
-    QualityAware { graph_data_path: PathBuf },
+    /// Like `HigherTierNeighbors`, but top-tier nodes mirror each others' quorum sets, turning the
+    /// top tier into a symmetric cluster.
+    SymmetryEnforcingHigherTierNeighbors {
+        graph_data_path: PathBuf,
+        relative_threshold: Option<f64>,
+    },
+    /// Uses all nodes with above-average global rank.
+    GlobalRank {
+        graph_data_path: PathBuf,
+        relative_threshold: Option<f64>,
+    },
 }
 
 fn parse_graph_path(graph_data_path: PathBuf) -> (Graph, usize) {
@@ -87,13 +93,15 @@ fn parse_graph_path(graph_data_path: PathBuf) -> (Graph, usize) {
     (graph, *nr_of_nodes)
 }
 
-fn parse_qscc(qscc: QuorumSetConfiguratorConfig) -> (Rc<dyn QuorumSetConfigurator>, usize) {
-    use quorum_set_configurators::*;
+fn parse_qsc_config(
+    qsc_config: QuorumSetConfiguratorConfig,
+) -> (Rc<dyn QuorumSetConfigurator>, usize) {
+    use qsc::*;
     use QuorumSetConfiguratorConfig::*;
-    match qscc {
+    match qsc_config {
         SuperSafe => (Rc::new(SuperSafeQsc::new()), 0),
         Ideal => (Rc::new(IdealQsc::new()), 0),
-        SimpleRandom {
+        Random {
             desired_quorum_set_size,
         } => (Rc::new(RandomQsc::new_simple(desired_quorum_set_size)), 0),
         FameWeightedRandom {
@@ -111,44 +119,49 @@ fn parse_qscc(qscc: QuorumSetConfiguratorConfig) -> (Rc<dyn QuorumSetConfigurato
                 nodes,
             )
         }
-        SimpleQsc {
+        AllNeighbors {
             relative_threshold,
             graph_data_path,
         } => {
             let (graph, nodes) = parse_graph_path(graph_data_path);
             (
-                Rc::new(SimpleGraphQsc::new(graph, relative_threshold)),
+                Rc::new(AllNeighborsQsc::new(graph, relative_threshold)),
                 nodes,
             )
         }
-        HigherTierQsc {
+        HigherTierNeighbors {
             graph_data_path,
-            make_symmetric_top_tier,
             relative_threshold,
         } => {
             let (graph, nodes) = parse_graph_path(graph_data_path);
             (
-                Rc::new(HigherTiersGraphQsc::new(
+                Rc::new(HigherTierNeighborsQsc::new(
                     graph,
                     relative_threshold,
-                    make_symmetric_top_tier,
+                    false,
                 )),
                 nodes,
             )
         }
-        GlobalRankASGraph {
+        SymmetryEnforcingHigherTierNeighbors {
             graph_data_path,
             relative_threshold,
         } => {
             let (graph, nodes) = parse_graph_path(graph_data_path);
             (
-                Rc::new(GlobalRankGraphQsc::new(graph, relative_threshold)),
+                Rc::new(HigherTierNeighborsQsc::new(graph, relative_threshold, true)),
                 nodes,
             )
         }
-        QualityAware { graph_data_path } => {
+        GlobalRank {
+            graph_data_path,
+            relative_threshold,
+        } => {
             let (graph, nodes) = parse_graph_path(graph_data_path);
-            (Rc::new(QualityAwareGraphQsc::new(graph)), nodes)
+            (
+                Rc::new(GlobalRankQsc::new(graph, relative_threshold)),
+                nodes,
+            )
         }
     }
 }
@@ -157,7 +170,7 @@ fn main() -> CliResult {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
-    let (qsc, nodes_in_graph) = parse_qscc(args.qscc);
+    let (qsc, nodes_in_graph) = parse_qsc_config(args.qsc_config);
 
     let initial_n = if args.initial_n > 0 || args.grow_by_n > 0 {
         args.initial_n

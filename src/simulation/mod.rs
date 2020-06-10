@@ -6,7 +6,10 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 
 pub mod monitors;
-pub mod quorum_set_configurators;
+pub mod qsc;
+
+mod graph;
+pub use graph::Graph;
 
 #[derive(Clone)]
 pub struct Simulator {
@@ -113,7 +116,7 @@ use ChangeEffect::*;
 #[cfg(test)]
 mod tests {
     use super::monitors::*;
-    use super::quorum_set_configurators::*;
+    use super::qsc::*;
     use super::*;
 
     #[test]

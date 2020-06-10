@@ -1,5 +1,5 @@
 use super::*;
-use crate::graph::Graph;
+use crate::simulation::Graph;
 
 use bzip2::read::BzDecoder;
 use bzip2::write;
@@ -42,27 +42,31 @@ impl Graph {
             .collect();
         Graph::new(outlinks)
     }
-    pub fn to_as_rel_file(graph: &Self, path: &Path) -> std::io::Result<()> {
+    pub fn to_as_rel_file(
+        graph: &Self,
+        path: &Path,
+        head_comment: Option<&str>,
+    ) -> std::io::Result<()> {
         let file = File::create(&path)?;
         let mut compresser = write::BzEncoder::new(file, Compression::Default);
-        let graph_as_string = Self::to_as_rel_string(graph).unwrap();
-        for line in graph_as_string.lines() {
-            compresser
-                .write_all(format!("{}{}", line, "\n").as_bytes())
-                .unwrap();
-        }
+        let graph_as_string = Self::to_as_rel_string(graph, head_comment).unwrap();
+        compresser.write_all(graph_as_string.as_bytes()).unwrap();
         compresser.finish()?;
         Ok(())
     }
-    pub fn to_as_rel_string(graph: &Self) -> io::Result<String> {
-        let mut edge_as_string: String;
+    pub fn to_as_rel_string(graph: &Self, head_comment: Option<&str>) -> io::Result<String> {
         let mut graph_as_string = String::new();
-        const SEPARATOR: &str = "|";
-        for n in 0..graph.number_of_nodes() {
-            let nbrs = &graph.outlinks[n];
-            for i in nbrs {
-                edge_as_string = format!("{}{}{}{}{}{}", n, SEPARATOR, i, SEPARATOR, "0", "\n");
-                graph_as_string.push_str(&edge_as_string);
+        if let Some(head_comment) = head_comment {
+            graph_as_string.push_str(&format!("# {}\n", head_comment));
+        }
+        for i in 0..graph.number_of_nodes() {
+            for &j in &graph.outlinks[i] {
+                let is_undirected = graph.outlinks[j].contains(&i);
+                if is_undirected && i < j {
+                    graph_as_string.push_str(&format!("{}|{}|0\n", i, j));
+                } else if !is_undirected {
+                    graph_as_string.push_str(&format!("{}|{}|-1\n", i, j));
+                }
             }
         }
         Ok(graph_as_string)
@@ -105,6 +109,7 @@ fn read_file_to_string(path: &Path) -> io::Result<String> {
     f.read_to_string(&mut contents)?;
     Ok(contents)
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,10 +162,29 @@ mod tests {
     }
 
     #[test]
-    fn writes_graph_correctly() {
+    fn to_as_rel_string_sets_graph_header_correctly() {
+        let graph = Graph::new_full_mesh(2);
+        let message = "blup";
+        let expected = "# blup\n\
+                        0|1|0\n";
+        let actual = Graph::to_as_rel_string(&graph, Some(&message)).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn to_as_rel_string_sets_marks_directed_links_correctly() {
+        let graph = Graph::new(vec![vec![1], vec![2], vec![1]]);
+        let expected = "0|1|-1\n\
+                        1|2|0\n";
+        let actual = Graph::to_as_rel_string(&graph, None).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn to_as_rel_file_writes_graph_correctly() {
         let path = Path::new("test_data/test_graph.txt.bz2");
         let expected = Graph::new_random_small_world(4, 2, 0.05);
-        Some(Graph::to_as_rel_file(&expected, &path));
+        Some(Graph::to_as_rel_file(&expected, &path, None));
         let actual = Graph::from_as_rel_file(path);
         assert_eq!(expected, actual);
         Some(fs::remove_file(path));

@@ -35,7 +35,9 @@ scripts/get_latest_stellarbeat_data.sh
 6. Play around some more
 ```
 target/release/fbas_analyzer -h
-target/release/qsc_sim -h
+target/release/bulk_fbas_analyzer -h
+target/release/qsc_simulator -h
+target/release/graph_generator -h
 ```
 
 ## Acknowledgements

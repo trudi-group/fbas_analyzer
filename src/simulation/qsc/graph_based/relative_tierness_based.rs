@@ -1,19 +1,16 @@
 use super::*;
 
-/// TODO
-pub struct HigherTiersGraphQsc {
+/// Only use neighbors perceived as higher-tier as validators, or only nodes perceived as
+/// same-tier, if there are no higher-tier neighbors.
+pub struct HigherTierNeighborsQsc {
     graph: Graph,
     rank_scores: Vec<RankScore>,
     connected_nodes: NodeIdSet,
     relative_threshold: Option<f64>,
-    make_symmetric_top_tier: bool,
+    symmetry_enforcing: bool,
 }
-impl HigherTiersGraphQsc {
-    pub fn new(
-        graph: Graph,
-        relative_threshold: Option<f64>,
-        make_symmetric_top_tier: bool,
-    ) -> Self {
+impl HigherTierNeighborsQsc {
+    pub fn new(graph: Graph, relative_threshold: Option<f64>, symmetry_enforcing: bool) -> Self {
         let rank_scores = graph.get_rank_scores();
         debug!(
             "Non-zero rank scores: {:?}",
@@ -25,23 +22,19 @@ impl HigherTiersGraphQsc {
                 .collect::<Vec<(NodeId, f64)>>()
         );
         let connected_nodes = graph.get_connected_nodes();
-        HigherTiersGraphQsc {
+        HigherTierNeighborsQsc {
             graph,
             rank_scores,
             connected_nodes,
             relative_threshold,
-            make_symmetric_top_tier,
+            symmetry_enforcing,
         }
     }
-    pub fn new_67p(graph: Graph, make_symmetric_top_tier: bool) -> Self {
-        Self::new(graph, None, make_symmetric_top_tier)
+    pub fn new_67p(graph: Graph, symmetry_enforcing: bool) -> Self {
+        Self::new(graph, None, symmetry_enforcing)
     }
-    pub fn new_relative(
-        graph: Graph,
-        relative_threshold: f64,
-        make_symmetric_top_tier: bool,
-    ) -> Self {
-        Self::new(graph, Some(relative_threshold), make_symmetric_top_tier)
+    pub fn new_relative(graph: Graph, relative_threshold: f64, symmetry_enforcing: bool) -> Self {
+        Self::new(graph, Some(relative_threshold), symmetry_enforcing)
     }
     fn get_neighbors_by_tierness(
         &self,
@@ -66,7 +59,7 @@ impl HigherTiersGraphQsc {
         (higher_tier, same_tier, lower_tier)
     }
 }
-impl QuorumSetConfigurator for HigherTiersGraphQsc {
+impl QuorumSetConfigurator for HigherTierNeighborsQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
         if !self.connected_nodes.contains(node_id) {
             return NoChange;
@@ -81,7 +74,7 @@ impl QuorumSetConfigurator for HigherTiersGraphQsc {
             same_tier_neighbors
         };
 
-        if self.make_symmetric_top_tier {
+        if self.symmetry_enforcing {
             let mut corrected_validators = NodeIdSet::new();
             for i in validators.drain(..) {
                 corrected_validators.insert(i);
@@ -127,7 +120,7 @@ mod tests {
     #[test]
     fn get_neighbors_by_tierness_middle_tier_directed_links() {
         let graph = Graph::new_tiered_full_mesh(&vec![3, 3, 3]);
-        let higher_tier_qsc = HigherTiersGraphQsc::new_67p(graph, false);
+        let higher_tier_qsc = HigherTierNeighborsQsc::new_67p(graph, false);
         let actual = higher_tier_qsc.get_neighbors_by_tierness(3);
         let expected = (vec![0, 1, 2], vec![4, 5], vec![]);
         assert_eq!(expected, actual);
@@ -136,7 +129,7 @@ mod tests {
     #[test]
     fn get_neighbors_by_tierness_top_tier_directed_links() {
         let graph = Graph::new_tiered_full_mesh(&vec![3, 3, 3]);
-        let higher_tier_qsc = HigherTiersGraphQsc::new_67p(graph, false);
+        let higher_tier_qsc = HigherTierNeighborsQsc::new_67p(graph, false);
         let actual = higher_tier_qsc.get_neighbors_by_tierness(1);
         let expected = (vec![], vec![0, 2], vec![]);
         assert_eq!(expected, actual);
@@ -151,7 +144,7 @@ mod tests {
         graph.outlinks.push(vec![5]);
         graph.outlinks[3].push(4);
         graph.outlinks[3].push(5);
-        let higher_tier_qsc = HigherTiersGraphQsc::new_67p(graph, false);
+        let higher_tier_qsc = HigherTierNeighborsQsc::new_67p(graph, false);
         let actual = higher_tier_qsc.get_neighbors_by_tierness(4);
         let expected = (vec![3], vec![5], vec![]);
         assert_eq!(expected, actual);
@@ -166,7 +159,7 @@ mod tests {
         graph.outlinks.push(vec![5]);
         graph.outlinks[3].push(4);
         graph.outlinks[3].push(5);
-        let higher_tier_qsc = HigherTiersGraphQsc::new_67p(graph, false);
+        let higher_tier_qsc = HigherTierNeighborsQsc::new_67p(graph, false);
         let actual = higher_tier_qsc.get_neighbors_by_tierness(3);
         let expected = (vec![], vec![0, 1, 2], vec![4, 5]);
         assert_eq!(expected, actual);
@@ -176,7 +169,7 @@ mod tests {
     fn higher_tier_qsc_can_be_like_ideal_safe() {
         let n = 10;
         let higher_tier_qsc =
-            HigherTiersGraphQsc::new_67p(Graph::new_tiered_full_mesh(&vec![n]), false);
+            HigherTierNeighborsQsc::new_67p(Graph::new_tiered_full_mesh(&vec![n]), false);
         let ideal_qsc = IdealQsc::new();
 
         let actual = simulate!(higher_tier_qsc, n);
@@ -188,7 +181,7 @@ mod tests {
     fn higher_tier_qsc_has_few_minimal_quorums() {
         let tier_sizes = vec![3, 10, 20];
         let higher_tier_qsc =
-            HigherTiersGraphQsc::new_67p(Graph::new_tiered_full_mesh(&tier_sizes), false);
+            HigherTierNeighborsQsc::new_67p(Graph::new_tiered_full_mesh(&tier_sizes), false);
         let n = tier_sizes.into_iter().sum();
 
         let fbas = simulate!(higher_tier_qsc, n);
@@ -203,17 +196,17 @@ mod tests {
         let mut graph = Graph::new_tiered_full_mesh(&tier_sizes);
         graph.outlinks[0] = vec![1];
         let n = tier_sizes.into_iter().sum();
-        let higher_tier_qsc = HigherTiersGraphQsc::new_67p(graph, true);
+        let higher_tier_qsc = HigherTierNeighborsQsc::new_67p(graph, true);
 
         let fbas = simulate!(higher_tier_qsc, n);
-        // TODO use symmetric top tier finder function here once it is implemented
-        let actual = find_minimal_quorums(&fbas);
-        let expected = vec![
-            bitset![0, 1, 2],
-            bitset![0, 1, 3],
-            bitset![0, 2, 3],
-            bitset![1, 2, 3],
-        ];
+        let analysis = Analysis::new(&fbas, None);
+
+        let expected = vec![QuorumSet {
+            validators: vec![0, 1, 2, 3],
+            threshold: 3,
+            inner_quorum_sets: vec![],
+        }];
+        let actual = analysis.symmetric_clusters();
         assert_eq!(expected, actual);
     }
 }

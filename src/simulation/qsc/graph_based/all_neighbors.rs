@@ -1,15 +1,15 @@
 use super::*;
 
 /// Makes non-nested quorum sets containing all immediate graph neighbors
-pub struct SimpleGraphQsc {
+pub struct AllNeighborsQsc {
     graph: Graph,
     connected_nodes: NodeIdSet,
     relative_threshold: Option<f64>,
 }
-impl SimpleGraphQsc {
+impl AllNeighborsQsc {
     pub fn new(graph: Graph, relative_threshold: Option<f64>) -> Self {
         let connected_nodes = graph.get_connected_nodes();
-        SimpleGraphQsc {
+        AllNeighborsQsc {
             graph,
             connected_nodes,
             relative_threshold,
@@ -22,7 +22,7 @@ impl SimpleGraphQsc {
         Self::new(graph, Some(relative_threshold))
     }
 }
-impl QuorumSetConfigurator for SimpleGraphQsc {
+impl QuorumSetConfigurator for AllNeighborsQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
         let existing_quorum_set = &mut fbas.nodes[node_id].quorum_set;
         if self.connected_nodes.contains(node_id) && *existing_quorum_set == QuorumSet::new() {
@@ -57,23 +57,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn simple_qsc_can_be_like_super_safe() {
+    fn all_neighbors_qsc_can_be_like_super_safe() {
         let n = 10;
-        let simple_qsc = SimpleGraphQsc::new_relative(Graph::new_full_mesh(n), 1.0);
+        let all_neighbors_qsc = AllNeighborsQsc::new_relative(Graph::new_full_mesh(n), 1.0);
         let super_safe_qsc = SuperSafeQsc::new();
 
-        let actual = simulate!(simple_qsc, n);
+        let actual = simulate!(all_neighbors_qsc, n);
         let expected = simulate!(super_safe_qsc, n);
         assert_eq!(expected, actual);
     }
 
     #[test]
-    fn simple_qsc_can_be_like_ideal_safe() {
+    fn all_neighbors_qsc_can_be_like_ideal_safe() {
         let n = 10;
-        let simple_qsc = SimpleGraphQsc::new_67p(Graph::new_full_mesh(n));
+        let all_neighbors_qsc = AllNeighborsQsc::new_67p(Graph::new_full_mesh(n));
         let ideal_qsc = IdealQsc::new();
 
-        let actual = simulate!(simple_qsc, n);
+        let actual = simulate!(all_neighbors_qsc, n);
         let expected = simulate!(ideal_qsc, n);
         assert_eq!(expected, actual);
     }

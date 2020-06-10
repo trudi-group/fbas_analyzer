@@ -13,7 +13,7 @@ name = "bulk_fbas_analyzer"
 required-features = ["binaries", "bulk-analyzer"]
 
 [[bin]]
-name = "qsc_sim"
+name = "qsc_simulator"
 required-features = ["binaries", "qsc-simulation"]
 
 [[bin]]

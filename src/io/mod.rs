@@ -12,5 +12,3 @@ pub use results::*;
 
 #[cfg(feature = "qsc-simulation")]
 mod graph;
-#[cfg(feature = "qsc-simulation")]
-pub use graph::*;
