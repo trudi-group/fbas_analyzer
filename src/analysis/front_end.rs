@@ -2,8 +2,9 @@ use super::*;
 
 use std::cell::RefCell;
 
-/// Front end for the most interesting FBAS analyses. Caches the results of long-running
-/// computations.
+/// Front end for the most interesting FBAS analyses.
+/// Among other things, it does ID space shrinking (which improves memory and performance when
+/// using bit sets) and caches the results of long-running computations.
 pub struct Analysis<'a> {
     fbas_original: &'a Fbas,
     organizations_original: Option<&'a Organizations<'a>>,
