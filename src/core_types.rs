@@ -66,7 +66,7 @@ macro_rules! bitsetvec {
     };
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct Fbas {
     pub(crate) nodes: Vec<Node>,
     pub(crate) pk_to_id: HashMap<PublicKey, NodeId>,
@@ -125,7 +125,7 @@ fn generate_generic_node_name(node_id: NodeId) -> String {
     format!("n{}", node_id)
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Node {
     pub(crate) public_key: PublicKey,
     pub(crate) quorum_set: QuorumSet,
@@ -143,7 +143,7 @@ impl Node {
     }
 }
 
-#[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuorumSet {
     pub(crate) threshold: usize,
@@ -222,7 +222,7 @@ impl QuorumSet {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Organizations<'fbas> {
     pub(crate) organizations: Vec<Organization>,
     pub(crate) merged_ids: Vec<NodeId>,
@@ -230,7 +230,7 @@ pub struct Organizations<'fbas> {
     // for ensuring fbas remains stable + serializeability via Serialize trait
     pub(crate) fbas: &'fbas Fbas,
 }
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Organization {
     pub(crate) name: String,
     pub(crate) validators: Vec<NodeId>,

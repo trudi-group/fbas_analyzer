@@ -55,4 +55,3 @@ macro_rules! timed_secs {
         (return_value, duration.as_secs_f64())
     }};
 }
-

@@ -141,7 +141,7 @@ fn minimal_quorums_finder_step(
         selection.remove(current_candidate);
         available.remove(current_candidate);
 
-        if quorums_possible(selection, available, fbas) {
+        if selection_satisfiable(selection, available, fbas) {
             minimal_quorums_finder_step(
                 unprocessed,
                 selection,
@@ -223,7 +223,7 @@ fn nonintersecting_quorums_finder_step(
         antiselection.insert(current_candidate);
         available.remove(current_candidate);
 
-        if quorums_possible(selection, available, fbas) {
+        if selection_satisfiable(selection, available, fbas) {
             if let Some(intersecting_quorums) = nonintersecting_quorums_finder_step(
                 unprocessed,
                 selection,
@@ -271,7 +271,7 @@ fn find_symmetric_clusters_in_node_set(nodes: &NodeIdSet, fbas: &Fbas) -> Vec<Qu
     found_clusters
 }
 
-fn quorums_possible(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
+fn selection_satisfiable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
     selection
         .iter()
         .all(|x| fbas.nodes[x].is_quorum_slice(available))

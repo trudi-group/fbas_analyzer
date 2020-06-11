@@ -181,6 +181,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // creates a file, which confuses `cargo watch`
     fn to_as_rel_file_writes_graph_correctly() {
         let path = Path::new("test_data/test_graph.txt.bz2");
         let expected = Graph::new_random_small_world(4, 2, 0.05);

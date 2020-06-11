@@ -3,6 +3,7 @@
 
 use super::*;
 
+#[derive(Debug)]
 pub struct ShrinkManager {
     unshrink_table: Vec<NodeId>,
     shrink_map: HashMap<NodeId, NodeId>,
