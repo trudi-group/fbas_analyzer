@@ -2,7 +2,12 @@
 name = "fbas_analyzer"
 version = "0.2.0"
 authors = ["Martin Florian <martin.florian@hu-berlin.de>"]
+description = "Library and tools for analyzing FBASs like the Stellar network"
 license = "MIT"
+repository = "https://github.com/wiberlin/fbas_analyzer"
+readme = "README.md"
+keywords = ["stellar", "fbas", "quorum", "analysis", "simulation"]
+categories = ["command-line-utilities", "science", "simulation"]
 edition = "2018"
 
 [[bin]]
