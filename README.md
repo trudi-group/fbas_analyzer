@@ -17,23 +17,23 @@ Powers our [Stellar Network Analysis](https://stellar.weizenbaum.net/analysis.ht
 ## Usage as tools
 
 1. [Install Rust](https://www.rust-lang.org/learn/get-started)
-2. (optional) Run all kinds of tests
+2. (optional) Run unit tests and functional tests:
 ```
 scripts/tests.py
 ```
-3. Build
+3. Build:
 ```
 cargo build --release
 ```
-4. Try tool using older data from stellarbeat
+4. Try tool using older data from stellarbeat:
 ```
 target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -m test_data/stellarbeat_organizations_2019-09-17.json -a -p
 ```
-5. Get some new data from stellarbeat
+5. Get some new data from stellarbeat:
 ```
 scripts/get_latest_stellarbeat_data.sh
 ```
-6. Play around some more
+6. Play around some more:
 ```
 target/release/fbas_analyzer -h
 target/release/bulk_fbas_analyzer -h
@@ -54,7 +54,7 @@ Or this, if you need simulation functionality:
 fbas_analyzer = { version = "0.3", default-features = false, features = ["qsc_simulation"] }
 ```
 
-Then check out the [API Reference](https://docs.rs/fbas_analyzer/)
+Check out the [API Reference](https://docs.rs/fbas_analyzer/)
 and how the API is used by the tools `src/bin/`.
 
 ## See also / Acknowledgements
