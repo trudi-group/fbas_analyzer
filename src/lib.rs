@@ -28,6 +28,8 @@
 //! );
 //! ```
 
+#![doc(html_root_url = "https://docs.rs/fbas_analyzer/0.3.0")]
+
 mod analysis;
 mod core_types;
 mod io;
