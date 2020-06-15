@@ -7,7 +7,7 @@ extern crate serde;
 use quicli::prelude::*;
 use structopt::StructOpt;
 
-use csv::Writer;
+use csv::{Reader, Writer};
 use std::io;
 
 use std::error::Error;
@@ -32,6 +32,10 @@ struct Cli {
     #[structopt(short = "o", long = "out")]
     output_path: Option<PathBuf>,
 
+    /// Update output file with missing results (doesn't repeat analyses for existing results).
+    #[structopt(short = "u", long = "update")]
+    update: bool,
+
     /// Filter out this string when constructing data point labels from file names.
     #[structopt(short = "i", long = "ignore-for-label", default_value = "stellarbeat")]
     ignore_for_label: String,
@@ -48,29 +52,29 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
-    let mut inputs: Vec<InputDataPoint> =
-        extract_inputs(&args.input_paths, &args.ignore_for_label)?;
-    inputs.sort();
+    let inputs: Vec<InputDataPoint> = extract_inputs(&args.input_paths, &args.ignore_for_label)?;
 
-    let outputs = bulk_analyze(inputs, args.jobs);
+    let existing_outputs = if args.update {
+        load_existing_outputs(&args.output_path)?
+    } else {
+        BTreeMap::new()
+    };
 
-    write_csv(outputs, args.output_path)?;
+    let tasks = make_sorted_tasklist(inputs, existing_outputs);
+
+    let output_iterator = bulk_do(tasks, args.jobs);
+
+    write_csv(output_iterator, &args.output_path, args.update)?;
     Ok(())
 }
 
-#[derive(Debug, Eq, PartialEq, PartialOrd)]
+#[derive(Debug)]
 struct InputDataPoint {
     label: String,
     nodes_path: PathBuf,
     organizations_path: Option<PathBuf>,
 }
-impl Ord for InputDataPoint {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.label.cmp(&other.label)
-    }
-}
-
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct OutputDataPoint {
     label: String,
     merged_by_organizations: bool,
@@ -89,6 +93,20 @@ struct OutputDataPoint {
     analysis_duration_mbs: f64,
     analysis_duration_mss: f64,
     analysis_duration_total: f64,
+}
+#[derive(Debug)]
+enum Task {
+    Reuse(OutputDataPoint),
+    Analyze(InputDataPoint),
+}
+use Task::*;
+impl Task {
+    fn label(&self) -> String {
+        match self {
+            Reuse(output) => output.label.clone(),
+            Analyze(input) => input.label.clone(),
+        }
+    }
 }
 
 fn extract_inputs(
@@ -114,14 +132,59 @@ fn extract_inputs(
     }
 }
 
-fn bulk_analyze(
+fn load_existing_outputs(
+    path: &Option<PathBuf>,
+) -> Result<BTreeMap<String, OutputDataPoint>, Box<dyn Error>> {
+    if let Some(path) = path {
+        let data_points = read_csv_from_file(path)?;
+        let data_points_map = data_points
+            .into_iter()
+            .map(|d| (d.label.clone(), d))
+            .collect();
+        Ok(data_points_map)
+    } else {
+        Ok(BTreeMap::new())
+    }
+}
+
+fn make_sorted_tasklist(
     inputs: Vec<InputDataPoint>,
+    existing_outputs: BTreeMap<String, OutputDataPoint>,
+) -> Vec<Task> {
+    let mut tasks: Vec<Task> = inputs
+        .into_iter()
+        .map(|input| {
+            if let Some(output) = existing_outputs.get(&input.label) {
+                Reuse(output.clone())
+            } else {
+                Analyze(input)
+            }
+        })
+        .collect();
+    tasks.sort_by_cached_key(|t| t.label());
+    tasks
+}
+
+fn bulk_do(
+    tasks: Vec<Task>,
     number_of_threads: Option<usize>,
 ) -> impl Iterator<Item = OutputDataPoint> {
     if let Some(n) = number_of_threads {
-        inputs.into_iter().with_nb_threads(n).par_map(analyze)
+        tasks
+            .into_iter()
+            .with_nb_threads(n)
+            .par_map(analyze_or_reuse)
     } else {
-        inputs.into_iter().par_map(analyze)
+        tasks.into_iter().par_map(analyze_or_reuse)
+    }
+}
+fn analyze_or_reuse(task: Task) -> OutputDataPoint {
+    match task {
+        Task::Reuse(output) => {
+            eprintln!("Reusing existing analysis results for {}.", output.label);
+            output
+        }
+        Task::Analyze(input) => analyze(input),
     }
 }
 fn analyze(input: InputDataPoint) -> OutputDataPoint {
@@ -173,10 +236,11 @@ fn analyze(input: InputDataPoint) -> OutputDataPoint {
 
 fn write_csv(
     data_points: impl IntoIterator<Item = impl serde::Serialize>,
-    output_path: Option<PathBuf>,
+    output_path: &Option<PathBuf>,
+    overwrite_allowed: bool,
 ) -> Result<(), Box<dyn Error>> {
     if let Some(path) = output_path {
-        if path.exists() {
+        if !overwrite_allowed && path.exists() {
             Err(Box::new(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 "Output file exists, refusing to overwrite.",
@@ -259,9 +323,17 @@ fn maybe_load_organizations<'a>(
     }
 }
 
+fn read_csv_from_file(path: &PathBuf) -> Result<Vec<OutputDataPoint>, Box<dyn Error>> {
+    let mut reader = Reader::from_path(path)?;
+    let mut result = vec![];
+    for line in reader.deserialize() {
+        result.push(line?);
+    }
+    Ok(result)
+}
 fn write_csv_to_file(
     data_points: impl IntoIterator<Item = impl serde::Serialize>,
-    path: PathBuf,
+    path: &PathBuf,
 ) -> Result<(), Box<dyn Error>> {
     let writer = Writer::from_path(path)?;
     write_csv_via_writer(data_points, writer)
