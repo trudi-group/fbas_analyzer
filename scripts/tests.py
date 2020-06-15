@@ -21,7 +21,7 @@ def cargo_test():
 
 
 def cargo_build():
-    run_and_check_return('cargo build --release', 'Building project to make sure we have up to date binaries')
+    run_and_check_return('cargo build --release', 'Building project to make sure we have up-to-date binaries')
 
 
 def test_fbas_analyzer():
@@ -75,7 +75,7 @@ def test_bulk_fbas_analyzer_to_stdout():
 
 def test_qsc_simulator():
     graph = '0|1|0\n0|2|0\n1|0|0\n1|2|0\n2|0|0\n2|1|0'
-    command = 'target/release/qsc_sim SimpleQsc -'
+    command = 'target/release/qsc_simulator AllNeighbors -'
 
     expected = '\n'.join([
         '[',
