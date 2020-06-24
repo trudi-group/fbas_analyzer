@@ -4,6 +4,7 @@ pub use std::collections::BTreeSet;
 pub use std::collections::HashMap;
 pub use std::collections::HashSet;
 pub use std::collections::VecDeque;
+use std::mem;
 
 use serde::Serialize;
 
@@ -66,6 +67,48 @@ macro_rules! bitsetvec {
     };
 }
 
+/// Representation of an FBAS.
+///
+/// ## Example
+/// ```
+/// use fbas_analyzer::{Fbas, QuorumSet};
+///
+/// let fbas = Fbas::from_json_str(
+///     r#"[
+///     {
+///         "publicKey": "n0",
+///         "quorumSet": { "threshold": 1, "validators": ["n1"] }
+///     },
+///     {
+///         "publicKey": "n1",
+///         "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+///     },
+///     {
+///         "publicKey": "n2",
+///         "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+///     }
+/// ]"#,
+/// );
+/// assert_eq!(3, fbas.number_of_nodes());
+/// assert_eq!(Some(0), fbas.get_node_id("n0"));
+/// assert_eq!(
+///     QuorumSet {
+///         validators: vec![1],
+///         inner_quorum_sets: vec![],
+///         threshold: 1
+///     },
+///     fbas.get_quorum_set(0).unwrap()
+/// );
+///
+/// let quorum_set = QuorumSet {
+///     validators: vec![1, 2],
+///     inner_quorum_sets: vec![],
+///     threshold: 2,
+/// };
+/// let mut fbas = fbas;
+/// fbas.swap_quorum_set(0, quorum_set.clone());
+/// assert_eq!(Some(quorum_set), fbas.get_quorum_set(0));
+/// ```
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct Fbas {
     pub(crate) nodes: Vec<Node>,
@@ -108,6 +151,16 @@ impl Fbas {
         });
         node_id
     }
+    pub fn get_node_id(&self, public_key: &str) -> Option<NodeId> {
+        self.pk_to_id.get(&PublicKey::from(public_key)).copied()
+    }
+    pub fn get_quorum_set(&self, node_id: NodeId) -> Option<QuorumSet> {
+        self.nodes.get(node_id).map(|node| node.quorum_set.clone())
+    }
+    pub fn swap_quorum_set(&mut self, node_id: NodeId, mut quorum_set: QuorumSet) -> QuorumSet {
+        mem::swap(&mut self.nodes[node_id].quorum_set, &mut quorum_set);
+        quorum_set
+    }
     pub fn number_of_nodes(&self) -> usize {
         self.nodes.len()
     }
@@ -146,11 +199,11 @@ impl Node {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuorumSet {
-    pub(crate) threshold: usize,
+    pub threshold: usize,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub(crate) validators: Vec<NodeId>,
+    pub validators: Vec<NodeId>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub(crate) inner_quorum_sets: Vec<QuorumSet>,
+    pub inner_quorum_sets: Vec<QuorumSet>,
 }
 impl QuorumSet {
     pub fn new() -> Self {

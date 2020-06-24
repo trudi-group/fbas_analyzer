@@ -84,15 +84,24 @@ impl NodeIdSetVecResult {
     }
     /// Returns (min_set_size, max_set_size, mean_set_size)
     pub fn minmaxmean(&self) -> (usize, usize, f64) {
-        let min = self.node_sets.iter().map(|s| s.len()).min().unwrap_or(0);
-        let max = self.node_sets.iter().map(|s| s.len()).max().unwrap_or(0);
-        let mean = if self.node_sets.is_empty() {
+        (self.min(), self.max(), self.mean())
+    }
+    /// Returns the cardinality of the smallest member set
+    pub fn min(&self) -> usize {
+        self.node_sets.iter().map(|s| s.len()).min().unwrap_or(0)
+    }
+    /// Returns the cardinality of the largest member set
+    pub fn max(&self) -> usize {
+        self.node_sets.iter().map(|s| s.len()).max().unwrap_or(0)
+    }
+    /// Returns the mean cardinality of all member sets
+    pub fn mean(&self) -> f64 {
+        if self.node_sets.is_empty() {
             0.0
         } else {
             self.node_sets.iter().map(|s| s.len()).sum::<usize>() as f64
                 / (self.node_sets.len() as f64)
-        };
-        (min, max, mean)
+        }
     }
     /// Returns [ #members with size 0, #members with size 1, ... , #members with maximum size ]
     pub fn histogram(&self) -> Vec<usize> {
