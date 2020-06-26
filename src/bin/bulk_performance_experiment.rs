@@ -156,13 +156,14 @@ fn make_sorted_tasklist(
 ) -> Vec<Task> {
     let mut tasks: Vec<Task> = inputs
         .into_iter()
-        .map(|input| {
-            if let Some(output) = existing_outputs.get(&input) {
-                Reuse(output.clone())
+        .filter_map(|input| {
+            if !existing_outputs.contains_key(&input) {
+                Some(Analyze(input, do_mbs_analysis, do_mss_analysis))
             } else {
-                Analyze(input, do_mbs_analysis, do_mss_analysis)
+                None
             }
         })
+        .chain(existing_outputs.values().cloned().map(Reuse))
         .collect();
     tasks.sort_by_cached_key(|t| t.label());
     tasks

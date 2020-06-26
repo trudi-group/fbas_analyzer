@@ -40,9 +40,9 @@ struct Cli {
     #[structopt(short = "i", long = "ignore-for-label", default_value = "stellarbeat")]
     ignore_for_label: String,
 
-    /// Number of threads to use. Defaults to number of CPUs available.
-    #[structopt(short = "j", long = "jobs")]
-    jobs: Option<usize>,
+    /// Number of threads to use. Defaults to 1.
+    #[structopt(short = "j", long = "jobs", default_value = "1")]
+    jobs: usize,
 
     #[structopt(flatten)]
     verbosity: Verbosity,
@@ -153,30 +153,24 @@ fn make_sorted_tasklist(
 ) -> Vec<Task> {
     let mut tasks: Vec<Task> = inputs
         .into_iter()
-        .map(|input| {
-            if let Some(output) = existing_outputs.get(&input.label) {
-                Reuse(output.clone())
+        .filter_map(|input| {
+            if !existing_outputs.contains_key(&input.label) {
+                Some(Analyze(input))
             } else {
-                Analyze(input)
+                None
             }
         })
+        .chain(existing_outputs.values().cloned().map(Reuse))
         .collect();
     tasks.sort_by_cached_key(|t| t.label());
     tasks
 }
 
-fn bulk_do(
-    tasks: Vec<Task>,
-    number_of_threads: Option<usize>,
-) -> impl Iterator<Item = OutputDataPoint> {
-    if let Some(n) = number_of_threads {
-        tasks
-            .into_iter()
-            .with_nb_threads(n)
-            .par_map(analyze_or_reuse)
-    } else {
-        tasks.into_iter().par_map(analyze_or_reuse)
-    }
+fn bulk_do(tasks: Vec<Task>, jobs: usize) -> impl Iterator<Item = OutputDataPoint> {
+    tasks
+        .into_iter()
+        .with_nb_threads(jobs)
+        .par_map(analyze_or_reuse)
 }
 fn analyze_or_reuse(task: Task) -> OutputDataPoint {
     match task {
