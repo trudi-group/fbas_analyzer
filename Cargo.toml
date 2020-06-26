@@ -26,6 +26,10 @@ required-features = ["binaries", "qsc-simulation"]
 name = "graph_generator"
 required-features = ["binaries", "qsc-simulation"]
 
+[[bin]]
+name = "bulk_performance_experiment"
+required-features = ["binaries", "bulk-analyzer", "qsc-simulation"]
+
 [features]
 default = ["binaries", "bulk-analyzer", "qsc-simulation"]
 binaries = ["quicli", "structopt"]
