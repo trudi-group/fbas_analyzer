@@ -285,7 +285,8 @@ fn make_almost_ideal_fbas(top_tier_size: usize) -> Fbas {
 
     // change one quorum set so that symmetric cluster optimisations don't trigger during analysis
     let mut quorum_set = fbas.get_quorum_set(0).unwrap();
-    quorum_set.validators.push(top_tier_size); // this node_id doesn't exist => no *real* change
+    quorum_set.validators.push(0); // doesn't change analysis results; 0 is already a validator
+    quorum_set.threshold += 1;
     fbas.swap_quorum_set(0, quorum_set);
     fbas
 }
