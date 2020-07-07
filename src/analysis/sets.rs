@@ -22,6 +22,46 @@ pub fn involved_nodes(node_sets: &[NodeIdSet]) -> NodeIdSet {
     all_nodes
 }
 
+/// Does preprocessing common to all finders
+pub(crate) fn find_sets<F, R>(fbas: &Fbas, finder: F) -> Vec<R>
+where
+    F: Fn(Vec<NodeIdSet>, &Fbas) -> Vec<R>,
+{
+    let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
+
+    debug!("Removing nodes not part of any quorum...");
+    let (satisfiable, unsatisfiable) = find_unsatisfiable_nodes(&all_nodes, fbas);
+    if !unsatisfiable.is_empty() {
+        warn!(
+            "The quorum sets of {} nodes are not satisfiable at all in the given FBAS!",
+            unsatisfiable.len()
+        );
+        info!(
+            "Ignoring {} unsatisfiable nodes ({} nodes left).",
+            unsatisfiable.len(),
+            satisfiable.len()
+        );
+    } else {
+        debug!("All nodes are satisfiable");
+    }
+
+    debug!("Partitioning into strongly connected components...");
+    let sccs = partition_into_strongly_connected_components(&satisfiable, fbas);
+
+    debug!("Reducing to strongly connected components that contain quorums...");
+    let consensus_clusters: Vec<NodeIdSet> = sccs
+        .into_iter()
+        .filter(|node_set| contains_quorum(&node_set, fbas))
+        .collect();
+    if consensus_clusters.len() > 1 {
+        warn!(
+            "{} connected components contain quorums => the FBAS lacks quorum intersection!",
+            consensus_clusters.len()
+        );
+    }
+    finder(consensus_clusters, fbas)
+}
+
 /// Reduce to minimal node sets, i.e. to a set of node sets so that no member set is a superset of another.
 pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
     debug!("Removing duplicates...");

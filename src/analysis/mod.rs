@@ -1,6 +1,4 @@
 use super::*;
-use log::log_enabled;
-use log::Level::Warn;
 
 mod front_end;
 mod results;
@@ -22,6 +20,7 @@ pub use quorums::{find_minimal_quorums, find_nonintersecting_quorums, find_symme
 pub use splitting_sets::find_minimal_splitting_sets;
 
 pub(crate) use preprocessing::*;
+pub(crate) use quorums::*;
 pub use sets::*;
 pub use timing::*;
 
@@ -91,6 +90,29 @@ mod tests {
         );
         assert_eq!(
             analysis.minimal_blocking_sets().describe(),
+            NodeIdSetVecResult::new(vec![bitset![0, 1], bitset![0, 10], bitset![1, 10]], None)
+                .describe()
+        );
+        assert_eq!(
+            analysis.minimal_splitting_sets().describe(),
+            NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![10]], None).describe()
+        );
+    }
+
+    #[test]
+    fn analysis_nontrivial_blocking_sets_first() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let analysis = Analysis::new(&fbas, None);
+
+        assert_eq!(
+            analysis.minimal_blocking_sets().describe(),
+            NodeIdSetVecResult::new(vec![bitset![0, 1], bitset![0, 10], bitset![1, 10]], None)
+                .describe()
+        );
+
+        assert!(analysis.has_quorum_intersection());
+        assert_eq!(
+            analysis.minimal_quorums().describe(),
             NodeIdSetVecResult::new(vec![bitset![0, 1], bitset![0, 10], bitset![1, 10]], None)
                 .describe()
         );

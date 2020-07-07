@@ -74,7 +74,7 @@ impl<'a> Analysis<'a> {
     /// Regular quorum intersection check via finding all minimal quorums.
     /// Algorithm inspired by [Lachowski 2019](https://arxiv.org/abs/1902.06493)).
     pub fn has_quorum_intersection(&self) -> bool {
-        self.cached_computation_from_minimal_quorums_shrunken(
+        self.cached_computation_from_maybe_merged_minimal_quorums_shrunken(
             &self.hqi_cache,
             |quorums| !quorums.is_empty() && all_intersect(quorums),
             "has quorum intersection",
@@ -97,21 +97,30 @@ impl<'a> Analysis<'a> {
     }
     /// Minimal quorums - no proper subset of any of these node sets is a quorum.
     pub fn minimal_quorums(&self) -> NodeIdSetVecResult {
-        self.make_shrunken_set_vec_result(self.minimal_quorums_shrunken())
+        self.make_shrunken_set_vec_result(
+            self.maybe_merge_shrunken_minimal_node_sets_by_organization(
+                self.minimal_quorums_shrunken(),
+            ),
+        )
     }
     /// Minimal blocking sets - minimal indispensable sets for global liveness.
     pub fn minimal_blocking_sets(&self) -> NodeIdSetVecResult {
-        self.make_shrunken_set_vec_result(self.minimal_blocking_sets_shrunken())
+        self.make_shrunken_set_vec_result(
+            self.maybe_merge_shrunken_minimal_node_sets_by_organization(
+                self.minimal_blocking_sets_shrunken(),
+            ),
+        )
     }
     /// Minimal splitting sets - minimal indispensable sets for safety.
     pub fn minimal_splitting_sets(&self) -> NodeIdSetVecResult {
-        self.make_shrunken_set_vec_result(self.minimal_splitting_sets_shrunken())
+        self.make_shrunken_set_vec_result(self.maybe_merged_minimal_splitting_sets_shrunken())
     }
     /// Top tier - the set of nodes exclusively relevant when determining minimal blocking sets and
     /// minimal splitting sets.
     pub fn top_tier(&self) -> NodeIdSetResult {
-        let top_tier_shrunken = involved_nodes(&self.minimal_quorums_shrunken());
-        self.make_shrunken_set_result(top_tier_shrunken)
+        self.make_shrunken_set_result(
+            self.maybe_merge_shrunken_node_set_by_organization(self.top_tier_shrunken()),
+        )
     }
     /// Symmetric clusters - sets of nodes in which each two nodes have the same quorum set.
     /// Here, each found symmetric cluster is represented by its common quorum set.
@@ -125,84 +134,62 @@ impl<'a> Analysis<'a> {
     }
 
     fn minimal_quorums_shrunken(&self) -> Vec<NodeIdSet> {
-        if self.mq_shrunken_cache.borrow().is_none() {
-            self.find_minimal_quorums_and_update_shrinking_rules();
-        } else {
-            info!("Using cached minimal quorums.");
-        }
-        self.mq_shrunken_cache.borrow().clone().unwrap()
+        self.cached_top_tier_defining_computation_from_fbas_shrunken(
+            &self.mq_shrunken_cache,
+            find_minimal_quorums,
+            "minimal quorums",
+        )
     }
     fn minimal_blocking_sets_shrunken(&self) -> Vec<NodeIdSet> {
-        self.cached_computation_from_minimal_quorums_shrunken(
+        self.cached_top_tier_defining_computation_from_fbas_shrunken(
             &self.mbs_shrunken_cache,
             find_minimal_blocking_sets,
             "minimal blocking sets",
         )
     }
-    fn minimal_splitting_sets_shrunken(&self) -> Vec<NodeIdSet> {
-        self.cached_computation_from_minimal_quorums_shrunken(
+    fn maybe_merged_minimal_splitting_sets_shrunken(&self) -> Vec<NodeIdSet> {
+        self.cached_computation_from_maybe_merged_minimal_quorums_shrunken(
             &self.mss_shrunken_cache,
             find_minimal_splitting_sets,
             "minimal splitting sets",
         )
     }
+    fn top_tier_shrunken(&self) -> NodeIdSet {
+        if self.mq_shrunken_cache.borrow().is_some() || self.mbs_shrunken_cache.borrow().is_none() {
+            involved_nodes(&self.minimal_quorums_shrunken())
+        } else {
+            involved_nodes(&self.minimal_blocking_sets_shrunken())
+        }
+    }
 
-    fn find_minimal_quorums_and_update_shrinking_rules(&self) {
-        self.find_merge_and_cache_minimal_quorums();
-        self.shrink_id_space_to_top_tier();
+    fn cached_top_tier_defining_computation_from_fbas_shrunken<F>(
+        &self,
+        cache: &RefCell<Option<Vec<NodeIdSet>>>,
+        computation: F,
+        log_name: &str,
+    ) -> Vec<NodeIdSet>
+    where
+        F: Fn(&Fbas) -> Vec<NodeIdSet>,
+    {
+        let cache_is_empty = cache.borrow().is_none();
+        if cache_is_empty {
+            let top_tier_known = self.mq_shrunken_cache.borrow().is_some()
+                || self.mbs_shrunken_cache.borrow().is_some();
+            let should_shrink = !top_tier_known;
 
-        if log_enabled!(Warn) {
-            if self.has_quorum_intersection() {
-                debug!("FBAS enjoys quorum intersection.");
-            } else {
-                warn!("FBAS doesn't enjoy quorum intersection!");
+            info!("Computing {}...", log_name);
+            let result = computation(&self.fbas_shrunken.borrow());
+            cache.replace(Some(result));
+            if should_shrink {
+                self.shrink_id_space_to_top_tier();
             }
+        } else {
+            info!("Using cached {}.", log_name);
         }
-    }
-    fn find_merge_and_cache_minimal_quorums(&self) {
-        info!("Computing minimal quorums...");
-        let minimal_quorums_shrunken = find_minimal_quorums(&self.fbas_shrunken.borrow());
-
-        if self.organizations_original.is_some() {
-            debug!("Merging nodes by organization...");
-            info!(
-                "{} top tier nodes before merging by organization.",
-                involved_nodes(&minimal_quorums_shrunken).len()
-            );
-        }
-        let minimal_quorums_shrunken =
-            self.maybe_merge_shrunken_minimal_node_sets_by_organization(minimal_quorums_shrunken);
-        if self.organizations_original.is_some() {
-            info!(
-                "{} top tier nodes after merging by organization.",
-                involved_nodes(&minimal_quorums_shrunken).len()
-            );
-        }
-        self.mq_shrunken_cache
-            .replace(Some(minimal_quorums_shrunken));
-    }
-    fn shrink_id_space_to_top_tier(&self) {
-        debug!("Shrinking FBAS again, to top tier (for performance)...",);
-        let top_tier_original = self.top_tier().unwrap();
-        let (new_fbas_shrunken, new_shrink_manager) =
-            Fbas::shrunken(&self.fbas_original, top_tier_original);
-        debug!(
-            "Shrank to an FBAS of size {} (from size {}).",
-            new_fbas_shrunken.number_of_nodes(),
-            self.fbas_shrunken.borrow().number_of_nodes(),
-        );
-        let minimal_quorums_shrunken = new_shrink_manager.reshrink_sets(
-            &self.minimal_quorums_shrunken(),
-            &self.shrink_manager.borrow(),
-        );
-
-        self.fbas_shrunken.replace(new_fbas_shrunken);
-        self.shrink_manager.replace(new_shrink_manager);
-        self.mq_shrunken_cache
-            .replace(Some(minimal_quorums_shrunken));
+        cache.borrow().clone().unwrap()
     }
 
-    fn cached_computation_from_minimal_quorums_shrunken<R, F>(
+    fn cached_computation_from_maybe_merged_minimal_quorums_shrunken<R, F>(
         &self,
         cache: &RefCell<Option<R>>,
         computation: F,
@@ -215,7 +202,12 @@ impl<'a> Analysis<'a> {
         let cache_is_empty = cache.borrow().is_none();
         if cache_is_empty {
             info!("Computing {}...", log_name);
-            cache.replace(Some(computation(&self.minimal_quorums_shrunken())));
+            let minimal_quorums_shrunken = self
+                .maybe_merge_shrunken_minimal_node_sets_by_organization(
+                    self.minimal_quorums_shrunken(),
+                );
+            let result = computation(&minimal_quorums_shrunken);
+            cache.replace(Some(result));
         } else {
             info!("Using cached {}.", log_name);
         }
@@ -225,6 +217,16 @@ impl<'a> Analysis<'a> {
     fn maybe_merge_unshrunken_node_set_by_organization(&self, node_set: NodeIdSet) -> NodeIdSet {
         if let Some(ref orgs) = self.organizations_original {
             orgs.merge_node_set(node_set)
+        } else {
+            node_set
+        }
+    }
+    fn maybe_merge_shrunken_node_set_by_organization(&self, node_set: NodeIdSet) -> NodeIdSet {
+        if let Some(ref orgs) = self.organizations_original {
+            let fbas_shrunken = &self.fbas_shrunken.borrow();
+            let orgs_shrunken =
+                Organizations::shrunken(orgs, &self.shrink_manager.borrow(), &fbas_shrunken);
+            orgs_shrunken.merge_node_set(node_set)
         } else {
             node_set
         }
@@ -241,6 +243,41 @@ impl<'a> Analysis<'a> {
         } else {
             node_sets
         }
+    }
+
+    fn shrink_id_space_to_top_tier(&self) {
+        debug!("Shrinking FBAS again, to top tier (for performance)...",);
+        let top_tier_original = self
+            .shrink_manager
+            .borrow()
+            .unshrink_set(&self.top_tier_shrunken());
+        let (new_fbas_shrunken, new_shrink_manager) =
+            Fbas::shrunken(&self.fbas_original, top_tier_original);
+        debug!(
+            "Shrank to an FBAS of size {} (from size {}).",
+            new_fbas_shrunken.number_of_nodes(),
+            self.fbas_shrunken.borrow().number_of_nodes(),
+        );
+
+        debug!("Fixing previously cached values...");
+        assert!(
+            self.mq_shrunken_cache.borrow().is_none() || self.mbs_shrunken_cache.borrow().is_none()
+        );
+        let mq_shrunken_cache = if let Some(mq_shrunken) = self.mq_shrunken_cache.borrow().clone() {
+            Some(new_shrink_manager.reshrink_sets(&mq_shrunken, &self.shrink_manager.borrow()))
+        } else {
+            None
+        };
+        let mbs_shrunken_cache =
+            if let Some(mbs_shrunken) = self.mbs_shrunken_cache.borrow().clone() {
+                Some(new_shrink_manager.reshrink_sets(&mbs_shrunken, &self.shrink_manager.borrow()))
+            } else {
+                None
+            };
+        self.fbas_shrunken.replace(new_fbas_shrunken);
+        self.shrink_manager.replace(new_shrink_manager);
+        self.mq_shrunken_cache.replace(mq_shrunken_cache);
+        self.mbs_shrunken_cache.replace(mbs_shrunken_cache);
     }
 
     fn make_unshrunken_set_result(&self, payload: NodeIdSet) -> NodeIdSetResult {

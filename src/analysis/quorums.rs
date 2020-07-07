@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 /// Find all minimal quorums in the FBAS...
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal quorums...");
-    let quorums = find_quorums(fbas, minimal_quorums_finder);
+    let quorums = find_sets(fbas, minimal_quorums_finder);
     info!("Found {} (not necessarily minimal) quorums.", quorums.len());
     let minimal_quorums = remove_non_minimal_quorums(quorums, fbas);
     info!("Reduced to {} minimal quorums.", minimal_quorums.len());
@@ -15,7 +15,7 @@ pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
 /// the FBAS lacks quorum intersection and you want to stop early in such cases.
 pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Option<Vec<NodeIdSet>> {
     info!("Starting to look for potentially non-intersecting quorums...");
-    let quorums = find_quorums(fbas, nonintersecting_quorums_finder);
+    let quorums = find_sets(fbas, nonintersecting_quorums_finder);
     if quorums.len() < 2 {
         info!("Found no non-intersecting quorums.");
         None
@@ -35,49 +35,9 @@ pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Option<Vec<NodeIdSet>> {
 /// don't have quorum intersection.)
 pub fn find_symmetric_clusters(fbas: &Fbas) -> Vec<QuorumSet> {
     info!("Starting to look for symmetric quorum clusters...");
-    let quorums = find_quorums(fbas, symmetric_clusters_finder);
+    let quorums = find_sets(fbas, symmetric_clusters_finder);
     info!("Found {} different quorum clusters.", quorums.len());
     quorums
-}
-
-/// Does preprocessing common to all finders
-fn find_quorums<F, R>(fbas: &Fbas, finder: F) -> Vec<R>
-where
-    F: Fn(Vec<NodeIdSet>, &Fbas) -> Vec<R>,
-{
-    let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
-
-    debug!("Removing nodes not part of any quorum...");
-    let (satisfiable, unsatisfiable) = find_unsatisfiable_nodes(&all_nodes, fbas);
-    if !unsatisfiable.is_empty() {
-        warn!(
-            "The quorum sets of {} nodes are not satisfiable at all in the given FBAS!",
-            unsatisfiable.len()
-        );
-        info!(
-            "Ignoring {} unsatisfiable nodes ({} nodes left).",
-            unsatisfiable.len(),
-            satisfiable.len()
-        );
-    } else {
-        debug!("All nodes are satisfiable");
-    }
-
-    debug!("Partitioning into strongly connected components...");
-    let sccs = partition_into_strongly_connected_components(&satisfiable, fbas);
-
-    debug!("Reducing to strongly connected components that contain quorums...");
-    let consensus_clusters: Vec<NodeIdSet> = sccs
-        .into_iter()
-        .filter(|node_set| contains_quorum(&node_set, fbas))
-        .collect();
-    if consensus_clusters.len() > 1 {
-        warn!(
-            "{} connected components contain quorums => the FBAS lacks quorum intersection!",
-            consensus_clusters.len()
-        );
-    }
-    finder(consensus_clusters, fbas)
 }
 
 fn minimal_quorums_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
@@ -277,7 +237,7 @@ fn selection_satisfiable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fb
         .all(|x| fbas.nodes[x].is_quorum_slice(available))
 }
 
-fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
+pub(crate) fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
     let mut satisfiable = node_set.clone();
 
     while let Some(unsatisfiable_node) = satisfiable
