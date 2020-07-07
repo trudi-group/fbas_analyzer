@@ -36,6 +36,10 @@ struct Cli {
     #[structopt(long = "expect-no-intersection")]
     expect_no_intersection: bool,
 
+    /// Don't check quorum intersection.
+    #[structopt(long = "dont-check-quorum-intersection")]
+    dont_check_quorum_intersection: bool,
+
     /// Output metrics instead of lists of node lists.
     #[structopt(short = "d", long = "describe")]
     describe: bool,
@@ -78,7 +82,13 @@ fn main() -> CliResult {
         find_and_report_minimal_quorums(&analysis, &output);
     }
 
-    check_and_report_if_has_quorum_intersection(&analysis, &output, args.expect_no_intersection);
+    if !args.dont_check_quorum_intersection {
+        check_and_report_if_has_quorum_intersection(
+            &analysis,
+            &output,
+            args.expect_no_intersection,
+        );
+    }
 
     if b {
         find_and_report_minimal_blocking_sets(&analysis, &output);
