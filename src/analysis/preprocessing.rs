@@ -6,10 +6,10 @@ use pathfinding::directed::strongly_connected_components::strongly_connected_com
 type RankScore = f64;
 
 impl Fbas {
-    pub fn unsatisfiable_nodes(&self) -> NodeIdSet {
+    pub fn satisfiable_nodes(&self) -> NodeIdSet {
         find_unsatisfiable_nodes(&self.all_nodes(), self).0
     }
-    pub fn satisfiable_nodes(&self) -> NodeIdSet {
+    pub fn unsatisfiable_nodes(&self) -> NodeIdSet {
         find_unsatisfiable_nodes(&self.all_nodes(), self).1
     }
     pub fn strongly_connected_components(&self) -> Vec<NodeIdSet> {

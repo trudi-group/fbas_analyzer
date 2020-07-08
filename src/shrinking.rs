@@ -85,15 +85,15 @@ pub fn unshrink_sets(node_sets: &[NodeIdSet], unshrink_table: &[NodeId]) -> Vec<
 }
 
 impl Fbas {
-    pub fn shrunken(fbas: &Self, ids_to_keep: NodeIdSet) -> (Self, ShrinkManager) {
+    pub fn shrunken(&self, ids_to_keep: NodeIdSet) -> (Self, ShrinkManager) {
         let shrink_manager = ShrinkManager::new(ids_to_keep);
         let unshrink_table = &shrink_manager.unshrink_table;
         let shrink_map = &shrink_manager.shrink_map;
 
         let mut fbas_shrunken = Fbas::new_generic_unconfigured(unshrink_table.len());
-        for old_id in 0..fbas.nodes.len() {
+        for old_id in 0..self.nodes.len() {
             if let Some(&new_id) = shrink_map.get(&old_id) {
-                fbas_shrunken.nodes[new_id] = Node::shrunken(&fbas.nodes[old_id], &shrink_map);
+                fbas_shrunken.nodes[new_id] = Node::shrunken(&self.nodes[old_id], &shrink_map);
             }
         }
         (fbas_shrunken, shrink_manager)
@@ -255,7 +255,7 @@ mod tests {
     fn shrink_unshrink_find_minimal_quorums() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
         let strongly_connected_nodes =
-            reduce_to_strongly_connected_nodes(fbas.unsatisfiable_nodes(), &fbas).0;
+            reduce_to_strongly_connected_nodes(fbas.satisfiable_nodes(), &fbas).0;
         let (fbas_shrunken, shrink_manager) = Fbas::shrunken(&fbas, strongly_connected_nodes);
 
         let expected = find_minimal_quorums(&fbas);

@@ -25,7 +25,7 @@ impl<'a> Analysis<'a> {
             fbas.number_of_nodes()
         );
         let strongly_connected_nodes =
-            reduce_to_strongly_connected_nodes(fbas.unsatisfiable_nodes(), fbas).0;
+            reduce_to_strongly_connected_nodes(fbas.satisfiable_nodes(), fbas).0;
         let (fbas_shrunken, shrink_manager) = Fbas::shrunken(fbas, strongly_connected_nodes);
         debug!(
             "Shrank to an FBAS of size {}.",
