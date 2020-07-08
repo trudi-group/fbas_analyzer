@@ -221,7 +221,7 @@ fn analyze(input: InputDataPoint, do_mbs_analysis: bool, do_mss_analysis: bool) 
         let (mss_number, mss_mean, analysis_duration_mss) = {
             if do_mss_analysis {
                 let ((mss_number, mss_mean), analysis_duration_mss) = timed_secs!({
-                    let mss = analysis.minimal_blocking_sets();
+                    let mss = analysis.minimal_splitting_sets();
                     (mss.len(), mss.mean())
                 });
                 (
