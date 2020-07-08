@@ -33,14 +33,12 @@
 mod analysis;
 mod core_types;
 mod io;
-mod shrinking;
 
 pub use analysis::*;
 pub use core_types::{Fbas, NodeId, NodeIdSet, Organizations, QuorumSet};
 pub use io::AnalysisResult;
 
 use core_types::*;
-use shrinking::*;
 
 use log::{debug, info, warn};
 

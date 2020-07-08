@@ -87,7 +87,7 @@ impl AnalysisResult for NodeIdSetVecResult {
             .map(|node_set| {
                 if let Some(unshrink_table) = self.unshrink_table.as_ref() {
                     NodeIdSetResult {
-                        node_set: shrinking::unshrink_set(node_set, unshrink_table),
+                        node_set: unshrink_set(node_set, unshrink_table),
                     }
                 } else {
                     NodeIdSetResult {
