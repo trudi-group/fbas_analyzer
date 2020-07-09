@@ -10,53 +10,40 @@ use std::path::Path;
 use fbas_analyzer::*;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-    // let orgs = Organizations::from_json_file(
-    //     Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
-    //     &fbas,
-    // );
+    // fbas with a symmetric top tier
+    let fbas_stt = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
+
+    // fbas with a slightly asymmetric top tier
+    let mut fbas = fbas_stt.clone();
+    let mut quorum_set = fbas.get_quorum_set(1).unwrap();
+    quorum_set.inner_quorum_sets[0].validators.pop();
+    fbas.swap_quorum_set(1, quorum_set);
+
+    c.bench_function("to_standard_form", |b| b.iter(|| fbas.to_standard_form()));
+
+    let fbas = fbas.to_standard_form();
+    let fbas_stt = fbas_stt.to_standard_form();
 
     c.bench_function("find_minimal_quorums", |b| {
         b.iter(|| find_minimal_quorums(black_box(&fbas)))
     });
-    let minimal_quorums = find_minimal_quorums(&fbas);
-
-    // c.bench_function("all_intersect", |b| {
-    //     b.iter(|| all_intersect(black_box(&minimal_quorums)))
-    // });
-
-    let broken_fbas = Fbas::from_json_file(Path::new(
-        "test_data/stellarbeat_nodes_2020-01-16_broken_by_hand.json",
-    ));
-    c.bench_function("find_nonintersecting_quorums_in_broken", |b| {
-        b.iter(|| find_nonintersecting_quorums(black_box(&broken_fbas)))
+    c.bench_function("find_minimal_quorums_symmetric_top_tier", |b| {
+        b.iter(|| find_minimal_quorums(black_box(&fbas_stt)))
     });
-    // c.bench_function("find_nonintersecting_quorums_in_correct", |b| {
-    //     b.iter(|| find_nonintersecting_quorums(black_box(&fbas)))
-    // });
-
-    // c.bench_function("merge_by_organization", |b| {
-    //     b.iter(|| {
-    //         remove_non_minimal_node_sets(
-    //             orgs.merge_node_sets(black_box(minimal_quorums.clone())),
-    //         )
-    //     })
-    // });
-    // let minimal_quorums_merged =
-    //     remove_non_minimal_node_sets(orgs.merge_node_sets(minimal_quorums.clone()));
-
-    // c.bench_function("find_minimal_blocking_sets_merged", |b| {
-    //     b.iter(|| find_minimal_blocking_sets(black_box(&minimal_quorums_merged)))
-    // });
-    // c.bench_function("find_minimal_splitting_sets_merged", |b| {
-    //     b.iter(|| find_minimal_splitting_sets(black_box(&minimal_quorums_merged)))
-    // });
-
     c.bench_function("find_minimal_blocking_sets", |b| {
-        b.iter(|| find_minimal_blocking_sets(black_box(&minimal_quorums)))
+        b.iter(|| find_minimal_blocking_sets(black_box(&fbas)))
     });
+    c.bench_function("find_minimal_blocking_sets_symmetric_top_tier", |b| {
+        b.iter(|| find_minimal_blocking_sets(black_box(&fbas_stt)))
+    });
+
+    let minimal_quorums = find_minimal_quorums(&fbas);
+    let minimal_quorums_stt = find_minimal_quorums(&fbas_stt);
     c.bench_function("find_minimal_splitting_sets", |b| {
         b.iter(|| find_minimal_splitting_sets(black_box(&minimal_quorums)))
+    });
+    c.bench_function("find_minimal_splitting_sets_symmetric_top_tier", |b| {
+        b.iter(|| find_minimal_splitting_sets(black_box(&minimal_quorums_stt)))
     });
 }
 
