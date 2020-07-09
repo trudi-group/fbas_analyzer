@@ -205,10 +205,7 @@ mod tests {
     #[ignore]
     fn minimal_blocking_sets_more_minimal_than_minimal_quorums() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-        let strongly_connected_nodes =
-            reduce_to_strongly_connected_nodes(fbas.unsatisfiable_nodes(), &fbas).0;
-
-        let (fbas, _) = Fbas::shrunken(&fbas, strongly_connected_nodes);
+        let fbas = fbas.to_standard_form();
         let minimal_quorums = find_minimal_quorums(&fbas);
         let minimal_blocking_sets = find_minimal_blocking_sets(&fbas);
 

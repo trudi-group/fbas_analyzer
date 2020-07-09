@@ -38,6 +38,8 @@ qsc-simulation = ["rand", "bzip2"]
 
 [dev-dependencies]
 criterion = "0.3.2"
+sha3 = "0.9.1"
+hex = "0.4.2"
 
 [dependencies]
 bit-set = "0.5.2"

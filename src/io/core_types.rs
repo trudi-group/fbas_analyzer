@@ -4,13 +4,13 @@ use std::fmt;
 use super::*;
 
 #[derive(Serialize, Deserialize)]
-struct RawFbas(Vec<RawNode>);
+pub(crate) struct RawFbas(pub(crate) Vec<RawNode>);
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RawNode {
-    public_key: PublicKey,
+pub(crate) struct RawNode {
+    pub(crate) public_key: PublicKey,
     #[serde(default)]
-    quorum_set: RawQuorumSet,
+    pub(crate) quorum_set: RawQuorumSet,
 }
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -39,7 +39,7 @@ impl Fbas {
     pub fn to_json_string_pretty(&self) -> String {
         serde_json::to_string_pretty(&self).expect("Error converting FBAS to pretty JSON!")
     }
-    fn from_raw(raw_fbas: RawFbas) -> Self {
+    pub(crate) fn from_raw(raw_fbas: RawFbas) -> Self {
         let raw_nodes: Vec<RawNode> = raw_fbas.0.into_iter().collect();
 
         let pk_to_id: HashMap<PublicKey, NodeId> = raw_nodes
@@ -55,7 +55,7 @@ impl Fbas {
 
         Fbas { nodes, pk_to_id }
     }
-    fn to_raw(&self) -> RawFbas {
+    pub(crate) fn to_raw(&self) -> RawFbas {
         RawFbas(self.nodes.iter().map(|n| n.to_raw(&self)).collect())
     }
 }

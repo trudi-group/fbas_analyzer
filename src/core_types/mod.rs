@@ -1,6 +1,7 @@
 use super::*;
 
 pub use bit_set::BitSet;
+pub use std::collections::BTreeMap;
 pub use std::collections::BTreeSet;
 pub use std::collections::HashMap;
 pub use std::collections::HashSet;
