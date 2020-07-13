@@ -41,10 +41,9 @@ pub fn find_symmetric_clusters(fbas: &Fbas) -> Vec<QuorumSet> {
 }
 
 fn minimal_quorums_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
-    let mut found_quorums_in_all_clusters = vec![];
+    let mut found_quorums: Vec<NodeIdSet> = vec![];
     for (i, nodes) in consensus_clusters.into_iter().enumerate() {
         debug!("Finding minimal quorums in cluster {}...", i);
-        let mut found_quorums: Vec<NodeIdSet> = vec![];
 
         let quorum_clusters = find_symmetric_clusters_in_node_set(&nodes, fbas);
         if !quorum_clusters.is_empty() {
@@ -76,9 +75,8 @@ fn minimal_quorums_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Ve
                 true,
             );
         }
-        found_quorums_in_all_clusters.append(&mut found_quorums);
     }
-    found_quorums_in_all_clusters
+    found_quorums
 }
 fn minimal_quorums_finder_step(
     unprocessed: &mut NodeIdDeque,
@@ -280,7 +278,7 @@ fn remove_non_minimal_quorums(quorums: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeI
         }
     }
     debug!("Filtering done.");
-    debug_assert!(contains_only_minimal_node_sets(&minimal_quorums));
+    debug_assert!(is_set_of_minimal_node_sets(&minimal_quorums));
     minimal_quorums.sort();
     minimal_quorums.sort_by_key(|x| x.len());
     minimal_quorums

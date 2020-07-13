@@ -73,11 +73,7 @@ impl<'a> Analysis<'a> {
     /// Regular quorum intersection check via finding all minimal quorums.
     /// Algorithm inspired by [Lachowski 2019](https://arxiv.org/abs/1902.06493)).
     pub fn has_quorum_intersection(&self) -> bool {
-        self.cached_computation_from_maybe_merged_minimal_quorums_shrunken(
-            &self.hqi_cache,
-            |quorums| !quorums.is_empty() && all_intersect(quorums),
-            "has quorum intersection",
-        )
+        self.has_quorum_intersection_from_shrunken()
     }
     /// Quorum intersection check that works faster for FBASs that do not enjoy quorum
     /// intersection.
@@ -112,7 +108,11 @@ impl<'a> Analysis<'a> {
     }
     /// Minimal splitting sets - minimal indispensable sets for safety.
     pub fn minimal_splitting_sets(&self) -> NodeIdSetVecResult {
-        self.make_shrunken_set_vec_result(self.maybe_merged_minimal_splitting_sets_shrunken())
+        self.make_shrunken_set_vec_result(
+            self.maybe_merge_shrunken_minimal_node_sets_by_organization(
+                self.minimal_splitting_sets_shrunken(),
+            ),
+        )
     }
     /// Top tier - the set of nodes exclusively relevant when determining minimal blocking sets and
     /// minimal splitting sets.
@@ -132,28 +132,52 @@ impl<'a> Analysis<'a> {
         }
     }
 
+    fn has_quorum_intersection_from_shrunken(&self) -> bool {
+        self.cached_computation(
+            &self.hqi_cache,
+            || {
+                let quorums = self.minimal_quorums_shrunken();
+                !quorums.is_empty() && all_intersect(&quorums)
+            },
+            "has quorum intersection",
+            false,
+        )
+    }
     fn minimal_quorums_shrunken(&self) -> Vec<NodeIdSet> {
-        self.cached_top_tier_defining_computation_from_fbas_shrunken(
+        self.cached_computation_from_fbas_shrunken(
             &self.mq_shrunken_cache,
             find_minimal_quorums,
             "minimal quorums",
+            true,
         )
     }
     fn minimal_blocking_sets_shrunken(&self) -> Vec<NodeIdSet> {
-        self.cached_top_tier_defining_computation_from_fbas_shrunken(
+        self.cached_computation_from_fbas_shrunken(
             &self.mbs_shrunken_cache,
             find_minimal_blocking_sets,
             "minimal blocking sets",
+            true,
         )
     }
-    fn maybe_merged_minimal_splitting_sets_shrunken(&self) -> Vec<NodeIdSet> {
-        self.cached_computation_from_maybe_merged_minimal_quorums_shrunken(
+    fn minimal_splitting_sets_shrunken(&self) -> Vec<NodeIdSet> {
+        // ensure that this is computed already to avoid borrow confusion (+ we'll need it anyway)
+        self.minimal_quorums_shrunken();
+        self.cached_computation_from_fbas_shrunken(
             &self.mss_shrunken_cache,
-            find_minimal_splitting_sets,
+            |fbas| {
+                if self.has_quorum_intersection() {
+                    find_minimal_splitting_sets(fbas)
+                } else {
+                    vec![bitset![]]
+                }
+            },
             "minimal splitting sets",
+            false,
         )
     }
     fn top_tier_shrunken(&self) -> NodeIdSet {
+        // The top tier is defined as either the union of all minimal quorums but can also be found
+        // by forming the union of all minimal blocking sets.
         if self.mq_shrunken_cache.borrow().is_some() || self.mbs_shrunken_cache.borrow().is_none() {
             involved_nodes(&self.minimal_quorums_shrunken())
         } else {
@@ -161,52 +185,51 @@ impl<'a> Analysis<'a> {
         }
     }
 
-    fn cached_top_tier_defining_computation_from_fbas_shrunken<F>(
-        &self,
-        cache: &RefCell<Option<Vec<NodeIdSet>>>,
-        computation: F,
-        log_name: &str,
-    ) -> Vec<NodeIdSet>
-    where
-        F: Fn(&Fbas) -> Vec<NodeIdSet>,
-    {
-        let cache_is_empty = cache.borrow().is_none();
-        if cache_is_empty {
-            let top_tier_known = self.mq_shrunken_cache.borrow().is_some()
-                || self.mbs_shrunken_cache.borrow().is_some();
-            let should_shrink = !top_tier_known;
-
-            info!("Computing {}...", log_name);
-            let result = computation(&self.fbas_shrunken.borrow());
-            cache.replace(Some(result));
-            if should_shrink {
-                self.shrink_id_space_to_top_tier();
-            }
-        } else {
-            info!("Using cached {}.", log_name);
-        }
-        cache.borrow().clone().unwrap()
-    }
-
-    fn cached_computation_from_maybe_merged_minimal_quorums_shrunken<R, F>(
+    fn cached_computation_from_fbas_shrunken<R, F>(
         &self,
         cache: &RefCell<Option<R>>,
         computation: F,
         log_name: &str,
+        result_defines_top_tier: bool,
     ) -> R
     where
         R: Clone,
-        F: Fn(&[NodeIdSet]) -> R,
+        F: Fn(&Fbas) -> R,
+    {
+        self.cached_computation(
+            cache,
+            || computation(&self.fbas_shrunken.borrow()),
+            log_name,
+            result_defines_top_tier,
+        )
+    }
+    fn cached_computation<R, F>(
+        &self,
+        cache: &RefCell<Option<R>>,
+        computation: F,
+        log_name: &str,
+        result_defines_top_tier: bool,
+    ) -> R
+    where
+        R: Clone,
+        F: Fn() -> R,
     {
         let cache_is_empty = cache.borrow().is_none();
         if cache_is_empty {
+            let should_shrink = if result_defines_top_tier {
+                // top tier not defined yet
+                self.mq_shrunken_cache.borrow().is_none()
+                    && self.mbs_shrunken_cache.borrow().is_none()
+            } else {
+                false
+            };
+
             info!("Computing {}...", log_name);
-            let minimal_quorums_shrunken = self
-                .maybe_merge_shrunken_minimal_node_sets_by_organization(
-                    self.minimal_quorums_shrunken(),
-                );
-            let result = computation(&minimal_quorums_shrunken);
+            let result = computation();
             cache.replace(Some(result));
+            if should_shrink {
+                self.shrink_id_space_to_top_tier();
+            }
         } else {
             info!("Using cached {}.", log_name);
         }

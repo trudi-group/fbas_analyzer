@@ -19,7 +19,7 @@ pub fn find_minimal_blocking_sets(fbas: &Fbas) -> Vec<NodeIdSet> {
 fn minimal_blocking_sets_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
     let mut found_blocking_sets_per_cluster: Vec<Vec<NodeIdSet>> = vec![];
     for (i, nodes) in consensus_clusters.into_iter().enumerate() {
-        debug!("Finding minimal blocking_sets in cluster {}...", i);
+        debug!("Finding minimal blocking sets in cluster {}...", i);
         let mut found_blocking_sets: Vec<NodeIdSet> = vec![];
 
         debug!("Sorting nodes by rank...");
@@ -141,7 +141,7 @@ fn remove_non_minimal_blocking_sets(blocking_sets: Vec<NodeIdSet>, fbas: &Fbas) 
         }
     }
     debug!("Filtering done.");
-    debug_assert!(contains_only_minimal_node_sets(&minimal_blocking_sets));
+    debug_assert!(is_set_of_minimal_node_sets(&minimal_blocking_sets));
     minimal_blocking_sets.sort();
     minimal_blocking_sets.sort_by_key(|x| x.len());
     minimal_blocking_sets

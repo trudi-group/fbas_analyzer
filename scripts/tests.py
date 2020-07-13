@@ -27,6 +27,7 @@ def cargo_build():
 def test_fbas_analyzer():
     test_fbas_analyzer_with_organizations()
     test_fbas_analyzer_with_ids()
+    test_fbas_analyzer_on_broken()
 
 
 def test_fbas_analyzer_with_organizations():
@@ -45,6 +46,17 @@ def test_fbas_analyzer_with_ids():
     command = "target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -a"
     expected_strings = [
         'top_tier: [1,4,8,23,29,36,37,43,44,52,56,69,86,105,167,168,171]',
+    ]
+    run_and_check_output(command, expected_strings=expected_strings)
+
+
+def test_fbas_analyzer_on_broken():
+    command = "target/release/fbas_analyzer test_data/broken.json -a"
+    expected_strings = [
+        'has_quorum_intersection: false',
+        'minimal_blocking_sets: [[3,4],[4,10],[3,6,10]]',
+        'minimal_splitting_sets: [[]]',
+        'top_tier: [3,4,6,10]',
     ]
     run_and_check_output(command, expected_strings=expected_strings)
 

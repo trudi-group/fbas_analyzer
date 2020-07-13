@@ -123,6 +123,17 @@ mod tests {
     }
 
     #[test]
+    fn splitting_sets_on_broken() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
+        let analysis = Analysis::new(&fbas, None);
+
+        let actual = analysis.minimal_splitting_sets().unwrap();
+        let expected = bitsetvec![{}];
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
     fn alternative_check_on_broken() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
         let analysis = Analysis::new(&fbas, None);

@@ -87,12 +87,12 @@ pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeId
     remove_non_minimal_node_sets_from_buckets(buckets_by_len)
 }
 
-pub fn contains_only_minimal_node_sets(node_sets: &[NodeIdSet]) -> bool {
-    node_sets.iter().all(|x| {
+pub fn is_set_of_minimal_node_sets(node_sets: &[NodeIdSet]) -> bool {
+    node_sets.iter().enumerate().all(|(i, x)| {
         node_sets
             .iter()
-            .filter(|&y| x != y)
-            .all(|y| !y.is_subset(x))
+            .enumerate()
+            .all(|(j, y)| i == j || !x.is_subset(y))
     })
 }
 
@@ -116,48 +116,8 @@ pub(crate) fn remove_non_minimal_node_sets_from_buckets(
         minimal_node_sets.append(&mut minimal_node_sets_current_len);
     }
     debug!("Filtering done.");
-    debug_assert!(contains_only_minimal_node_sets(&minimal_node_sets));
+    debug_assert!(is_set_of_minimal_node_sets(&minimal_node_sets));
     minimal_node_sets
-}
-
-// For each member node set, check if one of its "smaller by one" subsets is also a member.
-// If yes, then filter it out, as it is obviously non-minimal.
-// This function can be used to reduce (in some cases even eliminate) the workload on the slower
-// `remove_non_minimal_node_sets`.
-pub(crate) fn remove_node_sets_that_are_non_minimal_by_one(
-    node_sets: HashSet<NodeIdSet>,
-) -> Vec<NodeIdSet> {
-    let mut remaining_sets = vec![];
-    let mut tester: NodeIdSet;
-    let mut is_minimal_by_one;
-
-    debug!("Filtering node sets that are non-minimal by one...");
-    for (i, node_set) in node_sets.iter().enumerate() {
-        if i % 100_000 == 0 {
-            debug!(
-                "...at node set {}; {} remaining sets",
-                i,
-                remaining_sets.len()
-            );
-        }
-        is_minimal_by_one = true;
-        // whyever, using clone() here seems to be faster than clone_from()
-        tester = node_set.clone();
-
-        for node_id in node_set.iter() {
-            tester.remove(node_id);
-            if node_sets.contains(&tester) {
-                is_minimal_by_one = false;
-                break;
-            }
-            tester.insert(node_id);
-        }
-        if is_minimal_by_one {
-            remaining_sets.push(node_set.clone());
-        }
-    }
-    debug!("Filtering done.");
-    remaining_sets
 }
 
 #[cfg(test)]
@@ -180,5 +140,11 @@ mod tests {
         let expected = vec![bitset![0, 1], bitset![0, 2]];
         let actual = remove_non_minimal_node_sets(non_minimal);
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn is_set_of_minimal_node_sets_detects_duplicates() {
+        let sets = vec![bitset![0, 1], bitset![0, 1]];
+        assert!(!is_set_of_minimal_node_sets(&sets));
     }
 }
