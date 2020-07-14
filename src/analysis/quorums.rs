@@ -4,10 +4,8 @@ use std::collections::BTreeMap;
 /// Find all minimal quorums in the FBAS...
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal quorums...");
-    let quorums = find_sets(fbas, minimal_quorums_finder);
-    info!("Found {} (not necessarily minimal) quorums.", quorums.len());
-    let minimal_quorums = remove_non_minimal_quorums(quorums, fbas);
-    info!("Reduced to {} minimal quorums.", minimal_quorums.len());
+    let minimal_quorums = find_minimal_sets(fbas, minimal_quorums_finder);
+    info!("Found {} minimal quorums.", minimal_quorums.len());
     minimal_quorums
 }
 
@@ -45,17 +43,21 @@ fn minimal_quorums_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Ve
     for (i, nodes) in consensus_clusters.into_iter().enumerate() {
         debug!("Finding minimal quorums in cluster {}...", i);
 
-        let quorum_clusters = find_symmetric_clusters_in_node_set(&nodes, fbas);
-        if !quorum_clusters.is_empty() {
-            assert!(quorum_clusters.len() == 1);
+        let symmetric_clusters = find_symmetric_clusters_in_node_set(&nodes, fbas);
+        if !symmetric_clusters.is_empty() {
+            assert!(symmetric_clusters.len() == 1);
             debug!("Cluster contains a symmetric quorum cluster! Extracting quorums...");
-            let quorum_cluster = quorum_clusters.into_iter().next().unwrap();
+            let symmetric_cluster = symmetric_clusters.into_iter().next().unwrap();
             {
                 let mut remaining_nodes = nodes.clone();
-                remaining_nodes.difference_with(&quorum_cluster.contained_nodes());
+                remaining_nodes.difference_with(&symmetric_cluster.contained_nodes());
                 assert!(!contains_quorum(&remaining_nodes, fbas));
             }
-            found_quorums.extend_from_slice(&quorum_cluster.to_quorum_slices());
+            let mut quorums = symmetric_cluster.to_quorum_slices();
+            if symmetric_cluster.contains_duplicates() {
+                quorums = remove_non_minimal_x(quorums, is_minimal_for_quorum, fbas)
+            }
+            found_quorums.append(&mut quorums);
         } else {
             debug!("Sorting nodes by rank...");
             let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
@@ -87,9 +89,11 @@ fn minimal_quorums_finder_step(
     selection_changed: bool,
 ) {
     if selection_changed && fbas.is_quorum(selection) {
-        found_quorums.push(selection.clone());
-        if found_quorums.len() % 100_000 == 0 {
-            debug!("...{} quorums found", found_quorums.len());
+        if is_minimal_for_quorum(&selection, fbas) {
+            found_quorums.push(selection.clone());
+            if found_quorums.len() % 100_000 == 0 {
+                debug!("...{} quorums found", found_quorums.len());
+            }
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
         selection.insert(current_candidate);
@@ -247,41 +251,17 @@ pub(crate) fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
     !satisfiable.is_empty()
 }
 
-fn remove_non_minimal_quorums(quorums: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
-    let mut minimal_quorums = vec![];
-    let mut tester: NodeIdSet;
-    let mut is_minimal;
+fn is_minimal_for_quorum(quorum: &NodeIdSet, fbas: &Fbas) -> bool {
+    let mut tester = quorum.clone();
 
-    debug!("Filtering non-minimal quorums...");
-    for (i, quorum) in quorums.into_iter().enumerate() {
-        if i % 100_000 == 0 {
-            debug!(
-                "...at quorum {}; {} minimal quorums",
-                i,
-                minimal_quorums.len()
-            );
+    for node_id in quorum.iter() {
+        tester.remove(node_id);
+        if contains_quorum(&tester, fbas) {
+            return false;
         }
-        is_minimal = true;
-        // whyever, using clone() here seems to be faster than clone_from()
-        tester = quorum.clone();
-
-        for node_id in quorum.iter() {
-            tester.remove(node_id);
-            if contains_quorum(&tester, fbas) {
-                is_minimal = false;
-                break;
-            }
-            tester.insert(node_id);
-        }
-        if is_minimal {
-            minimal_quorums.push(quorum);
-        }
+        tester.insert(node_id);
     }
-    debug!("Filtering done.");
-    debug_assert!(is_set_of_minimal_node_sets(&minimal_quorums));
-    minimal_quorums.sort();
-    minimal_quorums.sort_by_key(|x| x.len());
-    minimal_quorums
+    true
 }
 
 #[cfg(test)]

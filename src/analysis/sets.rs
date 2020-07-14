@@ -22,6 +22,17 @@ pub fn involved_nodes(node_sets: &[NodeIdSet]) -> NodeIdSet {
     all_nodes
 }
 
+/// Does pre- and postprocessing common to most finders
+pub(crate) fn find_minimal_sets<F>(fbas: &Fbas, finder: F) -> Vec<NodeIdSet>
+where
+    F: Fn(Vec<NodeIdSet>, &Fbas) -> Vec<NodeIdSet>,
+{
+    let mut sets = find_sets(fbas, finder);
+    debug_assert!(is_set_of_minimal_node_sets(&sets));
+    sets.sort();
+    sets.sort_by_key(|x| x.len());
+    sets
+}
 /// Does preprocessing common to all finders
 pub(crate) fn find_sets<F, R>(fbas: &Fbas, finder: F) -> Vec<R>
 where
@@ -87,6 +98,30 @@ pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeId
     remove_non_minimal_node_sets_from_buckets(buckets_by_len)
 }
 
+pub(crate) fn remove_non_minimal_x<F>(
+    node_sets: Vec<NodeIdSet>,
+    is_minimal: F,
+    fbas: &Fbas,
+) -> Vec<NodeIdSet>
+where
+    F: Fn(&NodeIdSet, &Fbas) -> bool,
+{
+    let mut minimal_x = vec![];
+
+    debug!("Filtering out non-minimal node sets...");
+    for (i, node_set) in node_sets.into_iter().enumerate() {
+        if i % 100_000 == 0 {
+            debug!("...at set {}; {} minimal sets", i, minimal_x.len());
+        }
+        if is_minimal(&node_set, fbas) {
+            minimal_x.push(node_set);
+        }
+    }
+    debug!("Filtering done.");
+    debug_assert!(is_set_of_minimal_node_sets(&minimal_x));
+    minimal_x
+}
+
 pub fn is_set_of_minimal_node_sets(node_sets: &[NodeIdSet]) -> bool {
     node_sets.iter().enumerate().all(|(i, x)| {
         node_sets
@@ -96,7 +131,7 @@ pub fn is_set_of_minimal_node_sets(node_sets: &[NodeIdSet]) -> bool {
     })
 }
 
-pub(crate) fn remove_non_minimal_node_sets_from_buckets(
+fn remove_non_minimal_node_sets_from_buckets(
     buckets_by_len: Vec<impl IntoIterator<Item = NodeIdSet>>,
 ) -> Vec<NodeIdSet> {
     debug!("Filtering non-minimal node sets...");

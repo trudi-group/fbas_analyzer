@@ -19,11 +19,13 @@ impl QuorumSet {
         }
     }
     pub fn contained_nodes(&self) -> NodeIdSet {
-        let mut nodes: NodeIdSet = self.validators.iter().cloned().collect();
-        for inner_quorum_set in self.inner_quorum_sets.iter() {
-            nodes.union_with(&inner_quorum_set.contained_nodes());
-        }
-        nodes
+        self.contained_nodes_with_duplicates().into_iter().collect()
+    }
+    /// Whether some nodes appear more than once
+    pub fn contains_duplicates(&self) -> bool {
+        let nodes_vec = self.contained_nodes_with_duplicates();
+        let nodes_set: NodeIdSet = nodes_vec.iter().copied().collect();
+        nodes_vec.len() != nodes_set.len()
     }
     pub fn is_quorum_slice(&self, node_set: &NodeIdSet) -> bool {
         if self.threshold == 0 {
@@ -77,6 +79,13 @@ impl QuorumSet {
                     .collect()
             })
             .concat()
+    }
+    fn contained_nodes_with_duplicates(&self) -> Vec<NodeId> {
+        let mut nodes = self.validators.clone();
+        for inner_quorum_set in self.inner_quorum_sets.iter() {
+            nodes.append(&mut inner_quorum_set.contained_nodes_with_duplicates());
+        }
+        nodes
     }
 }
 
@@ -183,5 +192,33 @@ mod tests {
         ];
         let actual = quorum_set.to_quorum_slices();
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn duplicate_validators() {
+        let quorum_set = QuorumSet {
+            threshold: 2,
+            validators: vec![0, 1],
+            inner_quorum_sets: vec![QuorumSet {
+                threshold: 1,
+                validators: vec![1, 3],
+                inner_quorum_sets: vec![],
+            }],
+        };
+        assert!(quorum_set.contains_duplicates());
+    }
+
+    #[test]
+    fn no_duplicate_validators() {
+        let quorum_set = QuorumSet {
+            threshold: 2,
+            validators: vec![0, 1],
+            inner_quorum_sets: vec![QuorumSet {
+                threshold: 1,
+                validators: vec![2, 3],
+                inner_quorum_sets: vec![],
+            }],
+        };
+        assert!(!quorum_set.contains_duplicates());
     }
 }

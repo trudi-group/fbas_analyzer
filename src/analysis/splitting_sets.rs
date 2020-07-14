@@ -5,14 +5,9 @@ use super::*;
 /// intersection.
 pub fn find_minimal_splitting_sets(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal splitting_sets...");
-    let splitting_sets = find_sets(fbas, minimal_splitting_sets_finder);
+    let minimal_splitting_sets = find_minimal_sets(fbas, minimal_splitting_sets_finder);
     info!(
-        "Found {} (not necessarily minimal) splitting_sets.",
-        splitting_sets.len()
-    );
-    let minimal_splitting_sets = remove_non_minimal_splitting_sets(splitting_sets, fbas);
-    info!(
-        "Reduced to {} minimal splitting_sets.",
+        "Found {} minimal splitting_sets.",
         minimal_splitting_sets.len()
     );
     minimal_splitting_sets
@@ -55,9 +50,11 @@ fn minimal_splitting_sets_finder_step(
     selection_changed: bool,
 ) {
     if selection_changed && is_splitting_set(selection, fbas) {
-        found_splitting_sets.push(selection.clone());
-        if found_splitting_sets.len() % 100_000 == 0 {
-            debug!("...{} splitting_sets found", found_splitting_sets.len());
+        if is_minimal_for_splitting_set(selection, fbas) {
+            found_splitting_sets.push(selection.clone());
+            if found_splitting_sets.len() % 100_000 == 0 {
+                debug!("...{} splitting_sets found", found_splitting_sets.len());
+            }
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
         selection.insert(current_candidate);
@@ -130,51 +127,24 @@ fn is_splitting_set(selection: &NodeIdSet, fbas: &Fbas) -> bool {
             .all(|x| fbas.nodes[x].is_splitting_slice(selection))
 }
 
+fn is_minimal_for_splitting_set(splitting_set: &NodeIdSet, fbas: &Fbas) -> bool {
+    let mut tester = splitting_set.clone();
+
+    for node_id in splitting_set.iter() {
+        tester.remove(node_id);
+        if is_splitting_set(&tester, fbas) {
+            return false;
+        }
+        tester.insert(node_id);
+    }
+    true
+}
+
 fn selection_splittable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
     selection.is_empty()
         || selection
             .iter()
             .all(|x| fbas.nodes[x].is_splitting_slice(available))
-}
-
-fn remove_non_minimal_splitting_sets(
-    splitting_sets: Vec<NodeIdSet>,
-    fbas: &Fbas,
-) -> Vec<NodeIdSet> {
-    let mut minimal_splitting_sets = vec![];
-    let mut tester: NodeIdSet;
-    let mut is_minimal;
-
-    debug!("Filtering non-minimal splitting_sets...");
-    for (i, splitting_set) in splitting_sets.into_iter().enumerate() {
-        if i % 100_000 == 0 {
-            debug!(
-                "...at splitting_set {}; {} minimal splitting_sets",
-                i,
-                minimal_splitting_sets.len()
-            );
-        }
-        is_minimal = true;
-        // whyever, using clone() here seems to be faster than clone_from()
-        tester = splitting_set.clone();
-
-        for node_id in splitting_set.iter() {
-            tester.remove(node_id);
-            if is_splitting_set(&tester, fbas) {
-                is_minimal = false;
-                break;
-            }
-            tester.insert(node_id);
-        }
-        if is_minimal {
-            minimal_splitting_sets.push(splitting_set);
-        }
-    }
-    debug!("Filtering done.");
-    debug_assert!(is_set_of_minimal_node_sets(&minimal_splitting_sets));
-    minimal_splitting_sets.sort();
-    minimal_splitting_sets.sort_by_key(|x| x.len());
-    minimal_splitting_sets
 }
 
 #[cfg(test)]

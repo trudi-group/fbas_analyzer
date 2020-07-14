@@ -1,16 +1,12 @@
 use super::*;
+
 use itertools::Itertools;
 
 pub fn find_minimal_blocking_sets(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal blocking_sets...");
-    let blocking_sets = find_sets(fbas, minimal_blocking_sets_finder);
+    let minimal_blocking_sets = find_minimal_sets(fbas, minimal_blocking_sets_finder);
     info!(
-        "Found {} (not necessarily minimal) blocking_sets.",
-        blocking_sets.len()
-    );
-    let minimal_blocking_sets = remove_non_minimal_blocking_sets(blocking_sets, fbas);
-    info!(
-        "Reduced to {} minimal blocking_sets.",
+        "Found {} minimal blocking_sets.",
         minimal_blocking_sets.len()
     );
     minimal_blocking_sets
@@ -69,10 +65,12 @@ fn minimal_blocking_sets_finder_step(
     fbas: &Fbas,
     selection_changed: bool,
 ) {
-    if selection_changed && !contains_quorum(remaining, fbas) {
-        found_blocking_sets.push(selection.clone());
-        if found_blocking_sets.len() % 100_000 == 0 {
-            debug!("...{} blocking_sets found", found_blocking_sets.len());
+    if selection_changed && is_blocked_set(remaining, fbas) {
+        if is_minimal_for_blocking_set(selection, remaining, fbas) {
+            found_blocking_sets.push(selection.clone());
+            if found_blocking_sets.len() % 100_000 == 0 {
+                debug!("...{} blocking_sets found", found_blocking_sets.len());
+            }
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
         selection.insert(current_candidate);
@@ -92,7 +90,7 @@ fn minimal_blocking_sets_finder_step(
         remaining.insert(current_candidate);
         max_remaining.insert(current_candidate);
 
-        if !contains_quorum(max_remaining, &fbas) {
+        if is_blocked_set(max_remaining, &fbas) {
             minimal_blocking_sets_finder_step(
                 unprocessed,
                 selection,
@@ -108,43 +106,25 @@ fn minimal_blocking_sets_finder_step(
     }
 }
 
-fn remove_non_minimal_blocking_sets(blocking_sets: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
-    let mut minimal_blocking_sets = vec![];
-    let mut tester: NodeIdSet;
-    let mut is_minimal;
-    let all_nodes = fbas.all_nodes();
+fn is_minimal_for_blocking_set(
+    blocking_set: &NodeIdSet,
+    blocked_set: &NodeIdSet,
+    fbas: &Fbas,
+) -> bool {
+    let mut tester = blocked_set.clone();
 
-    debug!("Filtering non-minimal blocking_sets...");
-    for (i, blocking_set) in blocking_sets.into_iter().enumerate() {
-        if i % 100_000 == 0 {
-            debug!(
-                "...at blocking_set {}; {} minimal blocking_sets",
-                i,
-                minimal_blocking_sets.len()
-            );
+    for node_id in blocking_set.iter() {
+        tester.insert(node_id);
+        if is_blocked_set(&tester, fbas) {
+            return false;
         }
-        is_minimal = true;
-        // whyever, using clone() here seems to be faster than clone_from()
-        tester = all_nodes.clone();
-        tester.difference_with(&blocking_set);
-
-        for node_id in blocking_set.iter() {
-            tester.insert(node_id);
-            if !contains_quorum(&tester, fbas) {
-                is_minimal = false;
-                break;
-            }
-            tester.remove(node_id);
-        }
-        if is_minimal {
-            minimal_blocking_sets.push(blocking_set);
-        }
+        tester.remove(node_id);
     }
-    debug!("Filtering done.");
-    debug_assert!(is_set_of_minimal_node_sets(&minimal_blocking_sets));
-    minimal_blocking_sets.sort();
-    minimal_blocking_sets.sort_by_key(|x| x.len());
-    minimal_blocking_sets
+    true
+}
+
+fn is_blocked_set(nodes: &NodeIdSet, fbas: &Fbas) -> bool {
+    !contains_quorum(nodes, fbas)
 }
 
 #[cfg(test)]
