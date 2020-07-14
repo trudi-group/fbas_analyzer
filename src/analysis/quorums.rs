@@ -1,5 +1,4 @@
 use super::*;
-use std::collections::BTreeMap;
 
 /// Find all minimal quorums in the FBAS...
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
@@ -26,38 +25,14 @@ pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Option<Vec<NodeIdSet>> {
     }
 }
 
-/// Finds groups of nodes (represented as quorum sets) such that all members of the same group have
-/// the exact identical quorum set, and the nodes contained in this quorum set are exactly the
-/// group of nodes (a symmetric cluster). Once no more such clusters are found, returns the maximum
-/// quorum of the remaining nodes. (So, getting a result with more than 1 entry implies that we
-/// don't have quorum intersection.)
-pub fn find_symmetric_clusters(fbas: &Fbas) -> Vec<QuorumSet> {
-    info!("Starting to look for symmetric quorum clusters...");
-    let quorums = find_sets(fbas, symmetric_clusters_finder);
-    info!("Found {} different quorum clusters.", quorums.len());
-    quorums
-}
-
 fn minimal_quorums_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
     let mut found_quorums: Vec<NodeIdSet> = vec![];
     for (i, nodes) in consensus_clusters.into_iter().enumerate() {
         debug!("Finding minimal quorums in cluster {}...", i);
 
-        let symmetric_clusters = find_symmetric_clusters_in_node_set(&nodes, fbas);
-        if !symmetric_clusters.is_empty() {
-            assert!(symmetric_clusters.len() == 1);
+        if let Some(symmetric_cluster) = find_symmetric_cluster_in_consensus_cluster(&nodes, fbas) {
             debug!("Cluster contains a symmetric quorum cluster! Extracting quorums...");
-            let symmetric_cluster = symmetric_clusters.into_iter().next().unwrap();
-            {
-                let mut remaining_nodes = nodes.clone();
-                remaining_nodes.difference_with(&symmetric_cluster.contained_nodes());
-                assert!(!contains_quorum(&remaining_nodes, fbas));
-            }
-            let mut quorums = symmetric_cluster.to_quorum_slices();
-            if symmetric_cluster.contains_duplicates() {
-                quorums = remove_non_minimal_x(quorums, is_minimal_for_quorum, fbas)
-            }
-            found_quorums.append(&mut quorums);
+            found_quorums.append(&mut symmetric_cluster.to_minimal_quorums(fbas));
         } else {
             debug!("Sorting nodes by rank...");
             let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
@@ -115,6 +90,18 @@ fn minimal_quorums_finder_step(
         }
         unprocessed.push_front(current_candidate);
         available.insert(current_candidate);
+    }
+}
+
+impl QuorumSet {
+    /// Makes sense if the quorum set represents a symmetric quorum cluster...
+    fn to_minimal_quorums(&self, fbas: &Fbas) -> Vec<NodeIdSet> {
+        let quorums = self.to_quorum_slices();
+        if self.contains_duplicates() {
+            remove_non_minimal_x(quorums, is_minimal_for_quorum, fbas)
+        } else {
+            quorums
+        }
     }
 }
 
@@ -200,37 +187,6 @@ fn nonintersecting_quorums_finder_step(
         available.insert(current_candidate);
     }
     None
-}
-
-fn symmetric_clusters_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<QuorumSet> {
-    let mut found_clusters_in_all_clusters = vec![];
-    for (i, nodes) in consensus_clusters.into_iter().enumerate() {
-        debug!("Finding symmetric quorum cluster in cluster {}...", i);
-        found_clusters_in_all_clusters
-            .append(&mut find_symmetric_clusters_in_node_set(&nodes, fbas));
-    }
-    found_clusters_in_all_clusters
-}
-fn find_symmetric_clusters_in_node_set(nodes: &NodeIdSet, fbas: &Fbas) -> Vec<QuorumSet> {
-    // qset -> (#occurances, goal #occurances)
-    let mut qset_occurances: BTreeMap<QuorumSet, (usize, usize)> = BTreeMap::new();
-    let mut found_clusters = vec![];
-
-    for node_id in nodes.iter() {
-        let qset = &fbas.nodes[node_id].quorum_set;
-        let (count, goal) = if let Some((counter, goal)) = qset_occurances.get_mut(qset) {
-            *counter += 1;
-            (*counter, *goal)
-        } else {
-            let goal = qset.contained_nodes().len();
-            qset_occurances.insert(qset.clone(), (1, goal));
-            (1, goal)
-        };
-        if count == goal {
-            found_clusters.push(qset.clone());
-        }
-    }
-    found_clusters
 }
 
 fn selection_satisfiable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
@@ -333,20 +289,6 @@ mod tests {
 
         let expected = Some(vec![bitset![3, 10], bitset![4, 6]]);
         let actual = find_nonintersecting_quorums(&fbas);
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn find_symmetric_cluster_in_correct_trivial() {
-        let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
-
-        let expected = vec![QuorumSet {
-            validators: vec![0, 1, 2],
-            threshold: 2,
-            inner_quorum_sets: vec![],
-        }];
-        let actual = find_symmetric_clusters(&fbas);
 
         assert_eq!(expected, actual);
     }

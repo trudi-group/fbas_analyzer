@@ -1,4 +1,5 @@
 use super::*;
+use itertools::Itertools;
 
 /// If the FBAS *doesn't* enjoy quorum intersection, this returns the minimal splitting sets of all
 /// sub-FBASs. As this is probably not what you want then, you should check for quorum
@@ -21,23 +22,28 @@ fn minimal_splitting_sets_finder(
     for (i, nodes) in consensus_clusters.into_iter().enumerate() {
         debug!("Finding minimal splitting sets in cluster {}...", i);
 
-        debug!("Sorting nodes by rank...");
-        let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
-        debug!("Sorted.");
+        if let Some(symmetric_cluster) = find_symmetric_cluster_in_consensus_cluster(&nodes, fbas) {
+            debug!("Cluster contains a symmetric quorum cluster! Extracting splitting sets...");
+            found_splitting_sets.append(&mut symmetric_cluster.to_minimal_splitting_sets(fbas));
+        } else {
+            debug!("Sorting nodes by rank...");
+            let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
+            debug!("Sorted.");
 
-        let unprocessed = sorted_nodes;
-        let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
-        let mut available = unprocessed.iter().cloned().collect();
+            let unprocessed = sorted_nodes;
+            let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
+            let mut available = unprocessed.iter().cloned().collect();
 
-        debug!("Collecting splitting_sets...");
-        minimal_splitting_sets_finder_step(
-            &mut unprocessed.into(),
-            &mut selection,
-            &mut available,
-            &mut found_splitting_sets,
-            fbas,
-            true,
-        );
+            debug!("Collecting splitting_sets...");
+            minimal_splitting_sets_finder_step(
+                &mut unprocessed.into(),
+                &mut selection,
+                &mut available,
+                &mut found_splitting_sets,
+                fbas,
+                true,
+            );
+        }
     }
     found_splitting_sets
 }
@@ -93,12 +99,7 @@ impl Node {
 }
 impl QuorumSet {
     fn is_splitting_slice(&self, node_set: &NodeIdSet) -> bool {
-        let splitting_threshold =
-            if 2 * self.threshold > (self.validators.len() + self.inner_quorum_sets.len()) {
-                2 * self.threshold - (self.validators.len() + self.inner_quorum_sets.len())
-            } else {
-                0
-            };
+        let splitting_threshold = self.splitting_threshold();
         if splitting_threshold == 0 {
             true // everything is splitting what is already split
         } else {
@@ -116,6 +117,55 @@ impl QuorumSet {
                 .count();
 
             found_validator_matches + found_inner_quorum_set_matches == splitting_threshold
+        }
+    }
+    /// If `self` represents a symmetric quorum cluster, this function returns all minimal splitting sets of the induced FBAS.
+    fn to_minimal_splitting_sets(&self, fbas: &Fbas) -> Vec<NodeIdSet> {
+        let splitting_sets = self.to_splitting_sets();
+        if self.contains_duplicates() {
+            remove_non_minimal_x(splitting_sets, is_minimal_for_splitting_set, fbas)
+        } else {
+            splitting_sets
+        }
+    }
+    /// If `self` represents a symmetric quorum cluster, this function returns all minimal splitting sets of the induced FBAS,
+    /// but perhaps also a few extra...
+    fn to_splitting_sets(&self) -> Vec<NodeIdSet> {
+        let mut subslice_groups: Vec<Vec<NodeIdSet>> = vec![];
+        subslice_groups.extend(
+            self.validators
+                .iter()
+                .map(|&node_id| vec![bitset![node_id]]),
+        );
+        subslice_groups.extend(
+            self.inner_quorum_sets
+                .iter()
+                .map(|qset| qset.to_splitting_sets()),
+        );
+        subslice_groups
+            .into_iter()
+            .combinations(self.splitting_threshold())
+            .map(|group_combination| {
+                group_combination
+                    .into_iter()
+                    .map(|subslice_group| subslice_group.into_iter())
+                    .multi_cartesian_product()
+                    .map(|subslice_combination| {
+                        let mut slice = bitset![];
+                        for node_set in subslice_combination.into_iter() {
+                            slice.union_with(&node_set);
+                        }
+                        slice
+                    })
+                    .collect()
+            })
+            .concat()
+    }
+    fn splitting_threshold(&self) -> usize {
+        if 2 * self.threshold > (self.validators.len() + self.inner_quorum_sets.len()) {
+            2 * self.threshold - (self.validators.len() + self.inner_quorum_sets.len())
+        } else {
+            0
         }
     }
 }

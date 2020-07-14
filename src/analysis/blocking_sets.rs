@@ -16,32 +16,38 @@ fn minimal_blocking_sets_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas)
     let mut found_blocking_sets_per_cluster: Vec<Vec<NodeIdSet>> = vec![];
     for (i, nodes) in consensus_clusters.into_iter().enumerate() {
         debug!("Finding minimal blocking sets in cluster {}...", i);
-        let mut found_blocking_sets: Vec<NodeIdSet> = vec![];
 
-        debug!("Sorting nodes by rank...");
-        let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
-        debug!("Sorted.");
+        if let Some(symmetric_cluster) = find_symmetric_cluster_in_consensus_cluster(&nodes, fbas) {
+            debug!("Cluster contains a symmetric quorum cluster! Extracting blocking sets...");
+            found_blocking_sets_per_cluster.push(symmetric_cluster.to_minimal_blocking_sets(fbas));
+        } else {
+            debug!("Sorting nodes by rank...");
+            let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
+            debug!("Sorted.");
 
-        let unprocessed = sorted_nodes;
-        let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
+            let mut found_blocking_sets: Vec<NodeIdSet> = vec![];
 
-        // what remains after we take out `selection`
-        let mut remaining: NodeIdSet = unprocessed.iter().copied().collect();
+            let unprocessed = sorted_nodes;
+            let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
 
-        // what remains after we take out `selection` + all `unprocessed`
-        let mut max_remaining = NodeIdSet::with_capacity(fbas.nodes.len());
+            // what remains after we take out `selection`
+            let mut remaining: NodeIdSet = unprocessed.iter().copied().collect();
 
-        debug!("Collecting blocking_sets...");
-        minimal_blocking_sets_finder_step(
-            &mut unprocessed.into(),
-            &mut selection,
-            &mut remaining,
-            &mut max_remaining,
-            &mut found_blocking_sets,
-            fbas,
-            true,
-        );
-        found_blocking_sets_per_cluster.push(found_blocking_sets);
+            // what remains after we take out `selection` + all `unprocessed`
+            let mut max_remaining = NodeIdSet::with_capacity(fbas.nodes.len());
+
+            debug!("Collecting blocking_sets...");
+            minimal_blocking_sets_finder_step(
+                &mut unprocessed.into(),
+                &mut selection,
+                &mut remaining,
+                &mut max_remaining,
+                &mut found_blocking_sets,
+                fbas,
+                true,
+            );
+            found_blocking_sets_per_cluster.push(found_blocking_sets);
+        }
     }
     found_blocking_sets_per_cluster
         .into_iter()
@@ -66,7 +72,7 @@ fn minimal_blocking_sets_finder_step(
     selection_changed: bool,
 ) {
     if selection_changed && is_blocked_set(remaining, fbas) {
-        if is_minimal_for_blocking_set(selection, remaining, fbas) {
+        if is_minimal_for_blocking_set_with_precomputed_blocked_set(selection, remaining, fbas) {
             found_blocking_sets.push(selection.clone());
             if found_blocking_sets.len() % 100_000 == 0 {
                 debug!("...{} blocking_sets found", found_blocking_sets.len());
@@ -106,7 +112,64 @@ fn minimal_blocking_sets_finder_step(
     }
 }
 
-fn is_minimal_for_blocking_set(
+impl QuorumSet {
+    /// If `self` represents a symmetric quorum cluster, this function returns all minimal blocking sets of the induced FBAS.
+    fn to_minimal_blocking_sets(&self, fbas: &Fbas) -> Vec<NodeIdSet> {
+        let blocking_sets = self.to_blocking_sets();
+        if self.contains_duplicates() {
+            remove_non_minimal_x(blocking_sets, is_minimal_for_blocking_set, fbas)
+        } else {
+            blocking_sets
+        }
+    }
+    /// If `self` represents a symmetric quorum cluster, this function returns all minimal blocking sets of the induced FBAS,
+    /// but perhaps also a few extra...
+    fn to_blocking_sets(&self) -> Vec<NodeIdSet> {
+        let mut subslice_groups: Vec<Vec<NodeIdSet>> = vec![];
+        subslice_groups.extend(
+            self.validators
+                .iter()
+                .map(|&node_id| vec![bitset![node_id]]),
+        );
+        subslice_groups.extend(
+            self.inner_quorum_sets
+                .iter()
+                .map(|qset| qset.to_blocking_sets()),
+        );
+        subslice_groups
+            .into_iter()
+            .combinations(self.blocking_threshold())
+            .map(|group_combination| {
+                group_combination
+                    .into_iter()
+                    .map(|subslice_group| subslice_group.into_iter())
+                    .multi_cartesian_product()
+                    .map(|subslice_combination| {
+                        let mut slice = bitset![];
+                        for node_set in subslice_combination.into_iter() {
+                            slice.union_with(&node_set);
+                        }
+                        slice
+                    })
+                    .collect()
+            })
+            .concat()
+    }
+    fn blocking_threshold(&self) -> usize {
+        if self.validators.len() + self.inner_quorum_sets.len() >= self.threshold {
+            self.validators.len() + self.inner_quorum_sets.len() - self.threshold + 1
+        } else {
+            0
+        }
+    }
+}
+
+fn is_minimal_for_blocking_set(blocking_set: &NodeIdSet, fbas: &Fbas) -> bool {
+    let mut blocked_set = fbas.all_nodes();
+    blocked_set.difference_with(&blocking_set);
+    is_minimal_for_blocking_set_with_precomputed_blocked_set(blocking_set, &blocking_set, fbas)
+}
+fn is_minimal_for_blocking_set_with_precomputed_blocked_set(
     blocking_set: &NodeIdSet,
     blocked_set: &NodeIdSet,
     fbas: &Fbas,
@@ -153,7 +216,68 @@ mod tests {
     }
 
     #[test]
+    fn blocking_sets_of_2_of_3_quorum_set() {
+        let qset = QuorumSet {
+            threshold: 2,
+            validators: vec![0, 1, 2],
+            inner_quorum_sets: vec![],
+        };
+        let expected = bitsetvec![{0, 1}, {0, 2}, {1, 2}];
+        let actual = qset.to_blocking_sets();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_blocking_sets_in_symmetric_consensus_cluster() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            }
+        ]"#,
+        );
+        let expected = bitsetvec![{ 0 }, { 1 }];
+        let actual = find_minimal_blocking_sets(&fbas);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
     fn find_minimal_blocking_sets_in_different_consensus_clusters() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 1, "validators": ["n1"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n2", "n3"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 2, "validators": ["n2", "n3"] }
+            }
+        ]"#,
+        );
+        let expected = vec![bitset![0, 2], bitset![0, 3], bitset![1, 2], bitset![1, 3]];
+        let actual = find_minimal_blocking_sets(&fbas);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_blocking_sets_in_different_symmetric_consensus_clusters() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -174,7 +298,6 @@ mod tests {
             }
         ]"#,
         );
-
         let expected = vec![bitset![0, 2], bitset![0, 3], bitset![1, 2], bitset![1, 3]];
         let actual = find_minimal_blocking_sets(&fbas);
 
