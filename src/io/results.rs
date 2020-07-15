@@ -1,4 +1,5 @@
 use super::*;
+use std::convert::TryInto;
 
 macro_rules! json_format_single_line {
     ($x:expr) => {
@@ -112,7 +113,9 @@ impl QuorumSet {
             .map(|q| q.into_raw(fbas, organizations))
             .collect();
         RawQuorumSet {
-            threshold,
+            threshold: threshold
+                .try_into()
+                .expect("Error converting threshold from usize to u64."),
             validators,
             inner_quorum_sets,
         }

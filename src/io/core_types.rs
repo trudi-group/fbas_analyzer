@@ -1,4 +1,5 @@
 use super::*;
+use std::convert::TryInto;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct RawFbas(pub(crate) Vec<RawNode>);
@@ -12,7 +13,7 @@ pub(crate) struct RawNode {
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RawQuorumSet {
-    pub(crate) threshold: usize,
+    pub(crate) threshold: u64,
     pub(crate) validators: Vec<PublicKey>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) inner_quorum_sets: Vec<RawQuorumSet>,
@@ -112,12 +113,15 @@ impl QuorumSet {
         QuorumSet {
             validators,
             inner_quorum_sets,
-            threshold,
+            threshold: threshold.try_into().unwrap_or_else(|_| usize::MAX),
         }
     }
     fn to_raw(&self, fbas: &Fbas) -> RawQuorumSet {
         RawQuorumSet {
-            threshold: self.threshold,
+            threshold: self
+                .threshold
+                .try_into()
+                .expect("Error converting threshold from usize to u64."),
             validators: self
                 .validators
                 .iter()
