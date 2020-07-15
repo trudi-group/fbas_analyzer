@@ -143,6 +143,10 @@ impl NodeIdSetVecResult {
         };
         self.remove_nodes_by_id(nodes_by_id)
     }
+    /// Also sorts the remaining sets.
+    pub fn remove_non_minimal_sets(&mut self) {
+        self.node_sets = remove_non_minimal_node_sets(self.node_sets.clone());
+    }
     fn unshrink(&mut self) {
         if let Some(unshrink_table) = &self.unshrink_table {
             self.node_sets = unshrink_sets(&self.node_sets, &unshrink_table);
@@ -278,6 +282,15 @@ mod tests {
         let mut result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
         let expected = bitsetvec![{}, { 2 }, {}];
         result.remove_nodes_by_pretty_name(vec!["J Mafia", "Bob"], &fbas, Some(&organizations));
+        assert_eq!(expected, result.unwrap());
+    }
+
+    #[test]
+    fn remove_non_minimal_sets() {
+        let mut result =
+            NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2, 3}, {3}, {0, 1, 4, 5}], None);
+        let expected = bitsetvec![{3}, {0, 1}];
+        result.remove_non_minimal_sets();
         assert_eq!(expected, result.unwrap());
     }
 }
