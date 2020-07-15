@@ -30,6 +30,24 @@ impl NodeIdSetResult {
     pub fn is_empty(&self) -> bool {
         self.node_set.is_empty()
     }
+    pub fn remove_nodes_by_id(&mut self, nodes: impl IntoIterator<Item = NodeId>) {
+        for node in nodes.into_iter() {
+            self.node_set.remove(node);
+        }
+    }
+    pub fn remove_nodes_by_pretty_name<'a>(
+        &mut self,
+        nodes: impl IntoIterator<Item = &'a str>,
+        fbas: &Fbas,
+        organizations: Option<&Organizations>,
+    ) {
+        let nodes_by_id = if let Some(ref orgs) = organizations {
+            from_organization_names(nodes, fbas, orgs)
+        } else {
+            from_public_keys(nodes, fbas)
+        };
+        self.remove_nodes_by_id(nodes_by_id)
+    }
 }
 
 /// Wraps a vector of node ID sets. Node ID sets are stored in shrunken form to preserve memory.
@@ -45,23 +63,15 @@ impl NodeIdSetVecResult {
             unshrink_table: shrink_manager.map(|m| m.unshrink_table().clone()),
         }
     }
-    pub fn unwrap(self) -> Vec<NodeIdSet> {
-        if let Some(unshrink_table) = self.unshrink_table {
-            unshrink_sets(&self.node_sets, &unshrink_table)
-        } else {
-            self.node_sets
-        }
+    pub fn unwrap(mut self) -> Vec<NodeIdSet> {
+        self.unshrink();
+        self.node_sets
     }
-    pub fn into_vec_vec(self) -> Vec<Vec<NodeId>> {
+    pub fn into_vec_vec(mut self) -> Vec<Vec<NodeId>> {
+        self.unshrink();
         self.node_sets
             .iter()
-            .map(|node_set| {
-                if let Some(unshrink_table) = self.unshrink_table.as_ref() {
-                    unshrink_set(node_set, unshrink_table).into_iter().collect()
-                } else {
-                    node_set.iter().collect()
-                }
-            })
+            .map(|node_set| node_set.into_iter().collect())
             .collect()
     }
     pub fn involved_nodes(&self) -> NodeIdSet {
@@ -113,6 +123,58 @@ impl NodeIdSetVecResult {
         }
         histogram
     }
+    pub fn remove_nodes_by_id(&mut self, nodes: impl IntoIterator<Item = NodeId>) {
+        self.unshrink();
+        let nodes: NodeIdSet = nodes.into_iter().collect();
+        for node_set in self.node_sets.iter_mut() {
+            node_set.difference_with(&nodes);
+        }
+    }
+    pub fn remove_nodes_by_pretty_name<'a>(
+        &mut self,
+        nodes: impl IntoIterator<Item = &'a str>,
+        fbas: &Fbas,
+        organizations: Option<&Organizations>,
+    ) {
+        let nodes_by_id = if let Some(ref orgs) = organizations {
+            from_organization_names(nodes, fbas, orgs)
+        } else {
+            from_public_keys(nodes, fbas)
+        };
+        self.remove_nodes_by_id(nodes_by_id)
+    }
+    fn unshrink(&mut self) {
+        if let Some(unshrink_table) = &self.unshrink_table {
+            self.node_sets = unshrink_sets(&self.node_sets, &unshrink_table);
+        }
+        self.unshrink_table = None;
+    }
+}
+
+fn from_public_keys<'a>(nodes: impl IntoIterator<Item = &'a str>, fbas: &Fbas) -> Vec<NodeId> {
+    nodes
+        .into_iter()
+        .map(|pk| {
+            fbas.get_node_id(pk)
+                .unwrap_or_else(|| panic!("Public key {} not found in FBAS!", pk))
+        })
+        .collect()
+}
+fn from_organization_names<'a>(
+    nodes: impl IntoIterator<Item = &'a str>,
+    fbas: &Fbas,
+    organizations: &Organizations,
+) -> Vec<NodeId> {
+    nodes
+        .into_iter()
+        .map(|name| match organizations.get_by_name(name) {
+            Some(org) => org.validators.clone(),
+            None => vec![fbas
+                .get_node_id(name)
+                .unwrap_or_else(|| panic!("Name {} not found!", name))],
+        })
+        .flatten()
+        .collect()
 }
 
 #[cfg(test)]
@@ -149,5 +211,73 @@ mod tests {
         let actual = node_sets_result.describe();
         let expected = (4, 8, (2, 4, 2.5), vec![0, 0, 3, 0, 1]);
         assert_eq!(expected, actual)
+    }
+
+    #[test]
+    fn remove_nodes_from_unshrunken_node_set_result() {
+        let mut result = NodeIdSetResult::new(bitset![0, 1], None);
+        let expected = bitset![0];
+        result.remove_nodes_by_id(vec![1]);
+        assert_eq!(expected, result.unwrap());
+    }
+
+    #[test]
+    fn remove_nodes_from_shrunken_result() {
+        let shrink_manager = ShrinkManager::new(bitset![23, 42]);
+        let mut result = NodeIdSetResult::new(bitset![0, 1], Some(&shrink_manager));
+        let expected = bitset![42];
+        result.remove_nodes_by_id(vec![23]);
+        assert_eq!(expected, result.unwrap());
+    }
+
+    #[test]
+    fn remove_nodes_from_unshrunken_vec_result() {
+        let mut result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
+        let expected = bitsetvec![{0, 1}, {0}, {}];
+        result.remove_nodes_by_id(vec![2, 3]);
+        assert_eq!(expected, result.unwrap());
+    }
+
+    #[test]
+    fn remove_nodes_from_shrunken_vec_result() {
+        let shrink_manager = ShrinkManager::new(bitset![23, 42, 7, 1000]);
+        let mut result =
+            NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], Some(&shrink_manager));
+        let expected = bitsetvec![{7, 23}, {7}, {}];
+        result.remove_nodes_by_id(vec![42, 1000]);
+        assert_eq!(expected, result.unwrap());
+    }
+
+    #[test]
+    fn remove_nodes_by_pretty_name() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "Jim"
+            },
+            {
+                "publicKey": "Jon"
+            },
+            {
+                "publicKey": "Alex"
+            },
+            {
+                "publicKey": "Bob"
+            }
+            ]"#,
+        );
+        let organizations = Organizations::from_json_str(
+            r#"[
+            {
+                "name": "J Mafia",
+                "validators": [ "Jim", "Jon" ]
+            }
+            ]"#,
+            &fbas,
+        );
+        let mut result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
+        let expected = bitsetvec![{}, { 2 }, {}];
+        result.remove_nodes_by_pretty_name(vec!["J Mafia", "Bob"], &fbas, Some(&organizations));
+        assert_eq!(expected, result.unwrap());
     }
 }

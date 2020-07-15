@@ -397,7 +397,7 @@ mod tests {
             {
                 "publicKey": "Bob"
             }
-        ]"#,
+            ]"#,
         );
         let organizations = Organizations::from_json_str(
             r#"[
@@ -405,7 +405,7 @@ mod tests {
                 "name": "J Mafia",
                 "validators": [ "Jim", "Jon" ]
             }
-        ]"#,
+            ]"#,
             &fbas,
         );
         let result = NodeIdSetVecResult::new(bitsetvec![{0, 3}, {1}], None);

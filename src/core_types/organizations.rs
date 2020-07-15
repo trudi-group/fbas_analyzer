@@ -42,6 +42,9 @@ impl<'fbas> Organizations<'fbas> {
             None
         }
     }
+    pub fn get_by_name(self: &Self, name: &str) -> Option<&Organization> {
+        self.organizations.iter().find(|org| org.name == name)
+    }
     pub fn number_of_organizations(&self) -> usize {
         self.organizations.len()
     }
