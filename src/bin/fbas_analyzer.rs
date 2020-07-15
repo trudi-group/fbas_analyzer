@@ -302,7 +302,7 @@ impl<'a> Output<'a> {
     }
     fn result_uncondensed(&self, result_name: &str, result: impl AnalysisResult) {
         let result_string = if self.output_pretty {
-            result.into_pretty_string(self.fbas, self.organizations)
+            result.into_pretty_string(self.fbas, self.organizations.as_ref())
         } else {
             result.into_id_string()
         };

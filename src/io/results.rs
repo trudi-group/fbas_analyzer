@@ -1,5 +1,4 @@
 use super::*;
-use serde::{Serialize, Serializer};
 
 macro_rules! json_format_single_line {
     ($x:expr) => {
@@ -14,7 +13,7 @@ macro_rules! json_format_pretty {
 
 pub trait AnalysisResult: Sized + Serialize {
     fn into_id_string(self) -> String;
-    fn into_pretty_string(self, _: &Fbas, _: &Option<Organizations>) -> String {
+    fn into_pretty_string(self, _: &Fbas, _: Option<&Organizations>) -> String {
         self.into_id_string()
     }
     fn into_describe_string(self) -> String;
@@ -44,7 +43,7 @@ impl AnalysisResult for Vec<QuorumSet> {
     fn into_id_string(self) -> String {
         json_format_single_line!(self)
     }
-    fn into_pretty_string(self, fbas: &Fbas, organizations: &Option<Organizations>) -> String {
+    fn into_pretty_string(self, fbas: &Fbas, organizations: Option<&Organizations>) -> String {
         let raw_self: Vec<RawQuorumSet> = self
             .into_iter()
             .map(|q| q.into_raw(fbas, organizations))
@@ -60,7 +59,7 @@ impl AnalysisResult for NodeIdSetResult {
     fn into_id_string(self) -> String {
         json_format_single_line!(self.into_vec())
     }
-    fn into_pretty_string(self, fbas: &Fbas, organizations: &Option<Organizations>) -> String {
+    fn into_pretty_string(self, fbas: &Fbas, organizations: Option<&Organizations>) -> String {
         json_format_single_line!(self.into_pretty_vec(fbas, organizations))
     }
     fn into_describe_string(self) -> String {
@@ -80,24 +79,8 @@ impl AnalysisResult for NodeIdSetVecResult {
     fn into_id_string(self) -> String {
         json_format_single_line!(self.into_vec_vec())
     }
-    fn into_pretty_string(self, fbas: &Fbas, organizations: &Option<Organizations>) -> String {
-        let result: Vec<Vec<&PublicKey>> = self
-            .node_sets
-            .iter()
-            .map(|node_set| {
-                if let Some(unshrink_table) = self.unshrink_table.as_ref() {
-                    NodeIdSetResult {
-                        node_set: unshrink_set(node_set, unshrink_table),
-                    }
-                } else {
-                    NodeIdSetResult {
-                        node_set: node_set.clone(),
-                    }
-                }
-                .into_pretty_vec(fbas, organizations)
-            })
-            .collect();
-        json_format_single_line!(result)
+    fn into_pretty_string(self, fbas: &Fbas, organizations: Option<&Organizations>) -> String {
+        json_format_single_line!(self.into_pretty_vec_vec(fbas, organizations))
     }
     fn into_describe_string(self) -> String {
         json_format_single_line!(self.describe())
@@ -113,7 +96,7 @@ impl Serialize for NodeIdSetVecResult {
 }
 
 impl QuorumSet {
-    fn into_raw(self, fbas: &Fbas, organizations: &Option<Organizations>) -> RawQuorumSet {
+    fn into_raw(self, fbas: &Fbas, organizations: Option<&Organizations>) -> RawQuorumSet {
         let QuorumSet {
             threshold,
             validators,
@@ -123,10 +106,7 @@ impl QuorumSet {
             to_organization_names(validators, fbas, orgs)
         } else {
             to_public_keys(validators, fbas)
-        }
-        .into_iter()
-        .cloned()
-        .collect();
+        };
         let inner_quorum_sets = inner_quorum_sets
             .into_iter()
             .map(|q| q.into_raw(fbas, organizations))
@@ -140,11 +120,14 @@ impl QuorumSet {
 }
 
 impl NodeIdSetResult {
-    fn into_pretty_vec<'a>(
+    /// Transforms result into a vector of public keys and/or organization names.
+    /// The passed FBAS should be the same as the one used for analysis, otherwise the IDs might
+    /// not match. Preserves the original node ID-based ordering.
+    pub fn into_pretty_vec(
         self,
-        fbas: &'a Fbas,
-        organizations: &'a Option<Organizations>,
-    ) -> Vec<&'a PublicKey> {
+        fbas: &Fbas,
+        organizations: Option<&Organizations>,
+    ) -> Vec<PublicKey> {
         if let Some(ref orgs) = organizations {
             to_organization_names(&self.unwrap(), fbas, orgs)
         } else {
@@ -153,26 +136,52 @@ impl NodeIdSetResult {
     }
 }
 
-fn to_public_keys<'a>(
-    nodes: impl IntoIterator<Item = NodeId>,
-    fbas: &'a Fbas,
-) -> Vec<&'a PublicKey> {
+impl NodeIdSetVecResult {
+    /// Transforms result into a vector of vectors of public keys and/or organization names.
+    /// The passed FBAS should be the same as the one used for analysis, otherwise the IDs might
+    /// not not match. Preserves the original (typically node ID-based) ordering.
+    pub fn into_pretty_vec_vec(
+        self,
+        fbas: &Fbas,
+        organizations: Option<&Organizations>,
+    ) -> Vec<Vec<PublicKey>> {
+        self.node_sets
+            .iter()
+            .map(|node_set| {
+                if let Some(unshrink_table) = self.unshrink_table.as_ref() {
+                    NodeIdSetResult {
+                        node_set: unshrink_set(node_set, unshrink_table),
+                    }
+                } else {
+                    NodeIdSetResult {
+                        node_set: node_set.clone(),
+                    }
+                }
+                .into_pretty_vec(fbas, organizations)
+            })
+            .collect()
+    }
+}
+
+fn to_public_keys(nodes: impl IntoIterator<Item = NodeId>, fbas: &Fbas) -> Vec<PublicKey> {
     nodes
         .into_iter()
         .map(|id| &fbas.nodes[id].public_key)
+        .cloned()
         .collect()
 }
-fn to_organization_names<'a>(
+fn to_organization_names(
     nodes: impl IntoIterator<Item = NodeId>,
-    fbas: &'a Fbas,
-    organizations: &'a Organizations,
-) -> Vec<&'a PublicKey> {
+    fbas: &Fbas,
+    organizations: &Organizations,
+) -> Vec<PublicKey> {
     nodes
         .into_iter()
         .map(|id| match &organizations.get_by_member(id) {
             Some(org) => &org.name,
             None => &fbas.nodes[id].public_key,
         })
+        .cloned()
         .collect()
 }
 
@@ -213,7 +222,10 @@ mod tests {
         // values found with fbas_analyzer v0.1 + some python and jq
         let qi = analysis.has_quorum_intersection();
         assert_eq!(qi.clone().into_id_string(), "true");
-        assert_eq!(qi.clone().into_pretty_string(&fbas, &organizations), "true");
+        assert_eq!(
+            qi.clone().into_pretty_string(&fbas, organizations.as_ref()),
+            "true"
+        );
         assert_eq!(qi.clone().into_describe_string(), "true");
 
         let tt = analysis.top_tier();
@@ -222,7 +234,7 @@ mod tests {
             "[1,4,8,23,29,36,37,43,44,52,56,69,86,105,167,168,171]"
         );
         assert_eq!(
-            tt.clone().into_pretty_string(&fbas, &organizations),
+            tt.clone().into_pretty_string(&fbas, organizations.as_ref()),
             r#"["GDXQB3OMMQ6MGG43PWFBZWBFKBBDUZIVSUDAZZTRAWQZKES2CDSE5HKJ","GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ","GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH","GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T","GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE","GDKWELGJURRKXECG3HHFHXMRX64YWQPUHKCVRESOX3E5PM6DM4YXLZJM","GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J","GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63","GA35T3723UP2XJLC2H7MNL6VMKZZIFL2VW7XHMFFJKKIA2FJCYTLKFBW","GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7","GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK","GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z","GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7","GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT","GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY","GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN","GCWJKM4EGTGJUVSWUJDPCQEOEP5LHSOFKSA4HALBTOO4T4H3HCHOM6UX"]"#
         );
         assert_eq!(tt.clone().into_describe_string(), "17");
@@ -232,12 +244,12 @@ mod tests {
         assert_contains!(mq.clone().into_id_string(), "[4,8,23,29,36,44,69,105]");
         assert_contains!(mq.clone().into_id_string(), "[1,4,29,36,37,43,56,105,171]");
         assert_contains!(
-            mq.clone().into_pretty_string(&fbas, &organizations),
+            mq.clone().into_pretty_string(&fbas, organizations.as_ref()),
             // [4,8,23,29,36,44,69,105]
             r#"["GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ","GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH","GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T","GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE","GDKWELGJURRKXECG3HHFHXMRX64YWQPUHKCVRESOX3E5PM6DM4YXLZJM","GA35T3723UP2XJLC2H7MNL6VMKZZIFL2VW7XHMFFJKKIA2FJCYTLKFBW","GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z","GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT"]"#
         );
         assert_contains!(
-            mq.clone().into_pretty_string(&fbas, &organizations),
+            mq.clone().into_pretty_string(&fbas, organizations.as_ref()),
             // [1,4,29,36,37,43,56,105,171]"
             r#"["GDXQB3OMMQ6MGG43PWFBZWBFKBBDUZIVSUDAZZTRAWQZKES2CDSE5HKJ","GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ","GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE","GDKWELGJURRKXECG3HHFHXMRX64YWQPUHKCVRESOX3E5PM6DM4YXLZJM","GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J","GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63","GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK","GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT","GCWJKM4EGTGJUVSWUJDPCQEOEP5LHSOFKSA4HALBTOO4T4H3HCHOM6UX"]"#
         );
@@ -261,13 +273,16 @@ mod tests {
         // values found with v0.1 of fbas_analyzer
         let qi = analysis.has_quorum_intersection();
         assert_eq!(qi.clone().into_id_string(), "true");
-        assert_eq!(qi.clone().into_pretty_string(&fbas, &organizations), "true");
+        assert_eq!(
+            qi.clone().into_pretty_string(&fbas, organizations.as_ref()),
+            "true"
+        );
         assert_eq!(qi.clone().into_describe_string(), "true");
 
         let tt = analysis.top_tier();
         assert_eq!(tt.clone().into_id_string(), "[1,4,23,29,36]");
         assert_eq!(
-            tt.clone().into_pretty_string(&fbas, &organizations),
+            tt.clone().into_pretty_string(&fbas, organizations.as_ref()),
             r#"["LOBSTR","Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase"]"#
         );
         assert_eq!(tt.clone().into_describe_string(), "5");
@@ -278,7 +293,7 @@ mod tests {
             "[[1,4,23,29],[1,4,23,36],[1,4,29,36],[1,23,29,36],[4,23,29,36]]"
         );
         assert_contains!(
-            mq.clone().into_pretty_string(&fbas, &organizations),
+            mq.clone().into_pretty_string(&fbas, organizations.as_ref()),
             // [1,23,29,36]
             r#"["LOBSTR","COINQVEST Limited","SatoshiPay","Keybase"]"#
         );
@@ -313,8 +328,89 @@ mod tests {
         let clusters = analysis.symmetric_clusters();
 
         let expected = r#"[{"threshold":4,"validators":["Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase","LOBSTR"]}]"#;
-        let actual = clusters.into_pretty_string(&fbas, &organizations);
+        let actual = clusters.into_pretty_string(&fbas, organizations.as_ref());
 
         assert_eq_ex_whitespace!(expected, actual);
+    }
+
+    #[test]
+    fn into_pretty_vec_keeps_original_order() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "Jim"
+            },
+            {
+                "publicKey": "Jon"
+            },
+            {
+                "publicKey": "Alex"
+            },
+            {
+                "publicKey": "Bob"
+            }
+        ]"#,
+        );
+        let result = NodeIdSetResult::new(bitset![0, 3], None);
+        let expected = vec!["Jim", "Bob"];
+        let actual = result.into_pretty_vec(&fbas, None);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn into_pretty_vec_vec_keeps_original_order() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "Jim"
+            },
+            {
+                "publicKey": "Jon"
+            },
+            {
+                "publicKey": "Alex"
+            },
+            {
+                "publicKey": "Bob"
+            }
+        ]"#,
+        );
+        let result = NodeIdSetVecResult::new(bitsetvec![{0, 3}, {1}], None);
+        let expected = vec![vec!["Jim", "Bob"], vec!["Jon"]];
+        let actual = result.into_pretty_vec_vec(&fbas, None);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn into_pretty_vec_vec_works_with_orgs() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "Jim"
+            },
+            {
+                "publicKey": "Jon"
+            },
+            {
+                "publicKey": "Alex"
+            },
+            {
+                "publicKey": "Bob"
+            }
+        ]"#,
+        );
+        let organizations = Organizations::from_json_str(
+            r#"[
+            {
+                "name": "J Mafia",
+                "validators": [ "Jim", "Jon" ]
+            }
+        ]"#,
+            &fbas,
+        );
+        let result = NodeIdSetVecResult::new(bitsetvec![{0, 3}, {1}], None);
+        let expected = vec![vec!["J Mafia", "Bob"], vec!["J Mafia"]];
+        let actual = result.into_pretty_vec_vec(&fbas, Some(&organizations));
+        assert_eq!(expected, actual);
     }
 }
