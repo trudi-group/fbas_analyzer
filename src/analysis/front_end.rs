@@ -57,8 +57,7 @@ impl<'a> Analysis<'a> {
     pub fn has_quorum_intersection(&self) -> bool {
         self.has_quorum_intersection_from_shrunken()
     }
-    /// Quorum intersection check that works faster for FBASs that do not enjoy quorum
-    /// intersection.
+    /// Quorum intersection check that works without enumerating all minimal quorums.
     pub fn has_quorum_intersection_via_alternative_check(
         &self,
     ) -> (bool, Option<NodeIdSetVecResult>) {

@@ -19,7 +19,17 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     quorum_set.inner_quorum_sets[0].validators.pop();
     fbas.swap_quorum_set(1, quorum_set);
 
-    c.bench_function("to_standard_form", |b| b.iter(|| fbas.to_standard_form()));
+    c.bench_function("has_quorum_intersection_via_front_end", |b| {
+        b.iter(|| Analysis::new(black_box(&fbas)).has_quorum_intersection())
+    });
+    c.bench_function(
+        "has_quorum_intersection_via_front_end_via_alternative_check",
+        |b| {
+            b.iter(|| {
+                Analysis::new(black_box(&fbas)).has_quorum_intersection_via_alternative_check()
+            })
+        },
+    );
 
     let fbas = fbas.to_standard_form();
     let fbas_stt = fbas_stt.to_standard_form();

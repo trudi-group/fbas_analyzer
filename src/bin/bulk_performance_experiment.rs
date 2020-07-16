@@ -43,14 +43,6 @@ struct Cli {
     #[structopt(short = "j", long = "jobs", default_value = "1")]
     jobs: usize,
 
-    /// Do (and time) minimal blocking sets analysis.
-    #[structopt(short = "b", long = "minimal-blocking-sets")]
-    do_mbs_analysis: bool,
-
-    /// Do (and time) minimal splitting sets analysis.
-    #[structopt(short = "s", long = "minimal-splitting-sets")]
-    do_mss_analysis: bool,
-
     #[structopt(flatten)]
     verbosity: Verbosity,
 }
@@ -67,12 +59,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         BTreeMap::new()
     };
 
-    let tasks = make_sorted_tasklist(
-        inputs,
-        existing_outputs,
-        args.do_mbs_analysis,
-        args.do_mss_analysis,
-    );
+    let tasks = make_sorted_tasklist(inputs, existing_outputs);
 
     let output_iterator = bulk_do(tasks, args.jobs);
 
@@ -98,27 +85,29 @@ struct OutputDataPoint {
     top_tier_size: usize,
     run: usize,
     mq_number: usize,
-    mbs_number: Option<usize>,
-    mss_number: Option<usize>,
+    mbs_number: usize,
+    mss_number: usize,
     mq_mean: f64,
-    mbs_mean: Option<f64>,
-    mss_mean: Option<f64>,
+    mbs_mean: f64,
+    mss_mean: f64,
     analysis_duration_mq: f64,
-    analysis_duration_mbs: Option<f64>,
-    analysis_duration_mss: Option<f64>,
+    analysis_duration_mbs: f64,
+    analysis_duration_mss: f64,
+    analysis_duration_hqi_after_mq: f64,
+    analysis_duration_hqi_alt_check: f64,
     analysis_duration_total: f64,
 }
 #[derive(Debug)]
 enum Task {
     Reuse(OutputDataPoint),
-    Analyze(InputDataPoint, bool, bool),
+    Analyze(InputDataPoint),
 }
 use Task::*;
 impl Task {
     fn label(&self) -> usize {
         match self {
             Reuse(output) => output.top_tier_size,
-            Analyze(input, _, _) => input.top_tier_size,
+            Analyze(input) => input.top_tier_size,
         }
     }
 }
@@ -151,14 +140,12 @@ fn load_existing_outputs(
 fn make_sorted_tasklist(
     inputs: Vec<InputDataPoint>,
     existing_outputs: BTreeMap<InputDataPoint, OutputDataPoint>,
-    do_mbs_analysis: bool,
-    do_mss_analysis: bool,
 ) -> Vec<Task> {
     let mut tasks: Vec<Task> = inputs
         .into_iter()
         .filter_map(|input| {
             if !existing_outputs.contains_key(&input) {
-                Some(Analyze(input, do_mbs_analysis, do_mss_analysis))
+                Some(Analyze(input))
             } else {
                 None
             }
@@ -184,12 +171,10 @@ fn analyze_or_reuse(task: Task) -> OutputDataPoint {
             );
             output
         }
-        Task::Analyze(input, do_mbs_analysis, do_mss_analysis) => {
-            analyze(input, do_mbs_analysis, do_mss_analysis)
-        }
+        Task::Analyze(input) => analyze(input),
     }
 }
-fn analyze(input: InputDataPoint, do_mbs_analysis: bool, do_mss_analysis: bool) -> OutputDataPoint {
+fn analyze(input: InputDataPoint) -> OutputDataPoint {
     let fbas = make_almost_ideal_fbas(input.top_tier_size);
     let (result_without_total_duration, analysis_duration_total) = timed_secs!({
         let analysis = Analysis::new(&fbas);
@@ -202,37 +187,22 @@ fn analyze(input: InputDataPoint, do_mbs_analysis: bool, do_mss_analysis: bool) 
             (mq.len(), mq.mean())
         });
 
-        let (mbs_number, mbs_mean, analysis_duration_mbs) = {
-            if do_mbs_analysis {
-                let ((mbs_number, mbs_mean), analysis_duration_mbs) = timed_secs!({
-                    let mbs = analysis.minimal_blocking_sets();
-                    (mbs.len(), mbs.mean())
-                });
-                (
-                    Some(mbs_number),
-                    Some(mbs_mean),
-                    Some(analysis_duration_mbs),
-                )
-            } else {
-                (None, None, None)
-            }
-        };
+        let (_, analysis_duration_hqi_after_mq) =
+            timed_secs!(assert!(analysis.has_quorum_intersection()));
+        let (_, analysis_duration_hqi_alt_check) = timed_secs!(assert_eq!(
+            (true, None),
+            analysis.has_quorum_intersection_via_alternative_check()
+        ));
 
-        let (mss_number, mss_mean, analysis_duration_mss) = {
-            if do_mss_analysis {
-                let ((mss_number, mss_mean), analysis_duration_mss) = timed_secs!({
-                    let mss = analysis.minimal_splitting_sets();
-                    (mss.len(), mss.mean())
-                });
-                (
-                    Some(mss_number),
-                    Some(mss_mean),
-                    Some(analysis_duration_mss),
-                )
-            } else {
-                (None, None, None)
-            }
-        };
+        let ((mbs_number, mbs_mean), analysis_duration_mbs) = timed_secs!({
+            let mbs = analysis.minimal_blocking_sets();
+            (mbs.len(), mbs.mean())
+        });
+
+        let ((mss_number, mss_mean), analysis_duration_mss) = timed_secs!({
+            let mss = analysis.minimal_splitting_sets();
+            (mss.len(), mss.mean())
+        });
 
         OutputDataPoint {
             top_tier_size,
@@ -246,6 +216,8 @@ fn analyze(input: InputDataPoint, do_mbs_analysis: bool, do_mss_analysis: bool) 
             analysis_duration_mq,
             analysis_duration_mbs,
             analysis_duration_mss,
+            analysis_duration_hqi_after_mq,
+            analysis_duration_hqi_alt_check,
             analysis_duration_total: 0.,
         }
     });

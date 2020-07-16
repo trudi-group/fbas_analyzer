@@ -1,7 +1,7 @@
 use super::*;
 
 /// Wraps a node ID set.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub struct NodeIdSetResult {
     pub(crate) node_set: NodeIdSet,
 }
@@ -59,7 +59,7 @@ impl NodeIdSetResult {
 }
 
 /// Wraps a vector of node ID sets. Node ID sets are stored in shrunken form to preserve memory.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub struct NodeIdSetVecResult {
     pub(crate) node_sets: Vec<NodeIdSet>,
     pub(crate) unshrink_table: Option<Vec<NodeId>>,

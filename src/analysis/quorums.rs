@@ -165,7 +165,10 @@ fn nonintersecting_quorums_finder_step(
         return None;
     } else if let Some(current_candidate) = unprocessed.pop_front() {
         if selection.is_empty() {
-            debug!("...starting level 0 branch, {} nodes to be processed", unprocessed.len());
+            debug!(
+                "...starting level 0 branch, {} nodes to be processed",
+                unprocessed.len()
+            );
         }
         selection.insert(current_candidate);
         antiselection.remove(current_candidate);
@@ -175,7 +178,7 @@ fn nonintersecting_quorums_finder_step(
             available,
             antiselection,
             fbas,
-            picks_left-1,
+            picks_left - 1,
             true,
         ) {
             return Some(intersecting_quorums);

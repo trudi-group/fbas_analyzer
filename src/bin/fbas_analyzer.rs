@@ -30,11 +30,11 @@ struct Cli {
     #[structopt(short = "a", long = "all")]
     all: bool,
 
-    /// Use quorum finding algorithm that works faster for FBASs that do not enjoy quorum
-    /// intersection. In case that there is, indeed, no quorum intersection, outputs two
+    /// Use an alternative quorum intersection check that works without enumerating all minimal
+    /// quorums. Terminates early if there is no quorum intersection, outputting two
     /// non-intersecting quorums.
-    #[structopt(long = "expect-no-intersection")]
-    expect_no_intersection: bool,
+    #[structopt(long = "alternative-quorum-intersection-check")]
+    alternative_quorum_intersection_check: bool,
 
     /// Don't check quorum intersection.
     #[structopt(long = "dont-check-quorum-intersection")]
@@ -86,7 +86,7 @@ fn main() -> CliResult {
         check_and_report_if_has_quorum_intersection(
             &analysis,
             &output,
-            args.expect_no_intersection,
+            args.alternative_quorum_intersection_check,
         );
     }
 
