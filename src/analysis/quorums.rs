@@ -126,12 +126,15 @@ fn nonintersecting_quorums_finder(
         let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
         let mut available: NodeIdSet = unprocessed.iter().cloned().collect();
         let mut antiselection = available.clone();
+        let picks_left = unprocessed.len() / 2; // testing quorums yields no benefit
         if let Some(intersecting_quorums) = nonintersecting_quorums_finder_step(
             &mut unprocessed.into(),
             &mut selection,
             &mut available,
             &mut antiselection,
             fbas,
+            picks_left,
+            true,
         ) {
             assert!(intersecting_quorums.iter().all(|x| fbas.is_quorum(x)));
             assert!(intersecting_quorums[0].is_disjoint(&intersecting_quorums[1]));
@@ -148,15 +151,22 @@ fn nonintersecting_quorums_finder_step(
     available: &mut NodeIdSet,
     antiselection: &mut NodeIdSet,
     fbas: &Fbas,
+    picks_left: usize,
+    selection_changed: bool,
 ) -> Option<[NodeIdSet; 2]> {
     debug_assert!(selection.is_disjoint(&antiselection));
-    if fbas.is_quorum(selection) {
+    if selection_changed && fbas.is_quorum(selection) {
         let (potential_complement, _) = find_unsatisfiable_nodes(&antiselection, fbas);
 
         if !potential_complement.is_empty() {
             return Some([selection.clone(), potential_complement]);
         }
+    } else if picks_left == 0 {
+        return None;
     } else if let Some(current_candidate) = unprocessed.pop_front() {
+        if selection.is_empty() {
+            debug!("...starting level 0 branch, {} nodes to be processed", unprocessed.len());
+        }
         selection.insert(current_candidate);
         antiselection.remove(current_candidate);
         if let Some(intersecting_quorums) = nonintersecting_quorums_finder_step(
@@ -165,6 +175,8 @@ fn nonintersecting_quorums_finder_step(
             available,
             antiselection,
             fbas,
+            picks_left-1,
+            true,
         ) {
             return Some(intersecting_quorums);
         }
@@ -179,6 +191,8 @@ fn nonintersecting_quorums_finder_step(
                 available,
                 antiselection,
                 fbas,
+                picks_left,
+                false,
             ) {
                 return Some(intersecting_quorums);
             }
