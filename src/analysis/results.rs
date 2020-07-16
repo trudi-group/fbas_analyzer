@@ -30,23 +30,25 @@ impl NodeIdSetResult {
     pub fn is_empty(&self) -> bool {
         self.node_set.is_empty()
     }
-    pub fn remove_nodes_by_id(&mut self, nodes: &[NodeId]) {
+    pub fn without_nodes(&self, nodes: &[NodeId]) -> Self {
+        let mut new = self.clone();
         for node in nodes.iter().copied() {
-            self.node_set.remove(node);
+            new.node_set.remove(node);
         }
+        new
     }
-    pub fn remove_nodes_by_pretty_name<'a>(
-        &mut self,
+    pub fn without_nodes_pretty<'a>(
+        &self,
         nodes: &[&'a str],
         fbas: &Fbas,
         organizations: Option<&Organizations>,
-    ) {
+    ) -> Self {
         let nodes_by_id = if let Some(ref orgs) = organizations {
             from_organization_names(nodes, fbas, orgs)
         } else {
             from_public_keys(nodes, fbas)
         };
-        self.remove_nodes_by_id(&nodes_by_id)
+        self.without_nodes(&nodes_by_id)
     }
     /// Merge contained nodes so that all nodes of the same organization get the same ID.
     pub fn merged_by_org(&self, organizations: &Organizations) -> Self {
@@ -88,6 +90,9 @@ impl NodeIdSetVecResult {
     }
     pub fn is_empty(&self) -> bool {
         self.node_sets.is_empty()
+    }
+    pub fn contains_empty_set(&self) -> bool {
+        self.node_sets.contains(&bitset![])
     }
     /// Returns (number_of_sets, number_of_distinct_nodes, <minmaxmean_set_size>, <histogram>)
     pub fn describe(&self) -> (usize, usize, (usize, usize, f64), Vec<usize>) {
@@ -144,25 +149,27 @@ impl NodeIdSetVecResult {
         new.node_sets = remove_non_minimal_node_sets(new.node_sets);
         new
     }
-    pub fn remove_nodes_by_id(&mut self, nodes: &[NodeId]) {
-        self.unshrink();
+    pub fn without_nodes(&self, nodes: &[NodeId]) -> Self {
+        let mut new = self.clone();
+        new.unshrink();
         let nodes: NodeIdSet = nodes.iter().copied().collect();
-        for node_set in self.node_sets.iter_mut() {
+        for node_set in new.node_sets.iter_mut() {
             node_set.difference_with(&nodes);
         }
+        new
     }
-    pub fn remove_nodes_by_pretty_name<'a>(
-        &mut self,
+    pub fn without_nodes_pretty<'a>(
+        &self,
         nodes: &[&'a str],
         fbas: &Fbas,
         organizations: Option<&Organizations>,
-    ) {
+    ) -> Self {
         let nodes_by_id = if let Some(ref orgs) = organizations {
             from_organization_names(nodes, fbas, orgs)
         } else {
             from_public_keys(nodes, fbas)
         };
-        self.remove_nodes_by_id(&nodes_by_id)
+        self.without_nodes(&nodes_by_id)
     }
     fn unshrink(&mut self) {
         if let Some(unshrink_table) = &self.unshrink_table {
@@ -236,37 +243,37 @@ mod tests {
 
     #[test]
     fn remove_nodes_from_unshrunken_node_set_result() {
-        let mut result = NodeIdSetResult::new(bitset![0, 1], None);
+        let result = NodeIdSetResult::new(bitset![0, 1], None);
         let expected = bitset![0];
-        result.remove_nodes_by_id(&[1]);
-        assert_eq!(expected, result.unwrap());
+        let actual = result.without_nodes(&[1]).unwrap();
+        assert_eq!(expected, actual);
     }
 
     #[test]
     fn remove_nodes_from_shrunken_result() {
         let shrink_manager = ShrinkManager::new(bitset![23, 42]);
-        let mut result = NodeIdSetResult::new(bitset![0, 1], Some(&shrink_manager));
+        let result = NodeIdSetResult::new(bitset![0, 1], Some(&shrink_manager));
         let expected = bitset![42];
-        result.remove_nodes_by_id(&[23]);
-        assert_eq!(expected, result.unwrap());
+        let actual = result.without_nodes(&[23]).unwrap();
+        assert_eq!(expected, actual);
     }
 
     #[test]
     fn remove_nodes_from_unshrunken_vec_result() {
-        let mut result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
+        let result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
         let expected = bitsetvec![{0, 1}, {0}, {}];
-        result.remove_nodes_by_id(&[2, 3]);
-        assert_eq!(expected, result.unwrap());
+        let actual = result.without_nodes(&[2, 3]).unwrap();
+        assert_eq!(expected, actual);
     }
 
     #[test]
     fn remove_nodes_from_shrunken_vec_result() {
         let shrink_manager = ShrinkManager::new(bitset![23, 42, 7, 1000]);
-        let mut result =
+        let result =
             NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], Some(&shrink_manager));
         let expected = bitsetvec![{7, 23}, {7}, {}];
-        result.remove_nodes_by_id(&[42, 1000]);
-        assert_eq!(expected, result.unwrap());
+        let actual = result.without_nodes(&[42, 1000]).unwrap();
+        assert_eq!(expected, actual);
     }
 
     #[test]
@@ -296,10 +303,12 @@ mod tests {
             ]"#,
             &fbas,
         );
-        let mut result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
+        let result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
         let expected = bitsetvec![{}, { 2 }, {}];
-        result.remove_nodes_by_pretty_name(&["J Mafia", "Bob"], &fbas, Some(&organizations));
-        assert_eq!(expected, result.unwrap());
+        let actual = result
+            .without_nodes_pretty(&["J Mafia", "Bob"], &fbas, Some(&organizations))
+            .unwrap();
+        assert_eq!(expected, actual);
     }
 
     #[test]

@@ -1,4 +1,6 @@
 use super::*;
+use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 use std::mem;
 
 /// Representation of an FBAS.
@@ -43,7 +45,7 @@ use std::mem;
 /// fbas.swap_quorum_set(0, quorum_set.clone());
 /// assert_eq!(Some(quorum_set), fbas.get_quorum_set(0));
 /// ```
-#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Fbas {
     pub(crate) nodes: Vec<Node>,
     pub(crate) pk_to_id: HashMap<PublicKey, NodeId>,
@@ -108,8 +110,26 @@ impl Fbas {
                 .all(|x| self.nodes[x].is_quorum_slice(&node_set))
     }
 }
-fn generate_generic_node_name(node_id: NodeId) -> String {
-    format!("n{}", node_id)
+impl Hash for Fbas {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.nodes.hash(state);
+    }
+}
+impl Ord for Fbas {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.nodes.cmp(&other.nodes)
+    }
+}
+impl PartialOrd for Fbas {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Eq for Fbas {}
+impl PartialEq for Fbas {
+    fn eq(&self, other: &Self) -> bool {
+        self.nodes == other.nodes
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
@@ -128,6 +148,10 @@ impl Node {
     pub fn is_quorum_slice(&self, node_set: &NodeIdSet) -> bool {
         self.quorum_set.is_quorum_slice(node_set)
     }
+}
+
+fn generate_generic_node_name(node_id: NodeId) -> String {
+    format!("n{}", node_id)
 }
 
 #[cfg(test)]
