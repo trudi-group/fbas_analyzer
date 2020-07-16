@@ -46,12 +46,12 @@ target/release/graph_generator -h
 Add this to your `Cargo.toml`:
 ```
 [dependencies]
-fbas_analyzer = { version = "0.3", default-features = false }
+fbas_analyzer = { version = "0.4", default-features = false }
 ```
 Or this, if you need simulation functionality:
 ```
 [dependencies]
-fbas_analyzer = { version = "0.3", default-features = false, features = ["qsc_simulation"] }
+fbas_analyzer = { version = "0.4", default-features = false, features = ["qsc_simulation"] }
 ```
 
 Check out the [API Reference](https://docs.rs/fbas_analyzer/)
