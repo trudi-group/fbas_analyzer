@@ -7,15 +7,14 @@ extern crate serde;
 use quicli::prelude::*;
 use structopt::StructOpt;
 
-use csv::{Reader, Writer};
-use std::io;
-
+use std::collections::BTreeMap;
 use std::error::Error;
+use std::io;
 use std::path::PathBuf;
 
+use csv::{Reader, Writer};
 use par_map::ParMap;
-
-use std::collections::BTreeMap;
+use sha3::{Digest, Sha3_256};
 
 /// Bulk analyze multiple FBASs (in stellarbeat.org JSON format)
 #[derive(Debug, StructOpt)]
@@ -98,6 +97,7 @@ struct OutputDataPoint {
     orgs_mq_min: Option<usize>,
     orgs_mq_max: Option<usize>,
     orgs_mq_mean: Option<f64>,
+    standard_form_hash: String,
     analysis_duration_mq: f64,
     analysis_duration_mbs: f64,
     analysis_duration_mss: f64,
@@ -234,6 +234,9 @@ fn analyze(input: InputDataPoint) -> OutputDataPoint {
                 (None, None, None),
             )
         };
+        let standard_form_hash = hex::encode(Sha3_256::digest(
+            &fbas.to_standard_form().to_json_string().into_bytes(),
+        ));
 
         OutputDataPoint {
             label,
@@ -258,6 +261,7 @@ fn analyze(input: InputDataPoint) -> OutputDataPoint {
             orgs_mq_min,
             orgs_mq_max,
             orgs_mq_mean,
+            standard_form_hash,
             analysis_duration_mq,
             analysis_duration_mbs,
             analysis_duration_mss,
