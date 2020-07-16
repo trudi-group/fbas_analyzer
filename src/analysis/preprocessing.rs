@@ -7,10 +7,10 @@ type RankScore = f64;
 
 impl Fbas {
     pub fn satisfiable_nodes(&self) -> NodeIdSet {
-        find_unsatisfiable_nodes(&self.all_nodes(), self).0
+        find_satisfiable_nodes(&self.all_nodes(), self).0
     }
     pub fn unsatisfiable_nodes(&self) -> NodeIdSet {
-        find_unsatisfiable_nodes(&self.all_nodes(), self).1
+        find_satisfiable_nodes(&self.all_nodes(), self).1
     }
     pub fn strongly_connected_components(&self) -> Vec<NodeIdSet> {
         partition_into_strongly_connected_components(&self.all_nodes(), self)
@@ -43,8 +43,8 @@ impl Fbas {
     }
 }
 
-/// Partitions `node_set` into the sets of `(satisfiable, unsatisfiable)' nodes.
-pub fn find_unsatisfiable_nodes(node_set: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
+/// Partitions `node_set` into the sets of `(satisfiable, unsatisfiable)` nodes.
+pub fn find_satisfiable_nodes(node_set: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
     let (mut satisfiable, mut unsatisfiable): (NodeIdSet, NodeIdSet) = node_set
         .iter()
         .partition(|&x| fbas.nodes[x].is_quorum_slice(&node_set));

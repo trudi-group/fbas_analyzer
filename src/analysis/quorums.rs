@@ -1,6 +1,6 @@
 use super::*;
 
-/// Find all minimal quorums in the FBAS...
+/// Find all minimal quorums in the FBAS.
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal quorums...");
     let minimal_quorums = find_minimal_sets(fbas, minimal_quorums_finder);
@@ -8,8 +8,9 @@ pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     minimal_quorums
 }
 
-/// Find at least two non-intersecting quorums. Use this function if it is very likely that
-/// the FBAS lacks quorum intersection and you want to stop early in such cases.
+/// Find at least two non-intersecting quorums. Use this function if you don't want to enumerate
+/// all minimal quorums and/or it is likely that the FBAS lacks quorum intersection and you want to
+/// stop early in such cases.
 pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Option<Vec<NodeIdSet>> {
     info!("Starting to look for potentially non-intersecting quorums...");
     let quorums = find_sets(fbas, nonintersecting_quorums_finder);
@@ -113,7 +114,7 @@ fn nonintersecting_quorums_finder(
         debug!("More than one consensus clusters - reducing to maximal quorums.");
         consensus_clusters
             .into_iter()
-            .map(|node_set| find_unsatisfiable_nodes(&node_set, fbas).0)
+            .map(|node_set| find_satisfiable_nodes(&node_set, fbas).0)
             .collect()
     } else {
         warn!("There is only one consensus cluster - there might be no non-intersecting quorums and the subsequent search might be slow.");
@@ -156,7 +157,7 @@ fn nonintersecting_quorums_finder_step(
 ) -> Option<[NodeIdSet; 2]> {
     debug_assert!(selection.is_disjoint(&antiselection));
     if selection_changed && fbas.is_quorum(selection) {
-        let (potential_complement, _) = find_unsatisfiable_nodes(&antiselection, fbas);
+        let (potential_complement, _) = find_satisfiable_nodes(&antiselection, fbas);
 
         if !potential_complement.is_empty() {
             return Some([selection.clone(), potential_complement]);
@@ -311,11 +312,11 @@ mod tests {
     }
 
     #[test]
-    fn find_unsatisfiable_nodes_in_unconfigured_fbas() {
+    fn find_satisfiable_nodes_in_unconfigured_fbas() {
         let fbas = Fbas::new_generic_unconfigured(10);
         let all_nodes: NodeIdSet = (0..10).collect();
 
-        let actual = find_unsatisfiable_nodes(&all_nodes, &fbas);
+        let actual = find_satisfiable_nodes(&all_nodes, &fbas);
         let expected = (bitset![], all_nodes);
 
         assert_eq!(expected, actual);
@@ -342,7 +343,7 @@ mod tests {
             .push(transitively_unsatisfiable);
 
         let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
-        let (_, unsatisfiable) = find_unsatisfiable_nodes(&all_nodes, &fbas);
+        let (_, unsatisfiable) = find_satisfiable_nodes(&all_nodes, &fbas);
 
         assert!(unsatisfiable.contains(directly_unsatisfiable));
         assert!(unsatisfiable.contains(transitively_unsatisfiable));

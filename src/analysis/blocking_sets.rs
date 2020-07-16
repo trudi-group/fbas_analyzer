@@ -2,6 +2,7 @@ use super::*;
 
 use itertools::Itertools;
 
+/// Find all minimal blocking sets in the FBAS.
 pub fn find_minimal_blocking_sets(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal blocking_sets...");
     let minimal_blocking_sets = find_minimal_sets(fbas, minimal_blocking_sets_finder);

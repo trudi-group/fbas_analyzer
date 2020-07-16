@@ -7,8 +7,8 @@ pub use std::time::{Duration, Instant};
 /// use fbas_analyzer::*;
 /// use std::thread::sleep;
 ///
-/// let ten_millis = Duration::from_millis(10);
-/// let eleven_millis = Duration::from_millis(11);
+/// let ten_millis = timing::Duration::from_millis(10);
+/// let twelve_millis = timing::Duration::from_millis(12);
 ///
 /// let (return_value, duration) = timed!({
 ///     sleep(ten_millis);
@@ -17,12 +17,12 @@ pub use std::time::{Duration, Instant};
 ///
 /// assert_eq!(3, return_value);
 /// assert!(ten_millis < duration);
-/// assert!(duration < eleven_millis);
+/// assert!(duration < twelve_millis);
 /// ```
 #[macro_export]
 macro_rules! timed {
     ($operation:expr) => {{
-        let measurement_start = Instant::now();
+        let measurement_start = timing::Instant::now();
         let return_value = $operation;
         let duration = measurement_start.elapsed();
         (return_value, duration)
@@ -40,7 +40,7 @@ macro_rules! timed {
 /// let eleven_millis = 0.11;
 ///
 /// let (return_value, duration) = timed_secs!({
-///     sleep(Duration::from_secs_f64(ten_millis));
+///     sleep(timing::Duration::from_secs_f64(ten_millis));
 ///     3 + 5
 /// });
 ///

@@ -41,7 +41,7 @@ where
     let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
 
     debug!("Removing nodes not part of any quorum...");
-    let (satisfiable, unsatisfiable) = find_unsatisfiable_nodes(&all_nodes, fbas);
+    let (satisfiable, unsatisfiable) = find_satisfiable_nodes(&all_nodes, fbas);
     if !unsatisfiable.is_empty() {
         warn!(
             "The quorum sets of {} nodes are not satisfiable at all in the given FBAS!",

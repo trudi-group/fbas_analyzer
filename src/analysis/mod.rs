@@ -9,9 +9,9 @@ mod splitting_sets;
 mod symmetric_clusters;
 
 mod merge_by_org;
-mod preprocessing;
-mod sets;
-mod timing;
+pub mod preprocessing;
+pub mod sets;
+pub mod timing;
 
 pub use front_end::Analysis;
 pub use results::{NodeIdSetResult, NodeIdSetVecResult};
@@ -23,9 +23,8 @@ pub use symmetric_clusters::find_symmetric_clusters;
 
 pub(crate) use preprocessing::*;
 pub(crate) use quorums::*;
-pub use sets::*;
+pub(crate) use sets::*;
 pub(crate) use symmetric_clusters::*;
-pub use timing::*;
 
 #[cfg(test)]
 mod tests {

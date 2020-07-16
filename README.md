@@ -1,7 +1,7 @@
 # FBAS analyzer
 
 Library and tools for analyzing the quorum structure of Federated Byzantine Agreement Systems (FBASs) like [Stellar](https://www.stellar.org/).
-Related research paper [here](https://arxiv.org/abs/2002.08101).
+Related (slightly outdated) research paper [here](https://arxiv.org/abs/2002.08101).
 
 Among other things, the implementation here can:
 
@@ -55,7 +55,7 @@ fbas_analyzer = { version = "0.3", default-features = false, features = ["qsc_si
 ```
 
 Check out the [API Reference](https://docs.rs/fbas_analyzer/)
-and how the API is used by the tools `src/bin/`.
+and how the API is used by the tools in `src/bin/` and the example in `examples`.
 
 ## See also / Acknowledgements
 

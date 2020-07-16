@@ -330,7 +330,12 @@ impl<'a> Output<'a> {
             println!();
         }
     }
-    fn timed_result(&self, result_name: &str, result: impl AnalysisResult, duration: Duration) {
+    fn timed_result(
+        &self,
+        result_name: &str,
+        result: impl AnalysisResult,
+        duration: timing::Duration,
+    ) {
         self.result(result_name, result);
         println!(
             "{}_analysis_duration: {}s",
