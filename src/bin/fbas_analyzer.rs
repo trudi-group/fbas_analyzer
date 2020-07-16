@@ -68,18 +68,18 @@ fn main() -> CliResult {
 
     let fbas = load_fbas(args.nodes_path.as_ref());
     let organizations = maybe_load_organizations(args.organizations_path.as_ref(), &fbas);
-    let analysis = Analysis::new(&fbas, organizations.as_ref());
+    let analysis = Analysis::new(&fbas);
 
     let (q, b, s) = extract_main_todos(&args);
     let output = Output::init(&args, &fbas, &organizations);
 
-    report_overview(&analysis, &output);
+    report_overview(&analysis, &organizations, &output);
     output.comment_newline();
 
-    find_and_report_symmetric_clusters(&analysis, &output);
+    find_and_report_symmetric_clusters(&analysis, &organizations, &output);
 
     if q {
-        find_and_report_minimal_quorums(&analysis, &output);
+        find_and_report_minimal_quorums(&analysis, &organizations, &output);
     }
 
     if !args.dont_check_quorum_intersection {
@@ -91,13 +91,13 @@ fn main() -> CliResult {
     }
 
     if b {
-        find_and_report_minimal_blocking_sets(&analysis, &output);
+        find_and_report_minimal_blocking_sets(&analysis, &organizations, &output);
     }
     if s {
-        find_and_report_minimal_splitting_sets(&analysis, &output);
+        find_and_report_minimal_splitting_sets(&analysis, &organizations, &output);
     }
     if q || b || s {
-        report_top_tier_uncondensed(&analysis, &output);
+        report_top_tier_uncondensed(&analysis, &organizations, &output);
     }
     Ok(())
 }
@@ -144,14 +144,24 @@ macro_rules! do_time_and_report {
         $output.timed_result($result_name, result, duration);
     }};
 }
+macro_rules! do_time_maybe_merge_and_report {
+    ($result_name:expr, $operation:expr, $organizations:expr, $output:expr) => {{
+        let (mut result, duration) = timed!($operation);
+        if let Some(ref orgs) = $organizations {
+            result = result.merged_by_org(orgs).minimal_sets();
+        }
+        $output.timed_result($result_name, result, duration);
+    }};
+}
 
-fn report_overview(analysis: &Analysis, output: &Output) {
-    if analysis.merging_by_organization() {
-        output.result("nodes_total_unmerged", analysis.all_physical_nodes().len());
-    }
+fn report_overview(analysis: &Analysis, organizations: &Option<Organizations>, output: &Output) {
     output.result("nodes_total", analysis.all_nodes().len());
-    if analysis.merging_by_organization() {
-        output.comment("(Nodes belonging to the same organization are counted as one.)");
+    if let Some(ref orgs) = organizations {
+        output.result(
+            "nodes_total_merged",
+            analysis.all_nodes().merged_by_org(orgs).len(),
+        );
+        output.comment("(Nodes belonging to the same organization will be counted as one.)");
     }
 }
 fn check_and_report_if_has_quorum_intersection(
@@ -185,27 +195,49 @@ fn check_and_report_if_has_quorum_intersection(
         );
     }
 }
-fn find_and_report_symmetric_clusters(analysis: &Analysis, output: &Output) {
+fn find_and_report_symmetric_clusters(
+    analysis: &Analysis,
+    organizations: &Option<Organizations>,
+    output: &Output,
+) {
     let mut output_uncondensed = output.clone();
     output_uncondensed.describe = false;
     do_time_and_report!(
         "symmetric_clusters",
-        analysis.symmetric_clusters(),
+        if let Some(ref orgs) = organizations {
+            orgs.merge_quorum_sets(analysis.symmetric_clusters())
+        } else {
+            analysis.symmetric_clusters()
+        },
         output_uncondensed
     );
     output.comment_newline();
 }
-fn find_and_report_minimal_quorums(analysis: &Analysis, output: &Output) {
-    do_time_and_report!("minimal_quorums", analysis.minimal_quorums(), output);
+fn find_and_report_minimal_quorums(
+    analysis: &Analysis,
+    organizations: &Option<Organizations>,
+    output: &Output,
+) {
+    do_time_maybe_merge_and_report!(
+        "minimal_quorums",
+        analysis.minimal_quorums(),
+        organizations,
+        output
+    );
     output.comment(&format!(
         "\nWe found {} minimal quorums.\n",
         analysis.minimal_quorums().len()
     ));
 }
-fn find_and_report_minimal_blocking_sets(analysis: &Analysis, output: &Output) {
-    do_time_and_report!(
+fn find_and_report_minimal_blocking_sets(
+    analysis: &Analysis,
+    organizations: &Option<Organizations>,
+    output: &Output,
+) {
+    do_time_maybe_merge_and_report!(
         "minimal_blocking_sets",
         analysis.minimal_blocking_sets(),
+        organizations,
         output
     );
     output.comment(&format!(
@@ -215,10 +247,15 @@ fn find_and_report_minimal_blocking_sets(analysis: &Analysis, output: &Output) {
         analysis.minimal_blocking_sets().len()
     ));
 }
-fn find_and_report_minimal_splitting_sets(analysis: &Analysis, output: &Output) {
-    do_time_and_report!(
+fn find_and_report_minimal_splitting_sets(
+    analysis: &Analysis,
+    organizations: &Option<Organizations>,
+    output: &Output,
+) {
+    do_time_maybe_merge_and_report!(
         "minimal_splitting_sets",
         analysis.minimal_splitting_sets(),
+        organizations,
         output
     );
     output.comment(&format!(
@@ -229,12 +266,20 @@ fn find_and_report_minimal_splitting_sets(analysis: &Analysis, output: &Output) 
         analysis.minimal_splitting_sets().len()
     ));
 }
-fn report_top_tier_uncondensed(analysis: &Analysis, output: &Output) {
-    output.result_uncondensed("top_tier", analysis.top_tier());
+fn report_top_tier_uncondensed(
+    analysis: &Analysis,
+    organizations: &Option<Organizations>,
+    output: &Output,
+) {
+    let mut top_tier = analysis.top_tier();
+    if let Some(ref orgs) = organizations {
+        top_tier = top_tier.merged_by_org(orgs);
+    }
+    output.result_uncondensed("top_tier", top_tier.clone());
     output.comment(
         &format!(
             "\nThere is a total of {} distinct nodes involved in all of these sets (this is the \"top tier\").\n",
-            analysis.top_tier().len()
+            top_tier.len()
         )
     );
 }

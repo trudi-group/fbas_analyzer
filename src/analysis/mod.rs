@@ -37,8 +37,8 @@ mod tests {
         let correct = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
         let broken = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
 
-        assert!(Analysis::new(&correct, None).has_quorum_intersection());
-        assert!(!Analysis::new(&broken, None).has_quorum_intersection());
+        assert!(Analysis::new(&correct).has_quorum_intersection());
+        assert!(!Analysis::new(&broken).has_quorum_intersection());
     }
 
     #[test]
@@ -46,8 +46,8 @@ mod tests {
         let correct = Fbas::from_json_file(Path::new("test_data/correct.json"));
         let broken = Fbas::from_json_file(Path::new("test_data/broken.json"));
 
-        assert!(Analysis::new(&correct, None).has_quorum_intersection());
-        assert!(!Analysis::new(&broken, None).has_quorum_intersection());
+        assert!(Analysis::new(&correct).has_quorum_intersection());
+        assert!(!Analysis::new(&broken).has_quorum_intersection());
     }
 
     #[test]
@@ -64,7 +64,7 @@ mod tests {
             }
         ]"#,
         );
-        assert!(Analysis::new(&fbas, None).has_quorum_intersection());
+        assert!(Analysis::new(&fbas).has_quorum_intersection());
     }
 
     #[test]
@@ -77,13 +77,13 @@ mod tests {
             }
         ]"#,
         );
-        assert!(!Analysis::new(&fbas, None).has_quorum_intersection());
+        assert!(!Analysis::new(&fbas).has_quorum_intersection());
     }
 
     #[test]
     fn analysis_nontrivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let analysis = Analysis::new(&fbas, None);
+        let analysis = Analysis::new(&fbas);
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(
@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn analysis_nontrivial_blocking_sets_first() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let analysis = Analysis::new(&fbas, None);
+        let analysis = Analysis::new(&fbas);
 
         assert_eq!(
             analysis.minimal_blocking_sets().describe(),
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn splitting_sets_on_broken() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
-        let analysis = Analysis::new(&fbas, None);
+        let analysis = Analysis::new(&fbas);
 
         let actual = analysis.minimal_splitting_sets().unwrap();
         let expected = bitsetvec![{}];
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn alternative_check_on_broken() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
-        let analysis = Analysis::new(&fbas, None);
+        let analysis = Analysis::new(&fbas);
 
         let (has_intersection, quorums) = analysis.has_quorum_intersection_via_alternative_check();
 
@@ -169,20 +169,40 @@ mod tests {
             }]"#,
             &fbas,
         );
-        let analysis = Analysis::new(&fbas, Some(&organizations));
+        let analysis = Analysis::new(&fbas);
 
         assert!(analysis.has_quorum_intersection());
-        assert_eq!(analysis.minimal_quorums().len(), 1);
-        assert_eq!(analysis.minimal_blocking_sets().len(), 1);
-        assert_eq!(analysis.minimal_splitting_sets().len(), 1);
+        assert_eq!(
+            analysis
+                .minimal_quorums()
+                .merged_by_org(&organizations)
+                .minimal_sets()
+                .len(),
+            1
+        );
+        assert_eq!(
+            analysis
+                .minimal_blocking_sets()
+                .merged_by_org(&organizations)
+                .minimal_sets()
+                .len(),
+            1
+        );
+        assert_eq!(
+            analysis
+                .minimal_splitting_sets()
+                .merged_by_org(&organizations)
+                .minimal_sets()
+                .len(),
+            1
+        );
     }
 
     #[test]
     #[ignore]
     fn top_tier_analysis_big() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-        let organizations = None;
-        let analysis = Analysis::new(&fbas, organizations.as_ref());
+        let analysis = Analysis::new(&fbas);
 
         // calculated with fbas_analyzer v0.1
         let expected = bitset![1, 4, 8, 23, 29, 36, 37, 43, 44, 52, 56, 69, 86, 105, 167, 168, 171];
@@ -208,7 +228,7 @@ mod tests {
             }
         ]"#,
         );
-        let analysis = Analysis::new(&fbas, None);
+        let analysis = Analysis::new(&fbas);
         let expected = vec![bitset![1, 2]];
         let actual = analysis.minimal_quorums().unwrap();
         assert_eq!(expected, actual);

@@ -21,7 +21,7 @@ use super::*;
 /// let fbas = simulator.finalize();
 /// assert!(fbas.is_quorum(&bitset![0, 1, 2]));
 /// assert!(!fbas.is_quorum(&bitset![0, 1]));
-/// assert!(Analysis::new(&fbas, None).has_quorum_intersection());
+/// assert!(Analysis::new(&fbas).has_quorum_intersection());
 /// ```
 #[derive(Default)]
 pub struct IdealQsc;
@@ -64,7 +64,7 @@ mod tests {
         let n = 3 * f + 1;
         let fbas = simulate!(IdealQsc::new(), n);
 
-        let analysis = Analysis::new(&fbas, None);
+        let analysis = Analysis::new(&fbas);
         let actual = analysis.minimal_quorums().unwrap();
         let expected = bitsetvec![{0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}];
         assert_eq!(expected, actual);

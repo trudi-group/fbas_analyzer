@@ -30,14 +30,14 @@ impl NodeIdSetResult {
     pub fn is_empty(&self) -> bool {
         self.node_set.is_empty()
     }
-    pub fn remove_nodes_by_id(&mut self, nodes: impl IntoIterator<Item = NodeId>) {
-        for node in nodes.into_iter() {
+    pub fn remove_nodes_by_id(&mut self, nodes: &[NodeId]) {
+        for node in nodes.iter().copied() {
             self.node_set.remove(node);
         }
     }
     pub fn remove_nodes_by_pretty_name<'a>(
         &mut self,
-        nodes: impl IntoIterator<Item = &'a str>,
+        nodes: &[&'a str],
         fbas: &Fbas,
         organizations: Option<&Organizations>,
     ) {
@@ -46,7 +46,13 @@ impl NodeIdSetResult {
         } else {
             from_public_keys(nodes, fbas)
         };
-        self.remove_nodes_by_id(nodes_by_id)
+        self.remove_nodes_by_id(&nodes_by_id)
+    }
+    /// Merge contained nodes so that all nodes of the same organization get the same ID.
+    pub fn merged_by_org(&self, organizations: &Organizations) -> Self {
+        Self {
+            node_set: organizations.merge_node_set(self.node_set.clone()),
+        }
     }
 }
 
@@ -123,16 +129,31 @@ impl NodeIdSetVecResult {
         }
         histogram
     }
-    pub fn remove_nodes_by_id(&mut self, nodes: impl IntoIterator<Item = NodeId>) {
+    /// Merge contained nodes so that all nodes of the same organization get the same ID.
+    /// The remaining node sets might be non-minimal w.r.t. each other, or contain duplicates!
+    /// You will usually want to chain this with `.minimal_sets()`.
+    pub fn merged_by_org(&self, organizations: &Organizations) -> Self {
+        let mut new = self.clone();
+        new.unshrink();
+        new.node_sets = organizations.merge_node_sets(new.node_sets);
+        new
+    }
+    /// Removes all non-minimal sets and sorts the remaining sets.
+    pub fn minimal_sets(&self) -> Self {
+        let mut new = self.clone();
+        new.node_sets = remove_non_minimal_node_sets(new.node_sets);
+        new
+    }
+    pub fn remove_nodes_by_id(&mut self, nodes: &[NodeId]) {
         self.unshrink();
-        let nodes: NodeIdSet = nodes.into_iter().collect();
+        let nodes: NodeIdSet = nodes.iter().copied().collect();
         for node_set in self.node_sets.iter_mut() {
             node_set.difference_with(&nodes);
         }
     }
     pub fn remove_nodes_by_pretty_name<'a>(
         &mut self,
-        nodes: impl IntoIterator<Item = &'a str>,
+        nodes: &[&'a str],
         fbas: &Fbas,
         organizations: Option<&Organizations>,
     ) {
@@ -141,11 +162,7 @@ impl NodeIdSetVecResult {
         } else {
             from_public_keys(nodes, fbas)
         };
-        self.remove_nodes_by_id(nodes_by_id)
-    }
-    /// Also sorts the remaining sets.
-    pub fn remove_non_minimal_sets(&mut self) {
-        self.node_sets = remove_non_minimal_node_sets(self.node_sets.clone());
+        self.remove_nodes_by_id(&nodes_by_id)
     }
     fn unshrink(&mut self) {
         if let Some(unshrink_table) = &self.unshrink_table {
@@ -155,9 +172,9 @@ impl NodeIdSetVecResult {
     }
 }
 
-fn from_public_keys<'a>(nodes: impl IntoIterator<Item = &'a str>, fbas: &Fbas) -> Vec<NodeId> {
+fn from_public_keys<'a>(nodes: &[&'a str], fbas: &Fbas) -> Vec<NodeId> {
     nodes
-        .into_iter()
+        .iter()
         .map(|pk| {
             fbas.get_node_id(pk)
                 .unwrap_or_else(|| panic!("Public key {} not found in FBAS!", pk))
@@ -165,12 +182,12 @@ fn from_public_keys<'a>(nodes: impl IntoIterator<Item = &'a str>, fbas: &Fbas) -
         .collect()
 }
 fn from_organization_names<'a>(
-    nodes: impl IntoIterator<Item = &'a str>,
+    nodes: &[&'a str],
     fbas: &Fbas,
     organizations: &Organizations,
 ) -> Vec<NodeId> {
     nodes
-        .into_iter()
+        .iter()
         .map(|name| match organizations.get_by_name(name) {
             Some(org) => org.validators.clone(),
             None => vec![fbas
@@ -221,7 +238,7 @@ mod tests {
     fn remove_nodes_from_unshrunken_node_set_result() {
         let mut result = NodeIdSetResult::new(bitset![0, 1], None);
         let expected = bitset![0];
-        result.remove_nodes_by_id(vec![1]);
+        result.remove_nodes_by_id(&[1]);
         assert_eq!(expected, result.unwrap());
     }
 
@@ -230,7 +247,7 @@ mod tests {
         let shrink_manager = ShrinkManager::new(bitset![23, 42]);
         let mut result = NodeIdSetResult::new(bitset![0, 1], Some(&shrink_manager));
         let expected = bitset![42];
-        result.remove_nodes_by_id(vec![23]);
+        result.remove_nodes_by_id(&[23]);
         assert_eq!(expected, result.unwrap());
     }
 
@@ -238,7 +255,7 @@ mod tests {
     fn remove_nodes_from_unshrunken_vec_result() {
         let mut result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
         let expected = bitsetvec![{0, 1}, {0}, {}];
-        result.remove_nodes_by_id(vec![2, 3]);
+        result.remove_nodes_by_id(&[2, 3]);
         assert_eq!(expected, result.unwrap());
     }
 
@@ -248,7 +265,7 @@ mod tests {
         let mut result =
             NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], Some(&shrink_manager));
         let expected = bitsetvec![{7, 23}, {7}, {}];
-        result.remove_nodes_by_id(vec![42, 1000]);
+        result.remove_nodes_by_id(&[42, 1000]);
         assert_eq!(expected, result.unwrap());
     }
 
@@ -281,16 +298,53 @@ mod tests {
         );
         let mut result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
         let expected = bitsetvec![{}, { 2 }, {}];
-        result.remove_nodes_by_pretty_name(vec!["J Mafia", "Bob"], &fbas, Some(&organizations));
+        result.remove_nodes_by_pretty_name(&["J Mafia", "Bob"], &fbas, Some(&organizations));
         assert_eq!(expected, result.unwrap());
     }
 
     #[test]
     fn remove_non_minimal_sets() {
-        let mut result =
+        let result =
             NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2, 3}, {3}, {0, 1, 4, 5}], None);
         let expected = bitsetvec![{3}, {0, 1}];
-        result.remove_non_minimal_sets();
-        assert_eq!(expected, result.unwrap());
+        let actual = result.minimal_sets().unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn merge_results_by_organization() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "Jim"
+            },
+            {
+                "publicKey": "Jon"
+            },
+            {
+                "publicKey": "Alex"
+            },
+            {
+                "publicKey": "Bob"
+            }
+            ]"#,
+        );
+        let organizations = Organizations::from_json_str(
+            r#"[
+            {
+                "name": "J Mafia",
+                "validators": [ "Jim", "Jon" ]
+            },
+            {
+                "name": "B Mafia",
+                "validators": [ "Bob" ]
+            }
+            ]"#,
+            &fbas,
+        );
+        let result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
+        let expected = bitsetvec![{0}, {0, 2}, {3}];
+        let actual = result.merged_by_org(&organizations).unwrap();
+        assert_eq!(expected, actual);
     }
 }

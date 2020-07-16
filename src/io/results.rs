@@ -219,7 +219,7 @@ mod tests {
     fn results_output_correctly() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
         let organizations = None;
-        let analysis = Analysis::new(&fbas, organizations.as_ref());
+        let analysis = Analysis::new(&fbas);
 
         // all in one test to share the analysis (it is not *that* fast)
         // values found with fbas_analyzer v0.1 + some python and jq
@@ -266,39 +266,42 @@ mod tests {
     #[ignore]
     fn merge_by_organization_results_output_correctly() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-        let organizations = Some(Organizations::from_json_file(
+        let organizations = Organizations::from_json_file(
             Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
             &fbas,
-        ));
-        let analysis = Analysis::new(&fbas, organizations.as_ref());
+        );
+        let analysis = Analysis::new(&fbas);
 
         // all in one test to share the analysis (it is not *that* fast)
         // values found with v0.1 of fbas_analyzer
         let qi = analysis.has_quorum_intersection();
         assert_eq!(qi.clone().into_id_string(), "true");
         assert_eq!(
-            qi.clone().into_pretty_string(&fbas, organizations.as_ref()),
+            qi.clone().into_pretty_string(&fbas, Some(&organizations)),
             "true"
         );
         assert_eq!(qi.clone().into_describe_string(), "true");
 
-        let tt = analysis.top_tier();
-        assert_eq!(tt.clone().into_id_string(), "[1,4,23,29,36]");
+        let tt = analysis.top_tier().merged_by_org(&organizations);
+        assert_eq!(tt.clone().into_id_string(), "[56,86,167,168,171]");
         assert_eq!(
-            tt.clone().into_pretty_string(&fbas, organizations.as_ref()),
-            r#"["LOBSTR","Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase"]"#
+            tt.clone().into_pretty_string(&fbas, Some(&organizations)),
+            r#"["Stellar Development Foundation","LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]"#
         );
         assert_eq!(tt.clone().into_describe_string(), "5");
 
-        let mq = analysis.minimal_quorums();
+        let mq = analysis
+            .minimal_quorums()
+            .merged_by_org(&organizations)
+            .minimal_sets();
         assert_eq!(
             mq.clone().into_id_string(),
-            "[[1,4,23,29],[1,4,23,36],[1,4,29,36],[1,23,29,36],[4,23,29,36]]"
+            "[[56,86,167,168],[56,86,167,171],[56,86,168,171],[56,167,168,171],[86,167,168,171]]"
         );
         assert_contains!(
-            mq.clone().into_pretty_string(&fbas, organizations.as_ref()),
+            mq.clone().into_pretty_string(&fbas, Some(&organizations)),
             // [1,23,29,36]
-            r#"["LOBSTR","COINQVEST Limited","SatoshiPay","Keybase"]"#
+            r#"["LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]"#
         );
         assert_eq!(
             mq.clone().into_describe_string(),
@@ -309,8 +312,7 @@ mod tests {
     #[test]
     fn symmetric_clusters_id_output_correctly() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-        let organizations = None;
-        let analysis = Analysis::new(&fbas, organizations.as_ref());
+        let analysis = Analysis::new(&fbas);
 
         let clusters = analysis.symmetric_clusters();
 
@@ -322,16 +324,18 @@ mod tests {
     #[test]
     fn symmetric_clusters_by_organization_pretty_output_correctly() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-        let organizations = Some(Organizations::from_json_file(
+        let organizations = Organizations::from_json_file(
             Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
             &fbas,
-        ));
-        let analysis = Analysis::new(&fbas, organizations.as_ref());
+        );
+        let analysis = Analysis::new(&fbas);
 
         let clusters = analysis.symmetric_clusters();
 
+        let clusters = organizations.merge_quorum_sets(clusters);
+
         let expected = r#"[{"threshold":4,"validators":["Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase","LOBSTR"]}]"#;
-        let actual = clusters.into_pretty_string(&fbas, organizations.as_ref());
+        let actual = clusters.into_pretty_string(&fbas, Some(&organizations));
 
         assert_eq_ex_whitespace!(expected, actual);
     }

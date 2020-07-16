@@ -77,7 +77,6 @@ struct InputDataPoint {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct OutputDataPoint {
     label: String,
-    merged_by_organizations: bool,
     has_quorum_intersection: bool,
     top_tier_size: usize,
     mbs_min: usize,
@@ -89,6 +88,16 @@ struct OutputDataPoint {
     mq_min: usize,
     mq_max: usize,
     mq_mean: f64,
+    orgs_top_tier_size: Option<usize>,
+    orgs_mbs_min: Option<usize>,
+    orgs_mbs_max: Option<usize>,
+    orgs_mbs_mean: Option<f64>,
+    orgs_mss_min: Option<usize>,
+    orgs_mss_max: Option<usize>,
+    orgs_mss_mean: Option<f64>,
+    orgs_mq_min: Option<usize>,
+    orgs_mq_max: Option<usize>,
+    orgs_mq_mean: Option<f64>,
     analysis_duration_mq: f64,
     analysis_duration_mbs: f64,
     analysis_duration_mss: f64,
@@ -185,10 +194,9 @@ fn analyze(input: InputDataPoint) -> OutputDataPoint {
     let (result_without_total_duration, analysis_duration_total) = timed_secs!({
         let fbas = load_fbas(&input.nodes_path);
         let organizations = maybe_load_organizations(input.organizations_path.as_ref(), &fbas);
-        let analysis = Analysis::new(&fbas, organizations.as_ref());
+        let analysis = Analysis::new(&fbas);
 
         let label = input.label.clone();
-        let merged_by_organizations = input.organizations_path.is_some();
 
         let ((mq_min, mq_max, mq_mean), analysis_duration_mq) =
             timed_secs!(analysis.minimal_quorums().minmaxmean());
@@ -202,9 +210,33 @@ fn analyze(input: InputDataPoint) -> OutputDataPoint {
         let ((mss_min, mss_max, mss_mean), analysis_duration_mss) =
             timed_secs!(analysis.minimal_splitting_sets().minmaxmean());
 
+        let (
+            orgs_top_tier_size,
+            (orgs_mq_min, orgs_mq_max, orgs_mq_mean),
+            (orgs_mbs_min, orgs_mbs_max, orgs_mbs_mean),
+            (orgs_mss_min, orgs_mss_max, orgs_mss_mean),
+        ) = if let Some(ref orgs) = organizations {
+            let merge_fix = |sets: NodeIdSetVecResult| {
+                let (min, max, mean) = sets.merged_by_org(orgs).minimal_sets().minmaxmean();
+                (Some(min), Some(max), Some(mean))
+            };
+            (
+                Some(analysis.top_tier().merged_by_org(orgs).len()),
+                merge_fix(analysis.minimal_quorums()),
+                merge_fix(analysis.minimal_blocking_sets()),
+                merge_fix(analysis.minimal_splitting_sets()),
+            )
+        } else {
+            (
+                None,
+                (None, None, None),
+                (None, None, None),
+                (None, None, None),
+            )
+        };
+
         OutputDataPoint {
             label,
-            merged_by_organizations,
             has_quorum_intersection,
             top_tier_size,
             mbs_min,
@@ -216,6 +248,16 @@ fn analyze(input: InputDataPoint) -> OutputDataPoint {
             mq_min,
             mq_max,
             mq_mean,
+            orgs_top_tier_size,
+            orgs_mbs_min,
+            orgs_mbs_max,
+            orgs_mbs_mean,
+            orgs_mss_min,
+            orgs_mss_max,
+            orgs_mss_mean,
+            orgs_mq_min,
+            orgs_mq_max,
+            orgs_mq_mean,
             analysis_duration_mq,
             analysis_duration_mbs,
             analysis_duration_mss,

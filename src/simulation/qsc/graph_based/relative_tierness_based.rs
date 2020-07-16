@@ -199,7 +199,7 @@ mod tests {
         let higher_tier_qsc = HigherTierNeighborsQsc::new_67p(graph, true);
 
         let fbas = simulate!(higher_tier_qsc, n);
-        let analysis = Analysis::new(&fbas, None);
+        let analysis = Analysis::new(&fbas);
 
         let expected = vec![QuorumSet {
             validators: vec![0, 1, 2, 3],

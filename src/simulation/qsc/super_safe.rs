@@ -19,7 +19,7 @@ use super::*;
 /// let fbas = simulator.finalize();
 /// assert!(fbas.is_quorum(&bitset![0, 1, 2, 3]));
 /// assert!(!fbas.is_quorum(&bitset![0, 1, 2]));
-/// assert!(Analysis::new(&fbas, None).has_quorum_intersection());
+/// assert!(Analysis::new(&fbas).has_quorum_intersection());
 /// ```
 #[derive(Default)]
 pub struct SuperSafeQsc;
@@ -71,6 +71,6 @@ mod tests {
     #[test]
     fn super_safe_qsc_makes_quorum_intersection() {
         let fbas = simulate!(SuperSafeQsc::new(), 8);
-        assert!(Analysis::new(&fbas, None).has_quorum_intersection());
+        assert!(Analysis::new(&fbas).has_quorum_intersection());
     }
 }

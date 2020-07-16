@@ -192,7 +192,7 @@ fn analyze_or_reuse(task: Task) -> OutputDataPoint {
 fn analyze(input: InputDataPoint, do_mbs_analysis: bool, do_mss_analysis: bool) -> OutputDataPoint {
     let fbas = make_almost_ideal_fbas(input.top_tier_size);
     let (result_without_total_duration, analysis_duration_total) = timed_secs!({
-        let analysis = Analysis::new(&fbas, None);
+        let analysis = Analysis::new(&fbas);
 
         let top_tier_size = input.top_tier_size;
         let run = input.run;

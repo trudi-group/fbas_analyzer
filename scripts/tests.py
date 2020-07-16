@@ -34,10 +34,10 @@ def test_fbas_analyzer_with_organizations():
     command = "target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -m test_data/stellarbeat_organizations_2019-09-17.json -a -p"
     expected_strings = [
         'has_quorum_intersection: true',
-        'minimal_quorums: [["LOBSTR","Stellar Development Foundation","COINQVEST Limited","SatoshiPay"],["LOBSTR","Stellar Development Foundation","COINQVEST Limited","Keybase"],["LOBSTR","Stellar Development Foundation","SatoshiPay","Keybase"],["LOBSTR","COINQVEST Limited","SatoshiPay","Keybase"],["Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase"]]',
-        'minimal_blocking_sets: [["LOBSTR","Stellar Development Foundation"],["LOBSTR","COINQVEST Limited"],["LOBSTR","SatoshiPay"],["LOBSTR","Keybase"],["Stellar Development Foundation","COINQVEST Limited"],["Stellar Development Foundation","SatoshiPay"],["Stellar Development Foundation","Keybase"],["COINQVEST Limited","SatoshiPay"],["COINQVEST Limited","Keybase"],["SatoshiPay","Keybase"]]',
-        'minimal_splitting_sets: [["LOBSTR","Stellar Development Foundation","COINQVEST Limited"],["LOBSTR","Stellar Development Foundation","SatoshiPay"],["LOBSTR","Stellar Development Foundation","Keybase"],["LOBSTR","COINQVEST Limited","SatoshiPay"],["LOBSTR","COINQVEST Limited","Keybase"],["LOBSTR","SatoshiPay","Keybase"],["Stellar Development Foundation","COINQVEST Limited","SatoshiPay"],["Stellar Development Foundation","COINQVEST Limited","Keybase"],["Stellar Development Foundation","SatoshiPay","Keybase"],["COINQVEST Limited","SatoshiPay","Keybase"]]',
-        'top_tier: ["LOBSTR","Stellar Development Foundation","COINQVEST Limited","SatoshiPay","Keybase"]',
+        'minimal_quorums: [["Stellar Development Foundation","LOBSTR","SatoshiPay","COINQVEST Limited"],["Stellar Development Foundation","LOBSTR","SatoshiPay","Keybase"],["Stellar Development Foundation","LOBSTR","COINQVEST Limited","Keybase"],["Stellar Development Foundation","SatoshiPay","COINQVEST Limited","Keybase"],["LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]]',
+        'minimal_blocking_sets: [["Stellar Development Foundation","LOBSTR"],["Stellar Development Foundation","SatoshiPay"],["Stellar Development Foundation","COINQVEST Limited"],["Stellar Development Foundation","Keybase"],["LOBSTR","SatoshiPay"],["LOBSTR","COINQVEST Limited"],["LOBSTR","Keybase"],["SatoshiPay","COINQVEST Limited"],["SatoshiPay","Keybase"],["COINQVEST Limited","Keybase"]]',
+        'minimal_splitting_sets: [["Stellar Development Foundation","LOBSTR","SatoshiPay"],["Stellar Development Foundation","LOBSTR","COINQVEST Limited"],["Stellar Development Foundation","LOBSTR","Keybase"],["Stellar Development Foundation","SatoshiPay","COINQVEST Limited"],["Stellar Development Foundation","SatoshiPay","Keybase"],["Stellar Development Foundation","COINQVEST Limited","Keybase"],["LOBSTR","SatoshiPay","COINQVEST Limited"],["LOBSTR","SatoshiPay","Keybase"],["LOBSTR","COINQVEST Limited","Keybase"],["SatoshiPay","COINQVEST Limited","Keybase"]]',
+        'top_tier: ["Stellar Development Foundation","LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]',
         ]
     run_and_check_output(command, expected_strings=expected_strings)
 
@@ -76,11 +76,11 @@ def test_bulk_fbas_analyzer_to_stdout():
     command = 'target/release/bulk_fbas_analyzer ' + ' '.join(input_files)
 
     expected_strings = [
-        'label,merged_by_organizations,has_quorum_intersection,top_tier_size,mbs_min,mbs_max,mbs_mean,mss_min,mss_max,mss_mean,mq_min,mq_max,mq_mean,analysis_duration',
-        'broken,false,false,4,2,3',
-        'correct,false,true,3,2,2,2.0,1,1,1.0,2,2,2.0',
-        '2019-09-17,true,true,5,2,2,2.0,3,3,3.0,4,4,4.0',
-        '2020-01-16_broken_by_hand,false,false,22,5,6,5.625,0,0,0.0,2,11,10.9413',
+        'label,has_quorum_intersection,top_tier_size,mbs_min,mbs_max,mbs_mean,mss_min,mss_max,mss_mean,mq_min,mq_max,mq_mean,orgs_top_tier_size,orgs_mbs_min,orgs_mbs_max,orgs_mbs_mean,orgs_mss_min,orgs_mss_max,orgs_mss_mean,orgs_mq_min,orgs_mq_max,orgs_mq_mean,analysis_duration_mq,analysis_duration_mbs,analysis_duration_mss,analysis_duration_total',
+        'broken,false,4,2,3',
+        'correct,true,3,2,2,2.0,1,1,1.0,2,2,2.0,,,,,,,,,,,',
+        '2019-09-17,true,17,4,5,4.689655172413793,3,3,3.0,8,9,8.930232558139535,5,2,2,2.0,3,3,3.0,4,4,4.0,',
+        '2020-01-16_broken_by_hand,false,22,5,6,5.625,0,0,0.0,2,11,10.9413',
         ]
     run_and_check_output(command, expected_strings=expected_strings)
 
