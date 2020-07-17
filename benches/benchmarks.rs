@@ -47,11 +47,15 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| find_minimal_blocking_sets(black_box(&fbas_stt)))
     });
 
+    let minimal_quorums = find_minimal_quorums(&fbas);
+    let minimal_quorums_stt = find_minimal_quorums(&fbas_stt);
     c.bench_function("find_minimal_splitting_sets", |b| {
-        b.iter(|| find_minimal_splitting_sets(black_box(&fbas)))
+        b.iter(|| find_minimal_splitting_sets(black_box(&fbas), black_box(&minimal_quorums)))
     });
     c.bench_function("find_minimal_splitting_sets_symmetric_top_tier", |b| {
-        b.iter(|| find_minimal_splitting_sets(black_box(&fbas_stt)))
+        b.iter(|| {
+            find_minimal_splitting_sets(black_box(&fbas_stt), black_box(&minimal_quorums_stt))
+        })
     });
 }
 
