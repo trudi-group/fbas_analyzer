@@ -195,7 +195,7 @@ impl QuorumSet {
 
 fn is_splitting_set(selection: &NodeIdSet, fbas: &Fbas, minimal_quorums: &[NodeIdSet]) -> bool {
     if is_likely_splitting_set(selection, fbas) {
-        is_definetely_splitting_set(selection, minimal_quorums)
+        is_definitely_splitting_set(selection, minimal_quorums)
     } else {
         false
     }
@@ -235,7 +235,7 @@ fn is_likely_splitting_set(selection: &NodeIdSet, fbas: &Fbas) -> bool {
 }
 
 /// Expensive check that filters out *all* false candidates
-fn is_definetely_splitting_set(selection: &NodeIdSet, minimal_quorums: &[NodeIdSet]) -> bool {
+fn is_definitely_splitting_set(selection: &NodeIdSet, minimal_quorums: &[NodeIdSet]) -> bool {
     let mut tester = NodeIdSet::new();
     let mut relevant_quorums_it = minimal_quorums.iter().filter(|q| q.is_superset(selection));
     relevant_quorums_it.clone().any(|q1| {
@@ -335,7 +335,7 @@ mod tests {
         let minimal_quorums = bitsetvec![{0, 1}];
 
         assert!(is_likely_splitting_set(&bitset! {0, 1}, &fbas));
-        assert!(!is_definetely_splitting_set(
+        assert!(!is_definitely_splitting_set(
             &bitset! {0, 1},
             &minimal_quorums
         ));
@@ -459,7 +459,7 @@ mod tests {
         assert_eq!(minimal_quorums, find_minimal_quorums(&fbas));
 
         assert!(is_likely_splitting_set(&bitset! {0, 1, 2, 3}, &fbas));
-        assert!(is_definetely_splitting_set(
+        assert!(is_definitely_splitting_set(
             &bitset! {0, 1, 2, 3},
             &minimal_quorums
         ));
