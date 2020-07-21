@@ -12,7 +12,6 @@ use std::io;
 
 use std::error::Error;
 use std::path::PathBuf;
-use std::rc::Rc;
 
 use par_map::ParMap;
 
@@ -27,9 +26,14 @@ struct Cli {
     #[structopt(short = "o", long = "out")]
     output_path: Option<PathBuf>,
 
-    /// Largest FBAS to analyze.
+    /// Largest FBAS to analyze, measured in number of top-tier nodes.
     #[structopt(short = "m", long = "max-top-tier-size")]
     max_top_tier_size: usize,
+
+    /// Make FBAS that looks like Stellar's top tier: every 3 top-tier nodes are organized as an
+    /// inner_quorum set of the top-tier quorum set.
+    #[structopt(long = "stellar-like")]
+    stellar_like: bool,
 
     /// Update output file with missing results (doesn't repeat analyses for existing lines).
     #[structopt(short = "u", long = "update")]
@@ -51,7 +55,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
-    let inputs: Vec<InputDataPoint> = generate_inputs(args.max_top_tier_size, args.runs);
+    let inputs: Vec<InputDataPoint> =
+        generate_inputs(args.max_top_tier_size, args.runs, args.stellar_like);
 
     let existing_outputs = if args.update {
         load_existing_outputs(&args.output_path)?
@@ -61,7 +66,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let tasks = make_sorted_tasklist(inputs, existing_outputs);
 
-    let output_iterator = bulk_do(tasks, args.jobs);
+    let output_iterator = bulk_do(tasks, args.jobs, args.stellar_like);
 
     write_csv(output_iterator, &args.output_path, args.update)?;
     Ok(())
@@ -112,9 +117,14 @@ impl Task {
     }
 }
 
-fn generate_inputs(max_top_tier_size: usize, runs: usize) -> Vec<InputDataPoint> {
+fn generate_inputs(
+    max_top_tier_size: usize,
+    runs: usize,
+    make_stellarlike_fbas: bool,
+) -> Vec<InputDataPoint> {
     let mut inputs = vec![];
-    for top_tier_size in 1..max_top_tier_size + 1 {
+    for top_tier_size in (1..max_top_tier_size + 1).filter(|m| !make_stellarlike_fbas || m % 3 == 0)
+    {
         for run in 0..runs {
             inputs.push(InputDataPoint { top_tier_size, run });
         }
@@ -156,13 +166,17 @@ fn make_sorted_tasklist(
     tasks
 }
 
-fn bulk_do(tasks: Vec<Task>, jobs: usize) -> impl Iterator<Item = OutputDataPoint> {
+fn bulk_do(
+    tasks: Vec<Task>,
+    jobs: usize,
+    make_stellarlike_fbas: bool,
+) -> impl Iterator<Item = OutputDataPoint> {
     tasks
         .into_iter()
         .with_nb_threads(jobs)
-        .par_map(analyze_or_reuse)
+        .par_map(move |task| analyze_or_reuse(task, make_stellarlike_fbas))
 }
-fn analyze_or_reuse(task: Task) -> OutputDataPoint {
+fn analyze_or_reuse(task: Task, make_stellarlike_fbas: bool) -> OutputDataPoint {
     match task {
         Task::Reuse(output) => {
             eprintln!(
@@ -171,11 +185,16 @@ fn analyze_or_reuse(task: Task) -> OutputDataPoint {
             );
             output
         }
-        Task::Analyze(input) => analyze(input),
+        Task::Analyze(input) => analyze(input, make_stellarlike_fbas),
     }
 }
-fn analyze(input: InputDataPoint) -> OutputDataPoint {
-    let fbas = make_almost_ideal_fbas(input.top_tier_size);
+fn analyze(input: InputDataPoint, make_stellarlike_fbas: bool) -> OutputDataPoint {
+    let fbas = if make_stellarlike_fbas {
+        make_almost_ideal_stellarlike_fbas(input.top_tier_size)
+    } else {
+        make_almost_ideal_fbas(input.top_tier_size)
+    };
+    assert!(fbas.number_of_nodes() == input.top_tier_size);
     let (result_without_total_duration, analysis_duration_total) = timed_secs!({
         let analysis = Analysis::new(&fbas);
 
@@ -247,19 +266,51 @@ fn write_csv(
 }
 
 fn make_almost_ideal_fbas(top_tier_size: usize) -> Fbas {
-    let mut simulator = simulation::Simulator::new(
-        Fbas::new(),
-        Rc::new(simulation::qsc::IdealQsc),
-        Rc::new(simulation::monitors::DummyMonitor),
-    );
-    simulator.simulate_growth(top_tier_size);
-    let mut fbas = simulator.finalize();
+    let mut quorum_set = QuorumSet {
+        validators: (0..top_tier_size).collect(),
+        threshold: simulation::qsc::calculate_67p_threshold(top_tier_size),
+        inner_quorum_sets: vec![],
+    };
+    let mut fbas = Fbas::new();
+    for _ in 0..top_tier_size {
+        fbas.add_generic_node(quorum_set.clone());
+    }
 
-    // change one quorum set so that symmetric cluster optimisations don't trigger during analysis
-    let mut quorum_set = fbas.get_quorum_set(0).unwrap();
-    quorum_set.validators.push(0); // doesn't change analysis results; 0 is already a validator
+    // we change node 0's quorum set slightly, with 0 implications for analysis except that
+    // symmetric top tier optimizations won't be triggered
+    quorum_set.validators.push(0);
     quorum_set.threshold += 1;
     fbas.swap_quorum_set(0, quorum_set);
+
+    fbas
+}
+
+fn make_almost_ideal_stellarlike_fbas(top_tier_size: usize) -> Fbas {
+    assert!(
+        top_tier_size % 3 == 0,
+        "Nodes in the Stellar network top tier always come in groups of (at least) 3..."
+    );
+    let mut quorum_set = QuorumSet::new();
+    for org_id in 0..top_tier_size / 3 {
+        let validators = vec![org_id * 3, org_id * 3 + 1, org_id * 3 + 2];
+        quorum_set.inner_quorum_sets.push(QuorumSet {
+            validators,
+            threshold: 2,
+            inner_quorum_sets: vec![],
+        });
+    }
+    quorum_set.threshold = simulation::qsc::calculate_67p_threshold(top_tier_size / 3);
+    let mut fbas = Fbas::new();
+    for _ in 0..top_tier_size {
+        fbas.add_generic_node(quorum_set.clone());
+    }
+
+    // we change node 0's quorum set slightly, with 0 implications for analysis except that
+    // symmetric top tier optimizations won't be triggered
+    quorum_set.validators.push(0);
+    quorum_set.threshold += 1;
+    fbas.swap_quorum_set(0, quorum_set);
+
     fbas
 }
 

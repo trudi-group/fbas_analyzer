@@ -16,7 +16,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // fbas with a slightly asymmetric top tier
     let mut fbas = fbas_stt.clone();
     let mut quorum_set = fbas.get_quorum_set(1).unwrap();
-    quorum_set.inner_quorum_sets[0].validators.pop();
+    quorum_set.inner_quorum_sets.pop();
     fbas.swap_quorum_set(1, quorum_set);
 
     c.bench_function("has_quorum_intersection_via_front_end", |b| {

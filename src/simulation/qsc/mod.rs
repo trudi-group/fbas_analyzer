@@ -32,13 +32,13 @@ fn calculate_threshold(n: usize, relative_threshold: Option<f64>) -> usize {
 }
 
 /// t = ceil((2n+1)/3) => n >= 3f+1
-fn calculate_67p_threshold(n: usize) -> usize {
+pub fn calculate_67p_threshold(n: usize) -> usize {
     // reformed for more robustness against floating point errors
     n - ((n as f64 - 1.) / 3.).floor() as usize
 }
 
 /// t = max(1, ceil(nx))
-fn calculate_x_threshold(n: usize, x: f64) -> usize {
+pub fn calculate_x_threshold(n: usize, x: f64) -> usize {
     // t >= 1 so that we behave like calculate_67p_threshold and not confuse simulation logic
     cmp::max(1, (x * n as f64).ceil() as usize)
 }

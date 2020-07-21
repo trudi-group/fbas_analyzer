@@ -38,60 +38,77 @@ fn minimal_splitting_sets_finder(
             let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
             let mut available = unprocessed.iter().cloned().collect();
 
+            let relevant_quorums = minimal_quorums.to_vec();
+
+            let mut found_splitting_sets_in_cluster: Vec<NodeIdSet> = vec![];
+
             debug!("Collecting splitting_sets...");
-            minimal_splitting_sets_finder_step(
+            splitting_sets_finder_step(
                 &mut unprocessed.into(),
                 &mut selection,
                 &mut available,
-                &mut found_splitting_sets,
+                &mut found_splitting_sets_in_cluster,
                 fbas,
-                minimal_quorums,
+                relevant_quorums,
                 true,
             );
+            debug!(
+                "Found {} splitting_sets. Reducing to minimal splitting sets...",
+                found_splitting_sets_in_cluster.len()
+            );
+            found_splitting_sets.append(&mut remove_non_minimal_node_sets(
+                found_splitting_sets_in_cluster,
+            ));
         }
     }
     found_splitting_sets
 }
-fn minimal_splitting_sets_finder_step(
+fn splitting_sets_finder_step(
     unprocessed: &mut NodeIdDeque,
     selection: &mut NodeIdSet,
     available: &mut NodeIdSet,
     found_splitting_sets: &mut Vec<NodeIdSet>,
     fbas: &Fbas,
-    minimal_quorums: &[NodeIdSet],
+    relevant_quorums: Vec<NodeIdSet>,
     selection_changed: bool,
 ) {
-    if selection_changed && is_splitting_set(selection, fbas, minimal_quorums) {
-        if is_minimal_for_splitting_set(selection, fbas, minimal_quorums) {
-            found_splitting_sets.push(selection.clone());
-            if found_splitting_sets.len() % 100_000 == 0 {
-                debug!("...{} splitting_sets found", found_splitting_sets.len());
-            }
+    if selection_changed && is_splitting_set(selection, fbas, &relevant_quorums) {
+        found_splitting_sets.push(selection.clone());
+        if found_splitting_sets.len() % 100_000 == 0 {
+            debug!("...{} splitting_sets found", found_splitting_sets.len());
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
         selection.insert(current_candidate);
 
-        minimal_splitting_sets_finder_step(
-            unprocessed,
-            selection,
-            available,
-            found_splitting_sets,
-            fbas,
-            minimal_quorums,
-            true,
-        );
+        let relevant_quorums_after_select: Vec<NodeIdSet> = relevant_quorums
+            .iter()
+            .filter(|q| q.contains(current_candidate))
+            .cloned()
+            .collect();
 
-        selection.remove(current_candidate);
-        available.remove(current_candidate);
-
-        if selection_likely_splittable(selection, available, fbas) {
-            minimal_splitting_sets_finder_step(
+        if relevant_quorums_after_select.len() >= 2 {
+            splitting_sets_finder_step(
                 unprocessed,
                 selection,
                 available,
                 found_splitting_sets,
                 fbas,
-                minimal_quorums,
+                relevant_quorums_after_select,
+                true,
+            );
+        }
+
+        selection.remove(current_candidate);
+        available.remove(current_candidate);
+
+        if selection_possibly_splitting(selection, available, fbas) {
+            splitting_sets_finder_step(
+                unprocessed,
+                selection,
+                available,
+                found_splitting_sets,
+                fbas,
+                relevant_quorums,
                 false,
             );
         }
@@ -193,9 +210,9 @@ impl QuorumSet {
     }
 }
 
-fn is_splitting_set(selection: &NodeIdSet, fbas: &Fbas, minimal_quorums: &[NodeIdSet]) -> bool {
-    if is_likely_splitting_set(selection, fbas) {
-        is_definitely_splitting_set(selection, minimal_quorums)
+fn is_splitting_set(selection: &NodeIdSet, fbas: &Fbas, relevant_quorums: &[NodeIdSet]) -> bool {
+    if is_possibly_minimal_splitting_set(selection, fbas) {
+        is_definitely_splitting_set(selection, relevant_quorums)
     } else {
         false
     }
@@ -219,7 +236,7 @@ fn is_minimal_for_splitting_set(
 }
 
 /// Heuristic check that filters out many hopeless branches
-fn selection_likely_splittable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
+fn selection_possibly_splitting(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
     selection.is_empty()
         || selection
             .iter()
@@ -227,7 +244,7 @@ fn selection_likely_splittable(selection: &NodeIdSet, available: &NodeIdSet, fba
 }
 
 /// Heuristic check that filters out *almost all* false candidates
-fn is_likely_splitting_set(selection: &NodeIdSet, fbas: &Fbas) -> bool {
+fn is_possibly_minimal_splitting_set(selection: &NodeIdSet, fbas: &Fbas) -> bool {
     !selection.is_empty()
         && selection
             .iter()
@@ -235,14 +252,14 @@ fn is_likely_splitting_set(selection: &NodeIdSet, fbas: &Fbas) -> bool {
 }
 
 /// Expensive check that filters out *all* false candidates
-fn is_definitely_splitting_set(selection: &NodeIdSet, minimal_quorums: &[NodeIdSet]) -> bool {
+fn is_definitely_splitting_set(selection: &NodeIdSet, relevant_quorums: &[NodeIdSet]) -> bool {
     let mut tester = NodeIdSet::new();
-    let mut relevant_quorums_it = minimal_quorums.iter().filter(|q| q.is_superset(selection));
-    relevant_quorums_it.clone().any(|q1| {
+    relevant_quorums.iter().enumerate().any(|(i, q1)| {
         tester = q1.clone();
         tester.difference_with(selection);
-        relevant_quorums_it.next();
-        relevant_quorums_it.clone().any(|q2| tester.is_disjoint(q2))
+        relevant_quorums[i + 1..]
+            .iter()
+            .any(|q2| tester.is_disjoint(q2))
     })
 }
 
@@ -334,7 +351,7 @@ mod tests {
         );
         let minimal_quorums = bitsetvec![{0, 1}];
 
-        assert!(is_likely_splitting_set(&bitset! {0, 1}, &fbas));
+        assert!(is_possibly_minimal_splitting_set(&bitset! {0, 1}, &fbas));
         assert!(!is_definitely_splitting_set(
             &bitset! {0, 1},
             &minimal_quorums
@@ -458,7 +475,10 @@ mod tests {
         let minimal_quorums = bitsetvec![{0, 1, 2, 3, 4}, {0, 1, 2, 3, 5}];
         assert_eq!(minimal_quorums, find_minimal_quorums(&fbas));
 
-        assert!(is_likely_splitting_set(&bitset! {0, 1, 2, 3}, &fbas));
+        assert!(is_possibly_minimal_splitting_set(
+            &bitset! {0, 1, 2, 3},
+            &fbas
+        ));
         assert!(is_definitely_splitting_set(
             &bitset! {0, 1, 2, 3},
             &minimal_quorums
