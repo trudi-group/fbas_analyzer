@@ -180,13 +180,7 @@ impl NodeIdSetVecResult {
 }
 
 fn from_public_keys<'a>(nodes: &[&'a str], fbas: &Fbas) -> Vec<NodeId> {
-    nodes
-        .iter()
-        .map(|pk| {
-            fbas.get_node_id(pk)
-                .unwrap_or_else(|| panic!("Public key {} not found in FBAS!", pk))
-        })
-        .collect()
+    nodes.iter().filter_map(|pk| fbas.get_node_id(pk)).collect()
 }
 fn from_organization_names<'a>(
     nodes: &[&'a str],
@@ -197,9 +191,13 @@ fn from_organization_names<'a>(
         .iter()
         .map(|name| match organizations.get_by_name(name) {
             Some(org) => org.validators.clone(),
-            None => vec![fbas
-                .get_node_id(name)
-                .unwrap_or_else(|| panic!("Name {} not found!", name))],
+            None => {
+                if let Some(node_id) = fbas.get_node_id(name) {
+                    vec![node_id]
+                } else {
+                    vec![]
+                }
+            }
         })
         .flatten()
         .collect()
@@ -281,6 +279,26 @@ mod tests {
         let fbas = Fbas::from_json_str(
             r#"[
             {
+                "publicKey": "Alex"
+            },
+            {
+                "publicKey": "Bob"
+            }
+            ]"#,
+        );
+        let result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {3}], None);
+        let expected = bitsetvec![{ 0 }, { 3 }];
+        let actual = result
+            .without_nodes_pretty(&["Bob", "Helen the non-existent"], &fbas, None)
+            .unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn remove_nodes_by_pretty_name_and_org() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
                 "publicKey": "Jim"
             },
             {
@@ -306,7 +324,11 @@ mod tests {
         let result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
         let expected = bitsetvec![{}, { 2 }, {}];
         let actual = result
-            .without_nodes_pretty(&["J Mafia", "Bob"], &fbas, Some(&organizations))
+            .without_nodes_pretty(
+                &["J Mafia", "Bob", "Helen the non-existent"],
+                &fbas,
+                Some(&organizations),
+            )
             .unwrap();
         assert_eq!(expected, actual);
     }
