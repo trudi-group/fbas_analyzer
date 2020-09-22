@@ -1,5 +1,8 @@
 # FBAS analyzer
 
+[![Cargo](https://img.shields.io/crates/v/fbas_analyzer.svg)](https://crates.io/crates/fbas_analyzer)
+[![Documentation](https://docs.rs/fbas_analyzer/badge.svg)](https://docs.rs/fbas_analyzer)
+
 Library and tools for analyzing the quorum structure of Federated Byzantine Agreement Systems (FBASs) like [Stellar](https://www.stellar.org/).
 Related (slightly outdated) research paper [here](https://arxiv.org/abs/2002.08101).
 
