@@ -16,13 +16,13 @@ pub type NodeIdSet = BitSet;
 pub type NodeIdDeque = VecDeque<NodeId>;
 
 mod fbas;
-mod organizations;
+mod groupings;
 mod quorum_set;
 mod set_helpers;
 mod shrinking;
 
 pub use fbas::*;
-pub use organizations::*;
+pub use groupings::*;
 pub use quorum_set::*;
 pub use set_helpers::*;
 pub use shrinking::*;

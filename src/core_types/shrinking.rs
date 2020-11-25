@@ -136,31 +136,31 @@ impl QuorumSet {
     }
 }
 
-impl<'fbas> Organizations<'fbas> {
+impl<'fbas> Groupings<'fbas> {
     pub fn shrunken(
         orgs: &Self,
         shrink_manager: &ShrinkManager,
         shrunken_fbas: &'fbas Fbas,
     ) -> Self {
-        let organizations = orgs
-            .organizations
+        let groupings = orgs
+            .groupings
             .iter()
-            .map(|org| Organization::shrunken(org, &shrink_manager.shrink_map))
+            .map(|org| Grouping::shrunken(org, &shrink_manager.shrink_map))
             .collect();
-        Self::new(organizations, shrunken_fbas)
+        Self::new(groupings, shrunken_fbas)
     }
 }
-impl Organization {
-    fn shrunken(organization: &Self, shrink_map: &HashMap<NodeId, NodeId>) -> Self {
+impl Grouping {
+    fn shrunken(grouping: &Self, shrink_map: &HashMap<NodeId, NodeId>) -> Self {
         let mut validators = vec![];
-        for old_id in organization.validators.iter() {
+        for old_id in grouping.validators.iter() {
             if let Some(&new_id) = shrink_map.get(&old_id) {
                 validators.push(new_id);
             }
         }
         validators.sort();
-        Organization {
-            name: organization.name.clone(),
+        Grouping {
+            name: grouping.name.clone(),
             validators,
         }
     }
@@ -200,29 +200,29 @@ mod tests {
 
     #[test]
     fn shrink_organization() {
-        let org = Organization {
+        let org = Grouping {
             name: "test".to_string(),
             validators: vec![2, 3, 4],
         };
         let shrink_map: HashMap<NodeId, NodeId> = vec![(2, 0), (4, 1)].into_iter().collect();
-        let expected = Organization {
+        let expected = Grouping {
             name: "test".to_string(),
             validators: vec![0, 1],
         };
-        let actual = Organization::shrunken(&org, &shrink_map);
+        let actual = Grouping::shrunken(&org, &shrink_map);
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn shrink_organizations() {
         let fbas = Fbas::new_generic_unconfigured(43);
-        let organizations = Organizations::new(
+        let organizations = Groupings::new(
             vec![
-                Organization {
+                Grouping {
                     name: "test1".to_string(),
                     validators: vec![2, 3, 4],
                 },
-                Organization {
+                Grouping {
                     name: "test2".to_string(),
                     validators: vec![23, 42],
                 },
@@ -234,20 +234,20 @@ mod tests {
             unshrink_table: vec![],
             shrink_map: vec![(2, 0), (4, 1), (23, 2), (42, 3)].into_iter().collect(),
         };
-        let expected = Organizations::new(
+        let expected = Groupings::new(
             vec![
-                Organization {
+                Grouping {
                     name: "test1".to_string(),
                     validators: vec![0, 1],
                 },
-                Organization {
+                Grouping {
                     name: "test2".to_string(),
                     validators: vec![2, 3],
                 },
             ],
             &fbas_shrunken,
         );
-        let actual = Organizations::shrunken(&organizations, &shrink_manager, &fbas_shrunken);
+        let actual = Groupings::shrunken(&organizations, &shrink_manager, &fbas_shrunken);
         assert_eq!(expected, actual);
     }
 

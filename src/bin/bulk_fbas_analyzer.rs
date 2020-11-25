@@ -217,11 +217,11 @@ fn analyze(input: InputDataPoint) -> OutputDataPoint {
             (orgs_mss_min, orgs_mss_max, orgs_mss_mean),
         ) = if let Some(ref orgs) = organizations {
             let merge_fix = |sets: NodeIdSetVecResult| {
-                let (min, max, mean) = sets.merged_by_org(orgs).minimal_sets().minmaxmean();
+                let (min, max, mean) = sets.merged_by_group(orgs).minimal_sets().minmaxmean();
                 (Some(min), Some(max), Some(mean))
             };
             (
-                Some(analysis.top_tier().merged_by_org(orgs).len()),
+                Some(analysis.top_tier().merged_by_group(orgs).len()),
                 merge_fix(analysis.minimal_quorums()),
                 merge_fix(analysis.minimal_blocking_sets()),
                 merge_fix(analysis.minimal_splitting_sets()),
@@ -355,9 +355,9 @@ fn load_fbas(nodes_path: &PathBuf) -> Fbas {
 fn maybe_load_organizations<'a>(
     o_organizations_path: Option<&PathBuf>,
     fbas: &'a Fbas,
-) -> Option<Organizations<'a>> {
+) -> Option<Groupings<'a>> {
     if let Some(organizations_path) = o_organizations_path {
-        Some(Organizations::from_json_file(organizations_path, fbas))
+        Some(Groupings::from_json_file(organizations_path, fbas))
     } else {
         None
     }

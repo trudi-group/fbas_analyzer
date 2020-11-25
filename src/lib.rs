@@ -40,7 +40,7 @@ mod core_types;
 mod io;
 
 pub use analysis::*;
-pub use core_types::{Fbas, NodeId, NodeIdSet, Organizations, QuorumSet};
+pub use core_types::{Fbas, Groupings, NodeId, NodeIdSet, QuorumSet};
 pub use io::AnalysisResult;
 
 use core_types::*;

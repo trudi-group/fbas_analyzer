@@ -8,7 +8,7 @@ use crate::*;
 mod core_types;
 use core_types::*;
 
-mod organizations;
+mod groupings;
 
 mod results;
 pub use results::*;

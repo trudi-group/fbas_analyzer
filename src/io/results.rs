@@ -14,7 +14,7 @@ macro_rules! json_format_pretty {
 
 pub trait AnalysisResult: Sized + Serialize {
     fn into_id_string(self) -> String;
-    fn into_pretty_string(self, _: &Fbas, _: Option<&Organizations>) -> String {
+    fn into_pretty_string(self, _: &Fbas, _: Option<&Groupings>) -> String {
         self.into_id_string()
     }
     fn into_describe_string(self) -> String;
@@ -44,10 +44,10 @@ impl AnalysisResult for Vec<QuorumSet> {
     fn into_id_string(self) -> String {
         json_format_single_line!(self)
     }
-    fn into_pretty_string(self, fbas: &Fbas, organizations: Option<&Organizations>) -> String {
+    fn into_pretty_string(self, fbas: &Fbas, groupings: Option<&Groupings>) -> String {
         let raw_self: Vec<RawQuorumSet> = self
             .into_iter()
-            .map(|q| q.into_raw(fbas, organizations))
+            .map(|q| q.into_raw(fbas, groupings))
             .collect();
         json_format_pretty!(raw_self)
     }
@@ -60,8 +60,8 @@ impl AnalysisResult for NodeIdSetResult {
     fn into_id_string(self) -> String {
         json_format_single_line!(self.into_vec())
     }
-    fn into_pretty_string(self, fbas: &Fbas, organizations: Option<&Organizations>) -> String {
-        json_format_single_line!(self.into_pretty_vec(fbas, organizations))
+    fn into_pretty_string(self, fbas: &Fbas, groupings: Option<&Groupings>) -> String {
+        json_format_single_line!(self.into_pretty_vec(fbas, groupings))
     }
     fn into_describe_string(self) -> String {
         self.len().to_string()
@@ -80,8 +80,8 @@ impl AnalysisResult for NodeIdSetVecResult {
     fn into_id_string(self) -> String {
         json_format_single_line!(self.into_vec_vec())
     }
-    fn into_pretty_string(self, fbas: &Fbas, organizations: Option<&Organizations>) -> String {
-        json_format_single_line!(self.into_pretty_vec_vec(fbas, organizations))
+    fn into_pretty_string(self, fbas: &Fbas, groupings: Option<&Groupings>) -> String {
+        json_format_single_line!(self.into_pretty_vec_vec(fbas, groupings))
     }
     fn into_describe_string(self) -> String {
         json_format_single_line!(self.describe())
@@ -97,20 +97,20 @@ impl Serialize for NodeIdSetVecResult {
 }
 
 impl QuorumSet {
-    fn into_raw(self, fbas: &Fbas, organizations: Option<&Organizations>) -> RawQuorumSet {
+    fn into_raw(self, fbas: &Fbas, groupings: Option<&Groupings>) -> RawQuorumSet {
         let QuorumSet {
             threshold,
             validators,
             inner_quorum_sets,
         } = self;
-        let validators = if let Some(ref orgs) = organizations {
-            to_organization_names(validators, fbas, orgs)
+        let validators = if let Some(ref orgs) = groupings {
+            to_grouping_names(validators, fbas, orgs)
         } else {
             to_public_keys(validators, fbas)
         };
         let inner_quorum_sets = inner_quorum_sets
             .into_iter()
-            .map(|q| q.into_raw(fbas, organizations))
+            .map(|q| q.into_raw(fbas, groupings))
             .collect();
         RawQuorumSet {
             threshold: threshold
@@ -123,16 +123,12 @@ impl QuorumSet {
 }
 
 impl NodeIdSetResult {
-    /// Transforms result into a vector of public keys and/or organization names.
+    /// Transforms result into a vector of public keys and/or grouping names.
     /// The passed FBAS should be the same as the one used for analysis, otherwise the IDs might
     /// not match. Preserves the original node ID-based ordering.
-    pub fn into_pretty_vec(
-        self,
-        fbas: &Fbas,
-        organizations: Option<&Organizations>,
-    ) -> Vec<PublicKey> {
-        if let Some(ref orgs) = organizations {
-            to_organization_names(&self.unwrap(), fbas, orgs)
+    pub fn into_pretty_vec(self, fbas: &Fbas, groupings: Option<&Groupings>) -> Vec<PublicKey> {
+        if let Some(ref orgs) = groupings {
+            to_grouping_names(&self.unwrap(), fbas, orgs)
         } else {
             to_public_keys(&self.unwrap(), fbas)
         }
@@ -140,13 +136,13 @@ impl NodeIdSetResult {
 }
 
 impl NodeIdSetVecResult {
-    /// Transforms result into a vector of vectors of public keys and/or organization names.
+    /// Transforms result into a vector of vectors of public keys and/or grouping names.
     /// The passed FBAS should be the same as the one used for analysis, otherwise the IDs might
     /// not not match. Preserves the original (typically node ID-based) ordering.
     pub fn into_pretty_vec_vec(
         self,
         fbas: &Fbas,
-        organizations: Option<&Organizations>,
+        groupings: Option<&Groupings>,
     ) -> Vec<Vec<PublicKey>> {
         self.node_sets
             .iter()
@@ -160,7 +156,7 @@ impl NodeIdSetVecResult {
                         node_set: node_set.clone(),
                     }
                 }
-                .into_pretty_vec(fbas, organizations)
+                .into_pretty_vec(fbas, groupings)
             })
             .collect()
     }
@@ -173,14 +169,14 @@ fn to_public_keys(nodes: impl IntoIterator<Item = NodeId>, fbas: &Fbas) -> Vec<P
         .cloned()
         .collect()
 }
-fn to_organization_names(
+fn to_grouping_names(
     nodes: impl IntoIterator<Item = NodeId>,
     fbas: &Fbas,
-    organizations: &Organizations,
+    groupings: &Groupings,
 ) -> Vec<PublicKey> {
     nodes
         .into_iter()
-        .map(|id| match &organizations.get_by_member(id) {
+        .map(|id| match &groupings.get_by_member(id) {
             Some(org) => &org.name,
             None => &fbas.nodes[id].public_key,
         })
@@ -218,7 +214,7 @@ mod tests {
     #[ignore]
     fn results_output_correctly() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-        let organizations = None;
+        let groupings = None;
         let analysis = Analysis::new(&fbas);
 
         // all in one test to share the analysis (it is not *that* fast)
@@ -226,7 +222,7 @@ mod tests {
         let qi = analysis.has_quorum_intersection();
         assert_eq!(qi.clone().into_id_string(), "true");
         assert_eq!(
-            qi.clone().into_pretty_string(&fbas, organizations.as_ref()),
+            qi.clone().into_pretty_string(&fbas, groupings.as_ref()),
             "true"
         );
         assert_eq!(qi.clone().into_describe_string(), "true");
@@ -237,7 +233,7 @@ mod tests {
             "[1,4,8,23,29,36,37,43,44,52,56,69,86,105,167,168,171]"
         );
         assert_eq!(
-            tt.clone().into_pretty_string(&fbas, organizations.as_ref()),
+            tt.clone().into_pretty_string(&fbas, groupings.as_ref()),
             r#"["GDXQB3OMMQ6MGG43PWFBZWBFKBBDUZIVSUDAZZTRAWQZKES2CDSE5HKJ","GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ","GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH","GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T","GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE","GDKWELGJURRKXECG3HHFHXMRX64YWQPUHKCVRESOX3E5PM6DM4YXLZJM","GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J","GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63","GA35T3723UP2XJLC2H7MNL6VMKZZIFL2VW7XHMFFJKKIA2FJCYTLKFBW","GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7","GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK","GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z","GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7","GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT","GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY","GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN","GCWJKM4EGTGJUVSWUJDPCQEOEP5LHSOFKSA4HALBTOO4T4H3HCHOM6UX"]"#
         );
         assert_eq!(tt.clone().into_describe_string(), "17");
@@ -247,12 +243,12 @@ mod tests {
         assert_contains!(mq.clone().into_id_string(), "[4,8,23,29,36,44,69,105]");
         assert_contains!(mq.clone().into_id_string(), "[1,4,29,36,37,43,56,105,171]");
         assert_contains!(
-            mq.clone().into_pretty_string(&fbas, organizations.as_ref()),
+            mq.clone().into_pretty_string(&fbas, groupings.as_ref()),
             // [4,8,23,29,36,44,69,105]
             r#"["GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ","GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH","GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T","GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE","GDKWELGJURRKXECG3HHFHXMRX64YWQPUHKCVRESOX3E5PM6DM4YXLZJM","GA35T3723UP2XJLC2H7MNL6VMKZZIFL2VW7XHMFFJKKIA2FJCYTLKFBW","GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z","GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT"]"#
         );
         assert_contains!(
-            mq.clone().into_pretty_string(&fbas, organizations.as_ref()),
+            mq.clone().into_pretty_string(&fbas, groupings.as_ref()),
             // [1,4,29,36,37,43,56,105,171]"
             r#"["GDXQB3OMMQ6MGG43PWFBZWBFKBBDUZIVSUDAZZTRAWQZKES2CDSE5HKJ","GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ","GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE","GDKWELGJURRKXECG3HHFHXMRX64YWQPUHKCVRESOX3E5PM6DM4YXLZJM","GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J","GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63","GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK","GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT","GCWJKM4EGTGJUVSWUJDPCQEOEP5LHSOFKSA4HALBTOO4T4H3HCHOM6UX"]"#
         );
@@ -266,7 +262,7 @@ mod tests {
     #[ignore]
     fn merge_by_organization_results_output_correctly() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-        let organizations = Organizations::from_json_file(
+        let organizations = Groupings::from_json_file(
             Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
             &fbas,
         );
@@ -282,7 +278,7 @@ mod tests {
         );
         assert_eq!(qi.clone().into_describe_string(), "true");
 
-        let tt = analysis.top_tier().merged_by_org(&organizations);
+        let tt = analysis.top_tier().merged_by_group(&organizations);
         assert_eq!(tt.clone().into_id_string(), "[56,86,167,168,171]");
         assert_eq!(
             tt.clone().into_pretty_string(&fbas, Some(&organizations)),
@@ -292,7 +288,7 @@ mod tests {
 
         let mq = analysis
             .minimal_quorums()
-            .merged_by_org(&organizations)
+            .merged_by_group(&organizations)
             .minimal_sets();
         assert_eq!(
             mq.clone().into_id_string(),
@@ -324,7 +320,7 @@ mod tests {
     #[test]
     fn symmetric_clusters_by_organization_pretty_output_correctly() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-        let organizations = Organizations::from_json_file(
+        let organizations = Groupings::from_json_file(
             Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
             &fbas,
         );
@@ -406,7 +402,7 @@ mod tests {
             }
             ]"#,
         );
-        let organizations = Organizations::from_json_str(
+        let organizations = Groupings::from_json_str(
             r#"[
             {
                 "name": "J Mafia",

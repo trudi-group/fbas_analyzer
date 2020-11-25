@@ -116,11 +116,11 @@ fn load_fbas(o_nodes_path: Option<&PathBuf>) -> Fbas {
 fn maybe_load_organizations<'a>(
     o_organizations_path: Option<&PathBuf>,
     fbas: &'a Fbas,
-) -> Option<Organizations<'a>> {
+) -> Option<Groupings<'a>> {
     if let Some(organizations_path) = o_organizations_path {
         eprintln!("Will merge nodes by organization; reading organizations JSON from file...");
-        let orgs = Organizations::from_json_file(organizations_path, fbas);
-        eprintln!("Loaded {} organizations.", orgs.number_of_organizations());
+        let orgs = Groupings::from_json_file(organizations_path, fbas);
+        eprintln!("Loaded {} organizations.", orgs.number_of_groupings());
         Some(orgs)
     } else {
         None
@@ -145,23 +145,23 @@ macro_rules! do_time_and_report {
     }};
 }
 macro_rules! do_time_maybe_merge_and_report {
-    ($result_name:expr, $operation:expr, $organizations:expr, $output:expr) => {{
+    ($result_name:expr, $operation:expr, $groupings:expr, $output:expr) => {{
         let (mut result, duration) = timed!($operation);
-        if let Some(ref orgs) = $organizations {
-            result = result.merged_by_org(orgs).minimal_sets();
+        if let Some(ref orgs) = $groupings {
+            result = result.merged_by_group(orgs).minimal_sets();
         }
         $output.timed_result($result_name, result, duration);
     }};
 }
 
-fn report_overview(analysis: &Analysis, organizations: &Option<Organizations>, output: &Output) {
+fn report_overview(analysis: &Analysis, groupings: &Option<Groupings>, output: &Output) {
     output.result("nodes_total", analysis.all_nodes().len());
-    if let Some(ref orgs) = organizations {
+    if let Some(ref orgs) = groupings {
         output.result(
             "nodes_total_merged",
-            analysis.all_nodes().merged_by_org(orgs).len(),
+            analysis.all_nodes().merged_by_group(orgs).len(),
         );
-        output.comment("(Nodes belonging to the same organization will be counted as one.)");
+        output.comment("(Nodes belonging to the same grouping will be counted as one.)");
     }
 }
 fn check_and_report_if_has_quorum_intersection(
@@ -197,14 +197,14 @@ fn check_and_report_if_has_quorum_intersection(
 }
 fn find_and_report_symmetric_clusters(
     analysis: &Analysis,
-    organizations: &Option<Organizations>,
+    groupings: &Option<Groupings>,
     output: &Output,
 ) {
     let mut output_uncondensed = output.clone();
     output_uncondensed.describe = false;
     do_time_and_report!(
         "symmetric_clusters",
-        if let Some(ref orgs) = organizations {
+        if let Some(ref orgs) = groupings {
             orgs.merge_quorum_sets(analysis.symmetric_clusters())
         } else {
             analysis.symmetric_clusters()
@@ -215,13 +215,13 @@ fn find_and_report_symmetric_clusters(
 }
 fn find_and_report_minimal_quorums(
     analysis: &Analysis,
-    organizations: &Option<Organizations>,
+    groupings: &Option<Groupings>,
     output: &Output,
 ) {
     do_time_maybe_merge_and_report!(
         "minimal_quorums",
         analysis.minimal_quorums(),
-        organizations,
+        groupings,
         output
     );
     output.comment(&format!(
@@ -231,13 +231,13 @@ fn find_and_report_minimal_quorums(
 }
 fn find_and_report_minimal_blocking_sets(
     analysis: &Analysis,
-    organizations: &Option<Organizations>,
+    groupings: &Option<Groupings>,
     output: &Output,
 ) {
     do_time_maybe_merge_and_report!(
         "minimal_blocking_sets",
         analysis.minimal_blocking_sets(),
-        organizations,
+        groupings,
         output
     );
     output.comment(&format!(
@@ -249,13 +249,13 @@ fn find_and_report_minimal_blocking_sets(
 }
 fn find_and_report_minimal_splitting_sets(
     analysis: &Analysis,
-    organizations: &Option<Organizations>,
+    groupings: &Option<Groupings>,
     output: &Output,
 ) {
     do_time_maybe_merge_and_report!(
         "minimal_splitting_sets",
         analysis.minimal_splitting_sets(),
-        organizations,
+        groupings,
         output
     );
     output.comment(&format!(
@@ -268,12 +268,12 @@ fn find_and_report_minimal_splitting_sets(
 }
 fn report_top_tier_uncondensed(
     analysis: &Analysis,
-    organizations: &Option<Organizations>,
+    groupings: &Option<Groupings>,
     output: &Output,
 ) {
     let mut top_tier = analysis.top_tier();
-    if let Some(ref orgs) = organizations {
-        top_tier = top_tier.merged_by_org(orgs);
+    if let Some(ref orgs) = groupings {
+        top_tier = top_tier.merged_by_group(orgs);
     }
     output.result_uncondensed("top_tier", top_tier.clone());
     output.comment(
@@ -290,10 +290,10 @@ struct Output<'a> {
     output_pretty: bool,
     describe: bool,
     fbas: &'a Fbas,
-    organizations: &'a Option<Organizations<'a>>,
+    groupings: &'a Option<Groupings<'a>>,
 }
 impl<'a> Output<'a> {
-    fn init(args: &Cli, fbas: &'a Fbas, organizations: &'a Option<Organizations>) -> Self {
+    fn init(args: &Cli, fbas: &'a Fbas, groupings: &'a Option<Groupings>) -> Self {
         let results_only = args.results_only;
         let output_pretty = args.output_pretty;
         let describe = args.describe;
@@ -317,7 +317,7 @@ impl<'a> Output<'a> {
             output_pretty,
             describe,
             fbas,
-            organizations,
+            groupings,
         }
     }
     fn comment(&self, comment: &str) {
@@ -352,7 +352,7 @@ impl<'a> Output<'a> {
     }
     fn result_uncondensed(&self, result_name: &str, result: impl AnalysisResult) {
         let result_string = if self.output_pretty {
-            result.into_pretty_string(self.fbas, self.organizations.as_ref())
+            result.into_pretty_string(self.fbas, self.groupings.as_ref())
         } else {
             result.into_id_string()
         };

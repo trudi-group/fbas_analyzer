@@ -1,28 +1,28 @@
 use super::*;
 
-impl<'fbas> Organizations<'fbas> {
-    /// Merge a node ID so that all nodes by the same organization get the same ID.
+impl<'fbas> Groupings<'fbas> {
+    /// Merge a node ID so that all nodes by the same grouping get the same ID.
     pub fn merge_node(self: &Self, node_id: NodeId) -> NodeId {
         self.merged_ids[node_id]
     }
-    /// Merge a node ID set so that all nodes by the same organization get the same ID.
+    /// Merge a node ID set so that all nodes by the same grouping get the same ID.
     pub fn merge_node_set(self: &Self, node_set: NodeIdSet) -> NodeIdSet {
         node_set.into_iter().map(|x| self.merge_node(x)).collect()
     }
-    /// Merge a list of node ID sets so that all nodes by the same organization get the same ID.
+    /// Merge a list of node ID sets so that all nodes by the same grouping get the same ID.
     pub fn merge_node_sets(self: &Self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         node_sets
             .into_iter()
             .map(|x| self.merge_node_set(x))
             .collect()
     }
-    /// Merge a list of node ID sets so that all nodes by the same organization get the same ID and
+    /// Merge a list of node ID sets so that all nodes by the same grouping get the same ID and
     /// the returned node sets are all minimal w.r.t. each other (none is a superset of another).
     pub fn merge_minimal_node_sets(self: &Self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         remove_non_minimal_node_sets(self.merge_node_sets(node_sets))
     }
-    /// Merge a quorum set so that all nodes by the same organization get the same ID and
-    /// validator lists consisting of only of one organization are collapsed into one validator.
+    /// Merge a quorum set so that all nodes by the same grouping get the same ID and
+    /// validator lists consisting of only of one grouping are collapsed into one validator.
     pub fn merge_quorum_set(self: &Self, quorum_set: QuorumSet) -> QuorumSet {
         let mut threshold = quorum_set.threshold;
         let mut validators: Vec<NodeId> = quorum_set
@@ -89,7 +89,7 @@ mod tests {
                 ]
             }]"#;
         let fbas = Fbas::from_json_str(&fbas_input);
-        let organizations = Organizations::from_json_str(&organizations_input, &fbas);
+        let organizations = Groupings::from_json_str(&organizations_input, &fbas);
 
         let node_sets = vec![bitset![0], bitset![1, 2]];
 

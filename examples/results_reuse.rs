@@ -54,11 +54,11 @@ pub fn main() {
     println!("Example smallest minimal blocking set: {:?}", mbs_pretty[0]);
 
     // Merge the results by organization so that each organization is counted as one node.
-    let organizations = Organizations::from_json_file(
+    let organizations = Groupings::from_json_file(
         Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
         &fbas, // It doesn't matter that `fbas` has been transformed into standard form.
     );
-    let mbs_by_orgs: NodeIdSetVecResult = mbs.merged_by_org(&organizations).minimal_sets(); // we need this to make it into a collection of minimal sets again
+    let mbs_by_orgs: NodeIdSetVecResult = mbs.merged_by_group(&organizations).minimal_sets(); // we need this to make it into a collection of minimal sets again
 
     println!(
         "In the worst case, {} nodes across {} organizations are enough to compromise liveness.",

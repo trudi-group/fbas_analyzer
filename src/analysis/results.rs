@@ -41,19 +41,19 @@ impl NodeIdSetResult {
         &self,
         nodes: &[&'a str],
         fbas: &Fbas,
-        organizations: Option<&Organizations>,
+        groupings: Option<&Groupings>,
     ) -> Self {
-        let nodes_by_id = if let Some(ref orgs) = organizations {
-            from_organization_names(nodes, fbas, orgs)
+        let nodes_by_id = if let Some(ref orgs) = groupings {
+            from_grouping_names(nodes, fbas, orgs)
         } else {
             from_public_keys(nodes, fbas)
         };
         self.without_nodes(&nodes_by_id)
     }
-    /// Merge contained nodes so that all nodes of the same organization get the same ID.
-    pub fn merged_by_org(&self, organizations: &Organizations) -> Self {
+    /// Merge contained nodes so that all nodes of the same grouping get the same ID.
+    pub fn merged_by_group(&self, groupings: &Groupings) -> Self {
         Self {
-            node_set: organizations.merge_node_set(self.node_set.clone()),
+            node_set: groupings.merge_node_set(self.node_set.clone()),
         }
     }
 }
@@ -134,13 +134,13 @@ impl NodeIdSetVecResult {
         }
         histogram
     }
-    /// Merge contained nodes so that all nodes of the same organization get the same ID.
+    /// Merge contained nodes so that all nodes of the same grouping get the same ID.
     /// The remaining node sets might be non-minimal w.r.t. each other, or contain duplicates!
     /// You will usually want to chain this with `.minimal_sets()`.
-    pub fn merged_by_org(&self, organizations: &Organizations) -> Self {
+    pub fn merged_by_group(&self, groupings: &Groupings) -> Self {
         let mut new = self.clone();
         new.unshrink();
-        new.node_sets = organizations.merge_node_sets(new.node_sets);
+        new.node_sets = groupings.merge_node_sets(new.node_sets);
         new
     }
     /// Removes all non-minimal sets and sorts the remaining sets.
@@ -162,10 +162,10 @@ impl NodeIdSetVecResult {
         &self,
         nodes: &[&'a str],
         fbas: &Fbas,
-        organizations: Option<&Organizations>,
+        groupings: Option<&Groupings>,
     ) -> Self {
-        let nodes_by_id = if let Some(ref orgs) = organizations {
-            from_organization_names(nodes, fbas, orgs)
+        let nodes_by_id = if let Some(ref orgs) = groupings {
+            from_grouping_names(nodes, fbas, orgs)
         } else {
             from_public_keys(nodes, fbas)
         };
@@ -182,14 +182,10 @@ impl NodeIdSetVecResult {
 fn from_public_keys<'a>(nodes: &[&'a str], fbas: &Fbas) -> Vec<NodeId> {
     nodes.iter().filter_map(|pk| fbas.get_node_id(pk)).collect()
 }
-fn from_organization_names<'a>(
-    nodes: &[&'a str],
-    fbas: &Fbas,
-    organizations: &Organizations,
-) -> Vec<NodeId> {
+fn from_grouping_names<'a>(nodes: &[&'a str], fbas: &Fbas, groupings: &Groupings) -> Vec<NodeId> {
     nodes
         .iter()
-        .map(|name| match organizations.get_by_name(name) {
+        .map(|name| match groupings.get_by_name(name) {
             Some(org) => org.validators.clone(),
             None => {
                 if let Some(node_id) = fbas.get_node_id(name) {
@@ -312,7 +308,7 @@ mod tests {
             }
             ]"#,
         );
-        let organizations = Organizations::from_json_str(
+        let organizations = Groupings::from_json_str(
             r#"[
             {
                 "name": "J Mafia",
@@ -360,7 +356,7 @@ mod tests {
             }
             ]"#,
         );
-        let organizations = Organizations::from_json_str(
+        let organizations = Groupings::from_json_str(
             r#"[
             {
                 "name": "J Mafia",
@@ -375,7 +371,7 @@ mod tests {
         );
         let result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
         let expected = bitsetvec![{0}, {0, 2}, {3}];
-        let actual = result.merged_by_org(&organizations).unwrap();
+        let actual = result.merged_by_group(&organizations).unwrap();
         assert_eq!(expected, actual);
     }
 }
