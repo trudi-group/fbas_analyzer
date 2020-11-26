@@ -40,6 +40,8 @@ qsc-simulation = ["rand", "bzip2"]
 criterion = "0.3.2"
 sha3 = "0.9.1"
 hex = "0.4.2"
+assert_cmd = "1.0.2"
+predicates = "1.0.5"
 
 [dependencies]
 bit-set = "0.5.2"

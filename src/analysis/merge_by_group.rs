@@ -98,4 +98,30 @@ mod tests {
 
         assert_eq!(expected, actual);
     }
+
+    #[test]
+    fn merge_node_sets_by_isp() {
+        let fbas_input = r#"[
+            {
+                "publicKey": "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+                "isp": "Hetzner Gmbh"
+            },
+            {
+                "publicKey": "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+                "isp": "Hetzner Gmbh"
+            },
+            {
+                "publicKey": "GCWJKM4EGTGJUVSWUJDPCQEOEP5LHSOFKSA4HALBTOO4T4H3HCHOM6UX",
+                "isp": "Microsoft"
+            }]"#;
+        let fbas = Fbas::from_json_str(&fbas_input);
+        let isps = Groupings::load_isps_from_str(&fbas_input, &fbas);
+
+        let node_sets = vec![bitset![0], bitset![1, 2]];
+
+        let expected = vec![bitset![0], bitset![0, 2]];
+        let actual = isps.merge_node_sets(node_sets);
+
+        assert_eq!(expected, actual);
+    }
 }

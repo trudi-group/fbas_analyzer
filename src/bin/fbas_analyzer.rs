@@ -55,8 +55,18 @@ struct Cli {
 
     /// Merge nodes by organization - nodes from the same organization are handled as one;
     /// you must provide the path to a stellarbeat.org "organizations" JSON file.
-    #[structopt(short = "m", long = "merge-by-org")]
+    #[structopt(long = "merge-by-org")]
     organizations_path: Option<PathBuf>,
+
+    /// Merge nodes by ISP - nodes hosted at the same ISP are handled as one;
+    /// The nodes' ISP data is extracted from the previously passed JSON file that describes the FBAS.
+    #[structopt(long = "merge-by-isp")]
+    isp_merge: bool,
+
+    /// Merge nodes by country - nodes from the same country are handled as one;
+    /// The nodes' country data is extracted from the previously passed JSON file that describes the FBAS.
+    #[structopt(long = "merge-by-country")]
+    ctry_merge: bool,
 
     #[structopt(flatten)]
     verbosity: Verbosity,
@@ -67,19 +77,28 @@ fn main() -> CliResult {
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
     let fbas = load_fbas(args.nodes_path.as_ref());
-    let organizations = maybe_load_organizations(args.organizations_path.as_ref(), &fbas);
+    let (ctry, isp, org) = extract_groupings_todos(&args);
+    let groupings = if ctry {
+        maybe_load_countries(args.nodes_path.as_ref(), &fbas)
+    } else if isp {
+        maybe_load_isps(args.nodes_path.as_ref(), &fbas)
+    } else if org {
+        maybe_load_organizations(args.organizations_path.as_ref(), &fbas)
+    } else {
+        None
+    };
     let analysis = Analysis::new(&fbas);
 
     let (q, b, s) = extract_main_todos(&args);
-    let output = Output::init(&args, &fbas, &organizations);
+    let output = Output::init(&args, &fbas, &groupings);
 
-    report_overview(&analysis, &organizations, &output);
+    report_overview(&analysis, &groupings, &output);
     output.comment_newline();
 
-    find_and_report_symmetric_clusters(&analysis, &organizations, &output);
+    find_and_report_symmetric_clusters(&analysis, &groupings, &output);
 
     if q {
-        find_and_report_minimal_quorums(&analysis, &organizations, &output);
+        find_and_report_minimal_quorums(&analysis, &groupings, &output);
     }
 
     if !args.dont_check_quorum_intersection {
@@ -91,13 +110,13 @@ fn main() -> CliResult {
     }
 
     if b {
-        find_and_report_minimal_blocking_sets(&analysis, &organizations, &output);
+        find_and_report_minimal_blocking_sets(&analysis, &groupings, &output);
     }
     if s {
-        find_and_report_minimal_splitting_sets(&analysis, &organizations, &output);
+        find_and_report_minimal_splitting_sets(&analysis, &groupings, &output);
     }
     if q || b || s {
-        report_top_tier_uncondensed(&analysis, &organizations, &output);
+        report_top_tier_uncondensed(&analysis, &groupings, &output);
     }
     Ok(())
 }
@@ -126,6 +145,31 @@ fn maybe_load_organizations<'a>(
         None
     }
 }
+fn maybe_load_isps<'a>(o_nodes_path: Option<&PathBuf>, fbas: &'a Fbas) -> Option<Groupings<'a>> {
+    if let Some(nodes_path) = o_nodes_path {
+        eprintln!("Will merge nodes by ISP; reading FBAS JSON from file...");
+        let isps = Groupings::load_isps_from_file(nodes_path, &fbas);
+        eprintln!("Loaded {} ISPs.", isps.number_of_groupings());
+        Some(isps)
+    } else {
+        eprintln!("Will not merge. JSON file describing FBAS needed to perform merge.");
+        None
+    }
+}
+fn maybe_load_countries<'a>(
+    o_nodes_path: Option<&PathBuf>,
+    fbas: &'a Fbas,
+) -> Option<Groupings<'a>> {
+    if let Some(nodes_path) = o_nodes_path {
+        eprintln!("Will merge nodes by country; reading FBAS JSON from file...");
+        let countries = Groupings::load_countries_from_file(nodes_path, &fbas);
+        eprintln!("Loaded {} countries.", countries.number_of_groupings());
+        Some(countries)
+    } else {
+        eprintln!("Will not merge. JSON file describing FBAS needed to perform merge.");
+        None
+    }
+}
 fn extract_main_todos(args: &Cli) -> (bool, bool, bool) {
     if args.all {
         (true, true, true)
@@ -135,6 +179,23 @@ fn extract_main_todos(args: &Cli) -> (bool, bool, bool) {
             args.minimal_blocking_sets,
             args.minimal_splitting_sets,
         )
+    }
+}
+fn extract_groupings_todos(args: &Cli) -> (bool, bool, bool) {
+    if args.ctry_merge {
+        if args.isp_merge || args.organizations_path.is_some() {
+            eprintln!("Multiple merging options detected; will only merge nodes by country...");
+        }
+        (true, false, false)
+    } else if args.isp_merge {
+        if args.organizations_path.is_some() {
+            eprintln!("Multiple merging options detected; will only merge nodes by ISP...");
+        }
+        (false, true, false)
+    } else if args.organizations_path.is_some() {
+        (false, false, true)
+    } else {
+        (false, false, false)
     }
 }
 

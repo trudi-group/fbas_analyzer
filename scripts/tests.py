@@ -4,6 +4,8 @@ import subprocess
 
 
 def main():
+
+    cargo_debug_build()
     cargo_test()
     cargo_build()
 
@@ -24,6 +26,10 @@ def cargo_build():
     run_and_check_return('cargo build --release', 'Building project to make sure we have up-to-date binaries')
 
 
+def cargo_debug_build():
+    run_and_check_return('cargo build', 'Building project to make sure we have up-to-date debug binaries for some tests')
+
+
 def test_fbas_analyzer():
     test_fbas_analyzer_with_organizations()
     test_fbas_analyzer_with_ids()
@@ -31,7 +37,7 @@ def test_fbas_analyzer():
 
 
 def test_fbas_analyzer_with_organizations():
-    command = "target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -m test_data/stellarbeat_organizations_2019-09-17.json -a -p"
+    command = "target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json --merge-by-org test_data/stellarbeat_organizations_2019-09-17.json -a -p"
     expected_strings = [
         'has_quorum_intersection: true',
         'minimal_quorums: [["Stellar Development Foundation","LOBSTR","SatoshiPay","COINQVEST Limited"],["Stellar Development Foundation","LOBSTR","SatoshiPay","Keybase"],["Stellar Development Foundation","LOBSTR","COINQVEST Limited","Keybase"],["Stellar Development Foundation","SatoshiPay","COINQVEST Limited","Keybase"],["LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]]',

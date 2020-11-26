@@ -374,4 +374,36 @@ mod tests {
         let actual = result.merged_by_group(&organizations).unwrap();
         assert_eq!(expected, actual);
     }
+    #[test]
+    fn merge_results_by_country() {
+        let fbas_input = r#"[
+            {
+                "publicKey": "Jim",
+                "geoData": {
+                    "countryName": "Oceania,"
+                }
+            },
+            {
+                "publicKey": "Jon",
+                "geoData": {
+                    "countryName": "Oceania"
+                }
+            },
+            {
+                "publicKey": "Alex",
+                "geoData": {
+                    "countryName": "Eastasia"
+                }
+            },
+            {
+                "publicKey": "Bob"
+            }
+            ]"#;
+        let fbas = Fbas::from_json_str(&fbas_input);
+        let countries = Groupings::load_countries_from_str(&fbas_input, &fbas);
+        let result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
+        let actual = result.merged_by_group(&countries).unwrap();
+        let expected = bitsetvec![{0}, {0, 2}, {3}];
+        assert_eq!(expected, actual);
+    }
 }

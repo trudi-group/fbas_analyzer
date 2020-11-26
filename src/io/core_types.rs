@@ -9,6 +9,10 @@ pub(crate) struct RawNode {
     pub(crate) public_key: PublicKey,
     #[serde(default)]
     pub(crate) quorum_set: RawQuorumSet,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) isp: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) geo_data: Option<RawGeoData>,
 }
 #[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +21,11 @@ pub(crate) struct RawQuorumSet {
     pub(crate) validators: Vec<PublicKey>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) inner_quorum_sets: Vec<RawQuorumSet>,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RawGeoData {
+    pub(crate) country_name: Option<String>,
 }
 
 impl Fbas {
@@ -90,6 +99,8 @@ impl Node {
         RawNode {
             public_key: self.public_key.clone(),
             quorum_set: self.quorum_set.to_raw(&fbas),
+            isp: None,
+            geo_data: None,
         }
     }
 }
