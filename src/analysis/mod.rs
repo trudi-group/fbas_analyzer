@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn analysis_with_merging_by_organization_nontrivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let organizations = Groupings::from_json_str(
+        let organizations = Groupings::organizations_from_json_str(
             r#"[
             {
                 "id": "266107f8966d45eedce41fee2581326d",

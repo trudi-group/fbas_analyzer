@@ -89,7 +89,7 @@ mod tests {
                 ]
             }]"#;
         let fbas = Fbas::from_json_str(&fbas_input);
-        let organizations = Groupings::from_json_str(&organizations_input, &fbas);
+        let organizations = Groupings::organizations_from_json_str(&organizations_input, &fbas);
 
         let node_sets = vec![bitset![0], bitset![1, 2]];
 
@@ -115,7 +115,7 @@ mod tests {
                 "isp": "Microsoft"
             }]"#;
         let fbas = Fbas::from_json_str(&fbas_input);
-        let isps = Groupings::load_isps_from_str(&fbas_input, &fbas);
+        let isps = Groupings::isps_from_json_str(&fbas_input, &fbas);
 
         let node_sets = vec![bitset![0], bitset![1, 2]];
 

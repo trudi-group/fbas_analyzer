@@ -54,7 +54,7 @@ pub fn main() {
     println!("Example smallest minimal blocking set: {:?}", mbs_pretty[0]);
 
     // Merge the results by organization so that each organization is counted as one node.
-    let organizations = Groupings::from_json_file(
+    let organizations = Groupings::organizations_from_json_file(
         Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
         &fbas, // It doesn't matter that `fbas` has been transformed into standard form.
     );

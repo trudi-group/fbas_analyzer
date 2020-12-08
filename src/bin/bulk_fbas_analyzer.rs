@@ -357,7 +357,10 @@ fn maybe_load_organizations<'a>(
     fbas: &'a Fbas,
 ) -> Option<Groupings<'a>> {
     if let Some(organizations_path) = o_organizations_path {
-        Some(Groupings::from_json_file(organizations_path, fbas))
+        Some(Groupings::organizations_from_json_file(
+            organizations_path,
+            fbas,
+        ))
     } else {
         None
     }

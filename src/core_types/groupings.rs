@@ -14,7 +14,7 @@ pub struct Grouping {
     pub(crate) validators: Vec<NodeId>,
 }
 impl<'fbas> Groupings<'fbas> {
-    pub fn new(groupings: Vec<Grouping>, fbas: &'fbas Fbas) -> Self {
+    pub(crate) fn new(groupings: Vec<Grouping>, fbas: &'fbas Fbas) -> Self {
         let mut merged_ids: Vec<NodeId> = (0..fbas.nodes.len()).collect();
         let mut node_id_to_org_idx: HashMap<NodeId, usize> = HashMap::new();
 

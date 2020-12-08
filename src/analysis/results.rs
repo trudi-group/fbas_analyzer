@@ -308,7 +308,7 @@ mod tests {
             }
             ]"#,
         );
-        let organizations = Groupings::from_json_str(
+        let organizations = Groupings::organizations_from_json_str(
             r#"[
             {
                 "name": "J Mafia",
@@ -356,7 +356,7 @@ mod tests {
             }
             ]"#,
         );
-        let organizations = Groupings::from_json_str(
+        let organizations = Groupings::organizations_from_json_str(
             r#"[
             {
                 "name": "J Mafia",
@@ -400,7 +400,7 @@ mod tests {
             }
             ]"#;
         let fbas = Fbas::from_json_str(&fbas_input);
-        let countries = Groupings::load_countries_from_str(&fbas_input, &fbas);
+        let countries = Groupings::countries_from_json_str(&fbas_input, &fbas);
         let result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
         let actual = result.merged_by_group(&countries).unwrap();
         let expected = bitsetvec![{0}, {0, 2}, {3}];

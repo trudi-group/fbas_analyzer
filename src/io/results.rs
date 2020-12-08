@@ -262,7 +262,7 @@ mod tests {
     #[ignore]
     fn merge_by_organization_results_output_correctly() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-        let organizations = Groupings::from_json_file(
+        let organizations = Groupings::organizations_from_json_file(
             Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
             &fbas,
         );
@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn symmetric_clusters_by_organization_pretty_output_correctly() {
         let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
-        let organizations = Groupings::from_json_file(
+        let organizations = Groupings::organizations_from_json_file(
             Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
             &fbas,
         );
@@ -402,7 +402,7 @@ mod tests {
             }
             ]"#,
         );
-        let organizations = Groupings::from_json_str(
+        let organizations = Groupings::organizations_from_json_str(
             r#"[
             {
                 "name": "J Mafia",
