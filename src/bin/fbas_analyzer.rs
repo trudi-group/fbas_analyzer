@@ -44,8 +44,9 @@ struct Cli {
     #[structopt(short = "d", long = "describe")]
     describe: bool,
 
-    /// In output, identify nodes by their pretty name (public key, or organization if -o is set);
-    /// default is to use node IDs corresponding to indices in the input file.
+    /// In output, identify nodes by their pretty name (depending on specified merge behaviour:
+    /// their public key, organization, ISP or country); default is to use node IDs corresponding
+    /// to indices in the input file.
     #[structopt(short = "p", long = "pretty")]
     output_pretty: bool,
 

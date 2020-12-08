@@ -15,7 +15,7 @@ Among other things, the implementation here can:
 - find all minimal splitting sets (minimal indispensable sets for safety)
 - simulate different quorum set configuration policies, yielding synthetic FBASs for further analysis
 
-Powers our [Stellar Network Analysis](https://stellar.weizenbaum.net/analysis.html).
+Powers our [Stellar Network Analysis](https://trudi.weizenbaum-institut.de/stellar_analysis/).
 
 ## Usage as tools
 
@@ -62,7 +62,7 @@ and how the API is used by the tools in `src/bin/` and the example in `examples`
 
 ## See also / Acknowledgements
 
-- The algorithms for determining quorum intersection and finding minimal quorums is inspired by [Lachowski 2019](https://arxiv.org/abs/1902.06493), respectively this [implementation](https://github.com/fixxxedpoint/quorum_intersection).
+- The algorithms for determining quorum intersection and finding minimal quorums are inspired by [Lachowski 2019](https://arxiv.org/abs/1902.06493), respectively this [implementation](https://github.com/fixxxedpoint/quorum_intersection).
 - [Stellar Observatory](https://github.com/andrenarchy/stellar-observatory) - a different set of FBAS analyses.
 - [nodejs_fbas_analyzer](https://github.com/stellarbeat/nodejs_fbas_analyzer/)
 
