@@ -113,7 +113,7 @@ impl RawGroupings {
         for key in isp_to_validators.keys() {
             grouping_names.push(key);
         }
-        grouping_names.sort();
+        grouping_names.sort_unstable();
         for name in grouping_names {
             if let Some(validators) = isp_to_validators.get(name) {
                 let raw_grouping = RawGrouping {
@@ -148,7 +148,7 @@ impl RawGroupings {
         for key in country_to_validators.keys() {
             grouping_names.push(key);
         }
-        grouping_names.sort();
+        grouping_names.sort_unstable();
         for name in grouping_names {
             if let Some(validators) = country_to_validators.get(name) {
                 let raw_grouping = RawGrouping {

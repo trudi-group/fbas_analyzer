@@ -39,7 +39,7 @@ impl QuorumSetConfigurator for AllNeighborsQsc {
                 // 2. it makes sense for threshold calculation (for achieving global n=3f+1)
                 validators.push(node_id);
             }
-            validators.sort(); // for easier comparability
+            validators.sort_unstable(); // for easier comparability
 
             let threshold = calculate_threshold(validators.len(), self.relative_threshold);
 

@@ -115,7 +115,7 @@ impl QuorumSet {
                 validators.push(new_id);
             }
         }
-        validators.sort();
+        validators.sort_unstable();
 
         let mut inner_quorum_sets = vec![];
         for inner_quorum_set in quorum_set.inner_quorum_sets.iter() {
@@ -124,7 +124,7 @@ impl QuorumSet {
                 inner_quorum_sets.push(shrunken_inner_quorum_set);
             }
         }
-        inner_quorum_sets.sort();
+        inner_quorum_sets.sort_unstable();
 
         let threshold = quorum_set.threshold;
 
@@ -158,7 +158,7 @@ impl Grouping {
                 validators.push(new_id);
             }
         }
-        validators.sort();
+        validators.sort_unstable();
         Grouping {
             name: grouping.name.clone(),
             validators,

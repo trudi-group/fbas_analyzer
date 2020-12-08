@@ -343,7 +343,7 @@ mod tests {
 
         fn degrees(graph: Graph) -> Vec<usize> {
             let mut result: Vec<usize> = graph.outlinks.into_iter().map(|x| x.len()).collect();
-            result.sort();
+            result.sort_unstable();
             result
         }
         assert_eq!(degrees(graph), degrees(shuffled));

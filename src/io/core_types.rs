@@ -119,12 +119,12 @@ impl QuorumSet {
             .collect();
         let threshold = raw_quorum_set.threshold;
         // sort to make comparisons between quorum sets easier
-        validators.sort();
-        inner_quorum_sets.sort();
+        validators.sort_unstable();
+        inner_quorum_sets.sort_unstable();
         QuorumSet {
             validators,
             inner_quorum_sets,
-            threshold: threshold.try_into().unwrap_or_else(|_| usize::MAX),
+            threshold: threshold.try_into().unwrap_or(usize::MAX),
         }
     }
     fn to_raw(&self, fbas: &Fbas) -> RawQuorumSet {

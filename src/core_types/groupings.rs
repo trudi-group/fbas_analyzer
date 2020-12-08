@@ -35,14 +35,14 @@ impl<'fbas> Groupings<'fbas> {
             fbas,
         }
     }
-    pub fn get_by_member(self: &Self, node_id: NodeId) -> Option<&Grouping> {
+    pub fn get_by_member(&self, node_id: NodeId) -> Option<&Grouping> {
         if let Some(&org_idx) = self.node_id_to_org_idx.get(&node_id) {
             Some(&self.groupings[org_idx])
         } else {
             None
         }
     }
-    pub fn get_by_name(self: &Self, name: &str) -> Option<&Grouping> {
+    pub fn get_by_name(&self, name: &str) -> Option<&Grouping> {
         self.groupings.iter().find(|org| org.name == name)
     }
     pub fn number_of_groupings(&self) -> usize {

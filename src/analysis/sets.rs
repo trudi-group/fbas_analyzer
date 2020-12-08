@@ -29,7 +29,7 @@ where
 {
     let mut sets = find_sets(fbas, finder);
     debug_assert!(is_set_of_minimal_node_sets(&sets));
-    sets.sort();
+    sets.sort_unstable();
     sets.sort_by_key(|x| x.len());
     sets
 }
@@ -77,7 +77,7 @@ where
 pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
     debug!("Removing duplicates...");
     let len_before = node_sets.len();
-    node_sets.sort();
+    node_sets.sort_unstable();
     node_sets.dedup();
     debug!("Done; removed {} duplicates.", len_before - node_sets.len());
 

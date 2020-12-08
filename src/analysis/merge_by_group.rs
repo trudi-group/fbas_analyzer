@@ -2,15 +2,15 @@ use super::*;
 
 impl<'fbas> Groupings<'fbas> {
     /// Merge a node ID so that all nodes by the same grouping get the same ID.
-    pub fn merge_node(self: &Self, node_id: NodeId) -> NodeId {
+    pub fn merge_node(&self, node_id: NodeId) -> NodeId {
         self.merged_ids[node_id]
     }
     /// Merge a node ID set so that all nodes by the same grouping get the same ID.
-    pub fn merge_node_set(self: &Self, node_set: NodeIdSet) -> NodeIdSet {
+    pub fn merge_node_set(&self, node_set: NodeIdSet) -> NodeIdSet {
         node_set.into_iter().map(|x| self.merge_node(x)).collect()
     }
     /// Merge a list of node ID sets so that all nodes by the same grouping get the same ID.
-    pub fn merge_node_sets(self: &Self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
+    pub fn merge_node_sets(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         node_sets
             .into_iter()
             .map(|x| self.merge_node_set(x))
@@ -18,12 +18,12 @@ impl<'fbas> Groupings<'fbas> {
     }
     /// Merge a list of node ID sets so that all nodes by the same grouping get the same ID and
     /// the returned node sets are all minimal w.r.t. each other (none is a superset of another).
-    pub fn merge_minimal_node_sets(self: &Self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
+    pub fn merge_minimal_node_sets(&self, node_sets: Vec<NodeIdSet>) -> Vec<NodeIdSet> {
         remove_non_minimal_node_sets(self.merge_node_sets(node_sets))
     }
     /// Merge a quorum set so that all nodes by the same grouping get the same ID and
     /// validator lists consisting of only of one grouping are collapsed into one validator.
-    pub fn merge_quorum_set(self: &Self, quorum_set: QuorumSet) -> QuorumSet {
+    pub fn merge_quorum_set(&self, quorum_set: QuorumSet) -> QuorumSet {
         let mut threshold = quorum_set.threshold;
         let mut validators: Vec<NodeId> = quorum_set
             .validators
@@ -54,7 +54,7 @@ impl<'fbas> Groupings<'fbas> {
         }
     }
     /// calls `merge_quorum_set` on each vector element
-    pub fn merge_quorum_sets(self: &Self, quorum_set: Vec<QuorumSet>) -> Vec<QuorumSet> {
+    pub fn merge_quorum_sets(&self, quorum_set: Vec<QuorumSet>) -> Vec<QuorumSet> {
         quorum_set
             .into_iter()
             .map(|q| self.merge_quorum_set(q))
