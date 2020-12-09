@@ -1,5 +1,7 @@
 use super::*;
 
+/// Defines one concrete way to group the nodes of an `Fbas`, for example by organization, ISP or
+/// country. Used for merging nodes belonging to the same group into one.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Groupings<'fbas> {
     pub(crate) groupings: Vec<Grouping>,
