@@ -33,7 +33,7 @@
 //!
 //! ...can be found in the `src/bin` and `examples` folders...
 
-#![doc(html_root_url = "https://docs.rs/fbas_analyzer/0.4.3")]
+#![doc(html_root_url = "https://docs.rs/fbas_analyzer/0.5.0")]
 
 mod analysis;
 mod core_types;
