@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import subprocess
+import tempfile
 
 
 def main():
@@ -69,6 +70,7 @@ def test_fbas_analyzer_on_broken():
 
 def test_bulk_fbas_analyzer():
     test_bulk_fbas_analyzer_to_stdout()
+    test_bulk_fbas_analyzer_update_flag()
 
 
 def test_bulk_fbas_analyzer_to_stdout():
@@ -90,6 +92,35 @@ def test_bulk_fbas_analyzer_to_stdout():
         ]
     run_and_check_output(command, expected_strings=expected_strings)
 
+def test_bulk_fbas_analyzer_update_flag():
+    input_files = ['test_data/' + x for x in [
+        'broken.json',
+        'correct.json',
+        'stellarbeat_nodes_2020-01-16_broken_by_hand.json',
+    ]]
+    update_files = ['test_data/' + x for x in [
+        'broken.json',
+        'correct.json',
+        'stellarbeat_nodes_2019-09-17.json',
+        'stellarbeat_nodes_2020-01-16_broken_by_hand.json',
+        'stellarbeat_organizations_2019-09-17.json',
+    ]]
+    tf = tempfile.NamedTemporaryFile('r+')
+    daily_csv = tf.name
+
+    command = 'target/release/bulk_fbas_analyzer ' + ' '.join(input_files)
+    run_redirect_stdout_to_file_and_check_return(command, tf)
+
+    command = 'target/release/bulk_fbas_analyzer ' + ' '.join(update_files) + ' -u -o ' + daily_csv
+    expected_strings  = [
+        'label,has_quorum_intersection,top_tier_size,mbs_min,mbs_max,mbs_mean,mss_min,mss_max,mss_mean,mq_min,mq_max,mq_mean,orgs_top_tier_size,orgs_mbs_min,orgs_mbs_max,orgs_mbs_mean,orgs_mss_min,orgs_mss_max,orgs_mss_mean,orgs_mq_min,orgs_mq_max,orgs_mq_mean,isps_top_tier_size,isps_mbs_min,isps_mbs_max,isps_mbs_mean,isps_mss_min,isps_mss_max,isps_mss_mean,isps_mq_min,isps_mq_max,isps_mq_mean,ctries_top_tier_size,ctries_mbs_min,ctries_mbs_max,ctries_mbs_mean,ctries_mss_min,ctries_mss_max,ctries_mss_mean,ctries_mq_min,ctries_mq_max,ctries_mq_mean,standard_form_hash,analysis_duration_mq,analysis_duration_mbs,analysis_duration_mss,analysis_duration_total',
+        'broken,false,4,2,3',
+        'correct,true,3,2,2,2.0,1,1,1.0,2,2,2.0,,,,,,,,,,,',
+        '2020-01-16_broken_by_hand,false,22,5,6,5.625,0,0,0.0,2,11,10.9413',
+        '2019-09-17,true,17,4,5,4.689655172413793,3,3,3.0,8,9,8.930232558139535,5,2,2,2.0,3,3,3.0,4,4,4.0,,,,,,,,,,,3,1,1,1.0,1,1,1.0,1,1,1.0,6f73c7787f38fdde66470cc3b2e469e092c70f52823396ae13e52c9a561b20f5,0.'
+        ]
+    run_redirect_stdout_to_file_and_check_output(command, tf, expected_strings=expected_strings)
+    tf.close()
 
 def test_qsc_simulator():
     graph = '0|1|0\n0|2|0\n1|0|0\n1|2|0\n2|0|0\n2|1|0'
@@ -164,6 +195,30 @@ def run_and_check_output(command, log_message='Running command', expected_string
             "STDERR: '%s'" % stderr,
         ])
 
+def run_redirect_stdout_to_file_and_check_return(command, file_descriptor, expected_returncode=0):
+    completed_process = subprocess.run(command, universal_newlines=True, shell=True, stdout=file_descriptor)
+    assert completed_process.returncode == expected_returncode,\
+        "Expected return code '%d', got '%d'." % (expected_returncode, completed_process.returncode)
+
+def run_redirect_stdout_to_file_and_check_output(command, file_descriptor, log_message='Running command', expected_strings=[]):
+    print("%s: `%s`" % (log_message, command))
+    completed_process = subprocess.run(command, universal_newlines=True, shell=True, stdout=file_descriptor)
+    stderr = completed_process.stderr
+
+    file_descriptor.seek(0)
+    actual_strings = file_descriptor.read()
+    print("Checking output for expected strings...")
+    for expected in expected_strings:
+        assert expected in actual_strings, '\n'.join([
+            "Missing expected output string:",
+            "'''",
+            expected,
+            "'''",
+            "Full output:",
+            "'''",
+            str(actual_strings) + "\n" + "'''"
+            "STDERR: '%s'" % stderr,
+        ])
 
 if __name__ == "__main__":
     main()

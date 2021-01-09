@@ -12,7 +12,7 @@ use std::error::Error;
 use std::io;
 use std::path::PathBuf;
 
-use csv::{Reader, Writer, WriterBuilder};
+use csv::{Reader, Writer};
 use par_map::ParMap;
 use sha3::{Digest, Sha3_256};
 
@@ -46,7 +46,6 @@ struct Cli {
     #[structopt(flatten)]
     verbosity: Verbosity,
 }
-
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
@@ -72,83 +71,76 @@ struct InputDataPoint {
     nodes_path: PathBuf,
     organizations_path: Option<PathBuf>,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct MinMaxMean {
-    min: Option<usize>,
-    max: Option<usize>,
-    mean: Option<f64>,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct AnalysisResults {
-    top_tier_size: Option<usize>,
-    mbs_min_max_mean: MinMaxMean,
-    mss_min_max_mean: MinMaxMean,
-    mqs_min_max_mean: MinMaxMean,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct OutputDataPoint {
     label: String,
     has_quorum_intersection: bool,
-    raw_output: AnalysisResults,
-    orgs_output: AnalysisResults,
-    isps_output: AnalysisResults,
-    ctries_output: AnalysisResults,
+    top_tier_size: usize,
+    mbs_min: usize,
+    mbs_max: usize,
+    mbs_mean: f64,
+    mss_min: usize,
+    mss_max: usize,
+    mss_mean: f64,
+    mq_min: usize,
+    mq_max: usize,
+    mq_mean: f64,
+    orgs_top_tier_size: Option<usize>,
+    orgs_mbs_min: Option<usize>,
+    orgs_mbs_max: Option<usize>,
+    orgs_mbs_mean: Option<f64>,
+    orgs_mss_min: Option<usize>,
+    orgs_mss_max: Option<usize>,
+    orgs_mss_mean: Option<f64>,
+    orgs_mq_min: Option<usize>,
+    orgs_mq_max: Option<usize>,
+    orgs_mq_mean: Option<f64>,
+    isps_top_tier_size: Option<usize>,
+    isps_mbs_min: Option<usize>,
+    isps_mbs_max: Option<usize>,
+    isps_mbs_mean: Option<f64>,
+    isps_mss_min: Option<usize>,
+    isps_mss_max: Option<usize>,
+    isps_mss_mean: Option<f64>,
+    isps_mq_min: Option<usize>,
+    isps_mq_max: Option<usize>,
+    isps_mq_mean: Option<f64>,
+    ctries_top_tier_size: Option<usize>,
+    ctries_mbs_min: Option<usize>,
+    ctries_mbs_max: Option<usize>,
+    ctries_mbs_mean: Option<f64>,
+    ctries_mss_min: Option<usize>,
+    ctries_mss_max: Option<usize>,
+    ctries_mss_mean: Option<f64>,
+    ctries_mq_min: Option<usize>,
+    ctries_mq_max: Option<usize>,
+    ctries_mq_mean: Option<f64>,
     standard_form_hash: String,
     analysis_duration_mq: f64,
     analysis_duration_mbs: f64,
     analysis_duration_mss: f64,
     analysis_duration_total: f64,
 }
-const HEADER: &[&str] = &[
-    "label",
-    "has_quorum_intersection",
-    "top_tier_size",
-    "mbs_min",
-    "mbs_max",
-    "mbs_mean",
-    "mss_min",
-    "mss_max",
-    "mss_mean",
-    "mq_min",
-    "mq_max",
-    "mq_mean",
-    "orgs_top_tier_size",
-    "orgs_mbs_min",
-    "orgs_mbs_max",
-    "orgs_mbs_mean",
-    "orgs_mss_min",
-    "orgs_mss_max",
-    "orgs_mss_mean",
-    "orgs_mq_min",
-    "orgs_mq_max",
-    "orgs_mq_mean",
-    "isps_top_tier_size",
-    "isps_mbs_min",
-    "isps_mbs_max",
-    "isps_mbs_mean",
-    "isps_mss_min",
-    "isps_mss_max",
-    "isps_mss_mean",
-    "isps_mq_min",
-    "isps_mq_max",
-    "isps_mq_mean",
-    "ctries_top_tier_size",
-    "ctries_mbs_min",
-    "ctries_mbs_max",
-    "ctries_mbs_mean",
-    "ctries_mss_min",
-    "ctries_mss_max",
-    "ctries_mss_mean",
-    "ctries_mq_min",
-    "ctries_mq_max",
-    "ctries_mq_mean",
-    "standard_form_hash",
-    "analysis_duration_mq",
-    "analysis_duration_mbs",
-    "analysis_duration_mss",
-    "analysis_duration_total",
-];
+type AnalysisResults = (
+    Option<usize>,
+    Option<usize>,
+    Option<usize>,
+    Option<f64>,
+    Option<usize>,
+    Option<usize>,
+    Option<f64>,
+    Option<usize>,
+    Option<usize>,
+    Option<f64>,
+);
+macro_rules! extend_output_data_point {
+    ($output: tt, $($id: ident: $e: expr), *) => {{
+        OutputDataPoint {
+            $($id: $e), * ,
+            ..$output
+        }
+    }};
+}
 #[derive(Debug)]
 enum Task {
     Reuse(OutputDataPoint),
@@ -264,35 +256,31 @@ fn analyze(input: InputDataPoint) -> OutputDataPoint {
         let standard_form_hash = hex::encode(Sha3_256::digest(
             &fbas.to_standard_form().to_json_string().into_bytes(),
         ));
-        OutputDataPoint {
+        let mut output = OutputDataPoint {
             label,
             has_quorum_intersection,
-            raw_output: AnalysisResults {
-                top_tier_size: Some(top_tier_size),
-                mbs_min_max_mean: MinMaxMean {
-                    min: Some(mbs_min),
-                    max: Some(mbs_max),
-                    mean: Some(mbs_mean),
-                },
-                mss_min_max_mean: MinMaxMean {
-                    min: Some(mss_min),
-                    max: Some(mss_max),
-                    mean: Some(mss_mean),
-                },
-                mqs_min_max_mean: MinMaxMean {
-                    min: Some(mq_min),
-                    max: Some(mq_max),
-                    mean: Some(mq_mean),
-                },
-            },
-            orgs_output,
-            isps_output,
-            ctries_output,
+            top_tier_size,
+            mbs_min,
+            mbs_max,
+            mbs_mean,
+            mss_min,
+            mss_max,
+            mss_mean,
+            mq_min,
+            mq_max,
+            mq_mean,
+            ..Default::default()
+        };
+        output = extend_output_with_orgs_results(&orgs_output, output);
+        output = extend_output_with_isps_results(&isps_output, output);
+        output = extend_output_with_ctries_results(&ctries_output, output);
+        OutputDataPoint {
             standard_form_hash,
             analysis_duration_mq,
             analysis_duration_mbs,
             analysis_duration_mss,
-            analysis_duration_total: 0.,
+            analysis_duration_total: 0.0,
+            ..output
         }
     });
     OutputDataPoint {
@@ -305,7 +293,7 @@ fn maybe_merge_sets(analysis: &Analysis, grouping: Option<Groupings>) -> Analysi
     if let Some(ref group) = grouping {
         let merge_fix = |sets: NodeIdSetVecResult| {
             let (min, max, mean) = sets.merged_by_group(group).minimal_sets().minmaxmean();
-            (min, max, mean)
+            (Some(min), Some(max), Some(mean))
         };
         let (
             top_tier_size,
@@ -313,49 +301,55 @@ fn maybe_merge_sets(analysis: &Analysis, grouping: Option<Groupings>) -> Analysi
             (mbs_min, mbs_max, mbs_mean),
             (mss_min, mss_max, mss_mean),
         ) = (
-            analysis.top_tier().merged_by_group(group).len(),
+            Some(analysis.top_tier().merged_by_group(group).len()),
             merge_fix(analysis.minimal_quorums()),
             merge_fix(analysis.minimal_blocking_sets()),
             merge_fix(analysis.minimal_splitting_sets()),
         );
-        AnalysisResults {
-            top_tier_size: Some(top_tier_size),
-            mbs_min_max_mean: MinMaxMean {
-                min: Some(mbs_min),
-                max: Some(mbs_max),
-                mean: Some(mbs_mean),
-            },
-            mss_min_max_mean: MinMaxMean {
-                min: Some(mss_min),
-                max: Some(mss_max),
-                mean: Some(mss_mean),
-            },
-            mqs_min_max_mean: MinMaxMean {
-                min: Some(mq_min),
-                max: Some(mq_max),
-                mean: Some(mq_mean),
-            },
-        }
+        (
+            top_tier_size,
+            mbs_min,
+            mbs_max,
+            mbs_mean,
+            mss_min,
+            mss_max,
+            mss_mean,
+            mq_min,
+            mq_max,
+            mq_mean,
+        )
     } else {
-        AnalysisResults {
-            top_tier_size: None,
-            mbs_min_max_mean: MinMaxMean {
-                min: None,
-                max: None,
-                mean: None,
-            },
-            mss_min_max_mean: MinMaxMean {
-                min: None,
-                max: None,
-                mean: None,
-            },
-            mqs_min_max_mean: MinMaxMean {
-                min: None,
-                max: None,
-                mean: None,
-            },
-        }
+        (None, None, None, None, None, None, None, None, None, None)
     }
+}
+
+fn extend_output_with_orgs_results(
+    orgs: &AnalysisResults,
+    output: OutputDataPoint,
+) -> OutputDataPoint {
+    extend_output_data_point!(output, orgs_top_tier_size: orgs.0,
+            orgs_mbs_min: orgs.1, orgs_mbs_max: orgs.2, orgs_mbs_mean: orgs.3,
+            orgs_mss_min: orgs.4, orgs_mss_max: orgs.5, orgs_mss_mean: orgs.6,
+            orgs_mq_min: orgs.7, orgs_mq_max: orgs.8, orgs_mq_mean: orgs.9)
+}
+fn extend_output_with_isps_results(
+    isps: &AnalysisResults,
+    output: OutputDataPoint,
+) -> OutputDataPoint {
+    extend_output_data_point!(output, isps_top_tier_size: isps.0,
+            isps_mbs_min: isps.1, isps_mbs_max: isps.2, isps_mbs_mean: isps.3,
+            isps_mss_min: isps.4, isps_mss_max: isps.5, isps_mss_mean: isps.6,
+            isps_mq_min: isps.7, isps_mq_max: isps.8, isps_mq_mean: isps.9)
+}
+fn extend_output_with_ctries_results(
+    ctries: &AnalysisResults,
+    output: OutputDataPoint,
+) -> OutputDataPoint {
+    extend_output_data_point!(output, ctries_top_tier_size: ctries.0,
+            ctries_mbs_min: ctries.1, ctries_mbs_max: ctries.2, ctries_mbs_mean:
+            ctries.3, ctries_mss_min: ctries.4, ctries_mss_max: ctries.5,
+            ctries_mss_mean: ctries.6, ctries_mq_min: ctries.7, ctries_mq_max:
+            ctries.8, ctries_mq_mean: ctries.9)
 }
 
 fn write_csv(
@@ -478,22 +472,19 @@ fn write_csv_to_file(
     data_points: impl IntoIterator<Item = impl serde::Serialize>,
     path: &PathBuf,
 ) -> Result<(), Box<dyn Error>> {
-    let writer = WriterBuilder::new().has_headers(false).from_path(path)?;
+    let writer = Writer::from_path(path)?;
     write_csv_via_writer(data_points, writer)
 }
 fn write_csv_to_stdout(
     data_points: impl IntoIterator<Item = impl serde::Serialize>,
 ) -> Result<(), Box<dyn Error>> {
-    let writer = WriterBuilder::new()
-        .has_headers(false)
-        .from_writer(io::stdout());
+    let writer = Writer::from_writer(io::stdout());
     write_csv_via_writer(data_points, writer)
 }
 fn write_csv_via_writer(
     data_points: impl IntoIterator<Item = impl serde::Serialize>,
     mut writer: Writer<impl io::Write>,
 ) -> Result<(), Box<dyn Error>> {
-    writer.write_record(&*HEADER)?;
     for data_point in data_points.into_iter() {
         writer.serialize(data_point)?;
         writer.flush()?;
