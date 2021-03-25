@@ -50,7 +50,7 @@ impl ShrinkManager {
             .collect();
         shrink_sets(node_sets, &reshrink_map)
     }
-    pub fn unshrink_table<'a>(&'a self) -> &'a Vec<NodeId> {
+    pub fn unshrink_table(&self) -> &Vec<NodeId> {
         &self.unshrink_table
     }
 }

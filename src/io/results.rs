@@ -192,10 +192,9 @@ mod tests {
         ($actual_collection:expr, $expected_element:expr) => {
             assert!(
                 $actual_collection.contains($expected_element),
-                format!(
-                    "{:?} does not contain {:?}",
-                    $actual_collection, $expected_element
-                )
+                "{:?} does not contain {:?}",
+                $actual_collection,
+                $expected_element
             );
         };
     }

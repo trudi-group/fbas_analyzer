@@ -90,7 +90,7 @@ fn get_edge_from_as_rel_line(line: &str) -> Option<(NodeId, NodeId, bool)> {
             peering = true;
         }
         _ => {
-            panic!(e);
+            panic!("{}", e);
         }
     };
     Some((sink, source, peering))

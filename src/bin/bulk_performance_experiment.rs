@@ -11,7 +11,7 @@ use csv::{Reader, Writer};
 use std::io;
 
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use par_map::ParMap;
 
@@ -314,7 +314,7 @@ fn make_almost_ideal_stellarlike_fbas(top_tier_size: usize) -> Fbas {
     fbas
 }
 
-fn read_csv_from_file(path: &PathBuf) -> Result<Vec<OutputDataPoint>, Box<dyn Error>> {
+fn read_csv_from_file(path: &Path) -> Result<Vec<OutputDataPoint>, Box<dyn Error>> {
     let mut reader = Reader::from_path(path)?;
     let mut result = vec![];
     for line in reader.deserialize() {
@@ -324,7 +324,7 @@ fn read_csv_from_file(path: &PathBuf) -> Result<Vec<OutputDataPoint>, Box<dyn Er
 }
 fn write_csv_to_file(
     data_points: impl IntoIterator<Item = impl serde::Serialize>,
-    path: &PathBuf,
+    path: &Path,
 ) -> Result<(), Box<dyn Error>> {
     let writer = Writer::from_path(path)?;
     write_csv_via_writer(data_points, writer)

@@ -10,7 +10,7 @@ use structopt::StructOpt;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use csv::{Reader, Writer};
 use par_map::ParMap;
@@ -409,14 +409,14 @@ fn build_inputs(
         })
         .collect()
 }
-fn extract_file_name(path: &PathBuf) -> String {
+fn extract_file_name(path: &Path) -> String {
     path.file_name()
         .unwrap()
         .to_os_string()
         .into_string()
         .unwrap()
 }
-fn extract_label(path: &PathBuf, substring_to_ignore_for_label: &str) -> String {
+fn extract_label(path: &Path, substring_to_ignore_for_label: &str) -> String {
     let ignore_list = vec!["nodes", "organizations", substring_to_ignore_for_label];
     let label_parts: Vec<String> = extract_file_name(&path)
         .replace(".json", "")
@@ -427,7 +427,7 @@ fn extract_label(path: &PathBuf, substring_to_ignore_for_label: &str) -> String 
     label_parts.join("_")
 }
 
-fn load_fbas(nodes_path: &PathBuf) -> Fbas {
+fn load_fbas(nodes_path: &Path) -> Fbas {
     Fbas::from_json_file(nodes_path)
 }
 fn maybe_load_organizations<'a>(
@@ -443,7 +443,7 @@ fn maybe_load_organizations<'a>(
         None
     }
 }
-fn maybe_load_isps<'a>(nodes_path: &PathBuf, fbas: &'a Fbas) -> Option<Groupings<'a>> {
+fn maybe_load_isps<'a>(nodes_path: &Path, fbas: &'a Fbas) -> Option<Groupings<'a>> {
     let isps = Groupings::isps_from_json_file(nodes_path, &fbas);
     if isps.number_of_groupings() != 0 {
         Some(isps)
@@ -451,7 +451,7 @@ fn maybe_load_isps<'a>(nodes_path: &PathBuf, fbas: &'a Fbas) -> Option<Groupings
         None
     }
 }
-fn maybe_load_countries<'a>(nodes_path: &PathBuf, fbas: &'a Fbas) -> Option<Groupings<'a>> {
+fn maybe_load_countries<'a>(nodes_path: &Path, fbas: &'a Fbas) -> Option<Groupings<'a>> {
     let countries = Groupings::countries_from_json_file(nodes_path, &fbas);
     if countries.number_of_groupings() != 0 {
         Some(countries)
@@ -460,7 +460,7 @@ fn maybe_load_countries<'a>(nodes_path: &PathBuf, fbas: &'a Fbas) -> Option<Grou
     }
 }
 
-fn read_csv_from_file(path: &PathBuf) -> Result<Vec<OutputDataPoint>, Box<dyn Error>> {
+fn read_csv_from_file(path: &Path) -> Result<Vec<OutputDataPoint>, Box<dyn Error>> {
     let mut reader = Reader::from_path(path)?;
     let mut result = vec![];
     for line in reader.deserialize() {
@@ -470,7 +470,7 @@ fn read_csv_from_file(path: &PathBuf) -> Result<Vec<OutputDataPoint>, Box<dyn Er
 }
 fn write_csv_to_file(
     data_points: impl IntoIterator<Item = impl serde::Serialize>,
-    path: &PathBuf,
+    path: &Path,
 ) -> Result<(), Box<dyn Error>> {
     let writer = Writer::from_path(path)?;
     write_csv_via_writer(data_points, writer)
