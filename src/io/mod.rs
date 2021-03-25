@@ -5,6 +5,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::*;
 
+macro_rules! read_or_panic {
+    ($path:expr) => {{
+        fs::read_to_string($path).unwrap_or_else(|_| panic!("Error reading file {:?}", $path))
+    }};
+}
+
 mod core_types;
 use core_types::*;
 

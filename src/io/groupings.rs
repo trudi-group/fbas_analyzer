@@ -8,6 +8,12 @@ struct RawGrouping {
     validators: Vec<PublicKey>,
 }
 impl<'fbas> Groupings<'fbas> {
+    pub fn from_json_str(json: &str, fbas: &'fbas Fbas) -> Self {
+        Self::from_raw(
+            serde_json::from_str(json).expect("Error parsing Groupings JSON"),
+            fbas,
+        )
+    }
     pub fn organizations_from_json_str(orgs_json: &str, fbas: &'fbas Fbas) -> Self {
         Self::from_raw(
             serde_json::from_str(orgs_json).expect("Error parsing Organizations JSON"),
@@ -26,20 +32,17 @@ impl<'fbas> Groupings<'fbas> {
         let raw_groupings = RawGroupings::countries_from_raw_nodes(raw_nodes);
         Groupings::from_raw(raw_groupings, &fbas)
     }
+    pub fn from_json_file(path: &Path, fbas: &'fbas Fbas) -> Self {
+        Self::from_json_str(&read_or_panic!(path), fbas)
+    }
     pub fn organizations_from_json_file(path: &Path, fbas: &'fbas Fbas) -> Self {
-        let json =
-            fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
-        Self::organizations_from_json_str(&json, fbas)
+        Self::organizations_from_json_str(&read_or_panic!(path), fbas)
     }
     pub fn isps_from_json_file(path: &Path, fbas: &'fbas Fbas) -> Self {
-        let json =
-            fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
-        Self::isps_from_json_str(&json, &fbas)
+        Self::isps_from_json_str(&read_or_panic!(path), &fbas)
     }
     pub fn countries_from_json_file(path: &Path, fbas: &'fbas Fbas) -> Self {
-        let json =
-            fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
-        Self::countries_from_json_str(&json, &fbas)
+        Self::countries_from_json_str(&read_or_panic!(path), &fbas)
     }
     fn from_raw(raw_groupings: RawGroupings, fbas: &'fbas Fbas) -> Self {
         let groupings: Vec<Grouping> = raw_groupings
@@ -325,5 +328,50 @@ mod tests {
             .collect();
         assert_eq!(expected_names, actual_names);
         assert_eq!(expected_validators, actual_validators);
+    }
+    #[test]
+    fn generic_groupings_from_json_str_equals_organizations_from_json_str() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "Jim"
+            },
+            {
+                "publicKey": "Jon"
+            },
+            {
+                "publicKey": "Alex"
+            },
+            {
+                "publicKey": "Bob"
+            }
+            ]"#,
+        );
+        let json_str = r#"[
+            {
+                "name": "J Mafia",
+                "validators": [ "Jim", "Jon" ]
+            },
+            {
+                "name": "B Mafia",
+                "validators": [ "Bob" ]
+            }
+            ]"#;
+        let groupings = Groupings::from_json_str(&json_str, &fbas);
+        let organizations = Groupings::organizations_from_json_str(&json_str, &fbas);
+        assert_eq!(groupings, organizations);
+    }
+    #[test]
+    fn generic_groupings_from_json_file_equals_organizations_from_json_file() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
+        let groupings = Groupings::from_json_file(
+            Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
+            &fbas,
+        );
+        let organizations = Groupings::organizations_from_json_file(
+            Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
+            &fbas,
+        );
+        assert_eq!(groupings, organizations);
     }
 }
