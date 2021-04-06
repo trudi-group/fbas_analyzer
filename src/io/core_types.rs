@@ -33,9 +33,7 @@ impl Fbas {
         serde_json::from_str(json).expect("Error parsing FBAS JSON")
     }
     pub fn from_json_file(path: &Path) -> Self {
-        let json =
-            fs::read_to_string(path).unwrap_or_else(|_| panic!("Error reading file {:?}", path));
-        Self::from_json_str(&json)
+        Self::from_json_str(&read_or_panic!(path))
     }
     pub fn from_json_stdin() -> Self {
         serde_json::from_reader(io::stdin()).expect("Error reading FBAS JSON from STDIN")
