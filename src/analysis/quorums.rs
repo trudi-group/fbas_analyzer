@@ -225,6 +225,12 @@ pub(crate) fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
     !satisfiable.is_empty()
 }
 
+pub(crate) fn complement_contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
+    let mut complement = fbas.all_nodes();
+    complement.difference_with(node_set);
+    contains_quorum(&complement, fbas)
+}
+
 fn is_minimal_for_quorum(quorum: &NodeIdSet, fbas: &Fbas) -> bool {
     let mut tester = quorum.clone();
 

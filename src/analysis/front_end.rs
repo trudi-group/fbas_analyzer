@@ -88,6 +88,11 @@ impl Analysis {
     pub fn top_tier(&self) -> NodeIdSetResult {
         self.make_shrunken_set_result(self.top_tier_shrunken())
     }
+    /// If the top tier is symmetric, i.e., each two top-tier nodes have the same quorum set,
+    /// return the top tier's common quorum set. Else return `None`.
+    pub fn symmetric_top_tier(&self) -> Option<QuorumSet> {
+        find_symmetric_top_tier(&self.fbas_original)
+    }
     /// Symmetric clusters - sets of nodes in which each two nodes have the same quorum set.
     /// Here, each found symmetric cluster is represented by its common quorum set.
     pub fn symmetric_clusters(&self) -> Vec<QuorumSet> {
