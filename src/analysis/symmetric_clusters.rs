@@ -7,7 +7,10 @@ use super::*;
 pub fn find_symmetric_clusters(fbas: &Fbas) -> Vec<QuorumSet> {
     info!("Starting to look for symmetric quorum clusters...");
     let symmetric_clusters = find_sets(fbas, symmetric_clusters_finder);
-    info!("Found {} different quorum clusters.", symmetric_clusters.len());
+    info!(
+        "Found {} different quorum clusters.",
+        symmetric_clusters.len()
+    );
     symmetric_clusters
 }
 
@@ -15,7 +18,9 @@ pub fn find_symmetric_clusters(fbas: &Fbas) -> Vec<QuorumSet> {
 /// return the top tier's common quorum set. Else return `None`.
 pub fn find_symmetric_top_tier(fbas: &Fbas) -> Option<QuorumSet> {
     let symmetric_clusters = find_symmetric_clusters(fbas);
-    if symmetric_clusters.len() == 1 && !complement_contains_quorum(&symmetric_clusters[0].contained_nodes(), fbas) {
+    if symmetric_clusters.len() == 1
+        && !complement_contains_quorum(&symmetric_clusters[0].contained_nodes(), fbas)
+    {
         Some(symmetric_clusters.into_iter().next().unwrap())
     } else {
         None
@@ -185,10 +190,10 @@ mod tests {
         ]"#,
         );
         let expected = Some(QuorumSet {
-                validators: vec![0, 1],
-                threshold: 2,
-                inner_quorum_sets: vec![],
-            });
+            validators: vec![0, 1],
+            threshold: 2,
+            inner_quorum_sets: vec![],
+        });
         let actual = find_symmetric_top_tier(&fbas);
 
         assert_eq!(expected, actual);
@@ -211,10 +216,10 @@ mod tests {
         assert!(!Analysis::new(&fbas).has_quorum_intersection());
 
         let expected = Some(QuorumSet {
-                validators: vec![0, 1],
-                threshold: 1,
-                inner_quorum_sets: vec![],
-            });
+            validators: vec![0, 1],
+            threshold: 1,
+            inner_quorum_sets: vec![],
+        });
         let actual = find_symmetric_top_tier(&fbas);
 
         assert_eq!(expected, actual);
