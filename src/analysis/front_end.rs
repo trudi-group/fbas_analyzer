@@ -6,8 +6,8 @@ use std::cell::RefCell;
 /// Among other things, it does ID space shrinking (which improves memory and performance when
 /// using bit sets) and caches the results of long-running computations.
 #[derive(Debug)]
-pub struct Analysis<'a> {
-    fbas_original: &'a Fbas,
+pub struct Analysis {
+    fbas_original: Fbas,
     fbas_shrunken: RefCell<Fbas>,
     shrink_manager: RefCell<ShrinkManager>,
     hqi_cache: RefCell<Option<bool>>,
@@ -15,9 +15,9 @@ pub struct Analysis<'a> {
     mbs_shrunken_cache: RefCell<Option<Vec<NodeIdSet>>>,
     mss_shrunken_cache: RefCell<Option<Vec<NodeIdSet>>>,
 }
-impl<'a> Analysis<'a> {
+impl Analysis {
     /// Start a new `Analysis`
-    pub fn new(fbas: &'a Fbas) -> Self {
+    pub fn new(fbas: &Fbas) -> Self {
         debug!(
             "Shrinking FBAS of size {} to set of strongly connected nodes (for performance)...",
             fbas.number_of_nodes()
@@ -29,7 +29,7 @@ impl<'a> Analysis<'a> {
             fbas_shrunken.number_of_nodes()
         );
         Analysis {
-            fbas_original: fbas,
+            fbas_original: fbas.clone(),
             fbas_shrunken: RefCell::new(fbas_shrunken),
             shrink_manager: RefCell::new(shrink_manager),
             hqi_cache: RefCell::new(None),
@@ -91,7 +91,7 @@ impl<'a> Analysis<'a> {
     /// Symmetric clusters - sets of nodes in which each two nodes have the same quorum set.
     /// Here, each found symmetric cluster is represented by its common quorum set.
     pub fn symmetric_clusters(&self) -> Vec<QuorumSet> {
-        find_symmetric_clusters(self.fbas_original)
+        find_symmetric_clusters(&self.fbas_original)
     }
 
     fn has_quorum_intersection_from_shrunken(&self) -> bool {
