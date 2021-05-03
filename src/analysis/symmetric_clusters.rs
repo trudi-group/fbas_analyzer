@@ -254,4 +254,34 @@ mod tests {
 
         assert_eq!(expected, actual);
     }
+
+    #[test]
+    fn find_symmetric_top_tier_in_weird_split_fbas() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 1, "validators": ["n3"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 1, "validators": ["n2"] }
+            }
+        ]"#,
+        );
+        assert!(!Analysis::new(&fbas).has_quorum_intersection());
+
+        let expected = None;
+        let actual = find_symmetric_top_tier(&fbas);
+
+        assert_eq!(expected, actual);
+    }
 }
