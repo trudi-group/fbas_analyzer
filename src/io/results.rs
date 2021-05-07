@@ -1,6 +1,15 @@
 use super::*;
 use std::convert::TryInto;
 
+#[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PrettyQuorumSet {
+    pub threshold: u64,
+    pub validators: Vec<PublicKey>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inner_quorum_sets: Vec<PrettyQuorumSet>,
+}
+
 macro_rules! json_format_single_line {
     ($x:expr) => {
         serde_json::to_string(&$x).expect("Error formatting as JSON")
@@ -40,16 +49,28 @@ impl AnalysisResult for usize {
     }
 }
 
+impl AnalysisResult for QuorumSet {
+    fn into_id_string(self) -> String {
+        json_format_single_line!(self)
+    }
+    fn into_pretty_string(self, fbas: &Fbas, groupings: Option<&Groupings>) -> String {
+        json_format_pretty!(self.into_pretty_quorum_set(fbas, groupings))
+    }
+    fn into_describe_string(self) -> String {
+        self.into_id_string()
+    }
+}
+
 impl AnalysisResult for Vec<QuorumSet> {
     fn into_id_string(self) -> String {
         json_format_single_line!(self)
     }
     fn into_pretty_string(self, fbas: &Fbas, groupings: Option<&Groupings>) -> String {
-        let raw_self: Vec<RawQuorumSet> = self
+        let pretty_self: Vec<PrettyQuorumSet> = self
             .into_iter()
-            .map(|q| q.into_raw(fbas, groupings))
+            .map(|q| q.into_pretty_quorum_set(fbas, groupings))
             .collect();
-        json_format_pretty!(raw_self)
+        json_format_pretty!(pretty_self)
     }
     fn into_describe_string(self) -> String {
         self.into_id_string()
@@ -97,12 +118,21 @@ impl Serialize for NodeIdSetVecResult {
 }
 
 impl QuorumSet {
-    fn into_raw(self, fbas: &Fbas, groupings: Option<&Groupings>) -> RawQuorumSet {
+    pub fn into_pretty_quorum_set(
+        self,
+        fbas: &Fbas,
+        groupings: Option<&Groupings>,
+    ) -> PrettyQuorumSet {
+        let quorum_set = if let Some(groupings) = groupings {
+            groupings.merge_quorum_set(self)
+        } else {
+            self
+        };
         let QuorumSet {
             threshold,
             validators,
             inner_quorum_sets,
-        } = self;
+        } = quorum_set;
         let validators = if let Some(ref orgs) = groupings {
             to_grouping_names(validators, fbas, orgs)
         } else {
@@ -110,9 +140,9 @@ impl QuorumSet {
         };
         let inner_quorum_sets = inner_quorum_sets
             .into_iter()
-            .map(|q| q.into_raw(fbas, groupings))
+            .map(|q| q.into_pretty_quorum_set(fbas, groupings))
             .collect();
-        RawQuorumSet {
+        PrettyQuorumSet {
             threshold: threshold
                 .try_into()
                 .expect("Error converting threshold from usize to u64."),
@@ -413,6 +443,33 @@ mod tests {
         let result = NodeIdSetVecResult::new(bitsetvec![{0, 3}, {1}], None);
         let expected = vec![vec!["J Mafia", "Bob"], vec!["J Mafia"]];
         let actual = result.into_pretty_vec_vec(&fbas, Some(&organizations));
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn into_pretty_quorum_set() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
+        let organizations = Groupings::organizations_from_json_file(
+            Path::new("test_data/stellarbeat_organizations_2019-09-17.json"),
+            &fbas,
+        );
+        let analysis = Analysis::new(&fbas);
+
+        let symmetric_top_tier = analysis.symmetric_top_tier().unwrap();
+        let actual = symmetric_top_tier.into_pretty_quorum_set(&fbas, Some(&organizations));
+
+        let expected = PrettyQuorumSet {
+            threshold: 4,
+            validators: vec![
+                "Stellar Development Foundation".to_string(),
+                "COINQVEST Limited".to_string(),
+                "SatoshiPay".to_string(),
+                "Keybase".to_string(),
+                "LOBSTR".to_string(),
+            ],
+            inner_quorum_sets: vec![],
+        };
+
         assert_eq!(expected, actual);
     }
 }
