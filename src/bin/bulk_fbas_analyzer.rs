@@ -431,17 +431,10 @@ fn load_fbas(nodes_path: &Path) -> Fbas {
     Fbas::from_json_file(nodes_path)
 }
 fn maybe_load_organizations<'a>(
-    o_organizations_path: Option<&PathBuf>,
+    organizations_path: Option<&PathBuf>,
     fbas: &'a Fbas,
 ) -> Option<Groupings<'a>> {
-    if let Some(organizations_path) = o_organizations_path {
-        Some(Groupings::organizations_from_json_file(
-            organizations_path,
-            fbas,
-        ))
-    } else {
-        None
-    }
+    organizations_path.map(|path| Groupings::organizations_from_json_file(path, fbas))
 }
 fn maybe_load_isps<'a>(nodes_path: &Path, fbas: &'a Fbas) -> Option<Groupings<'a>> {
     let isps = Groupings::isps_from_json_file(nodes_path, &fbas);

@@ -28,7 +28,7 @@ impl Graph {
         for (sink, source, peering) in as_rel_file_contents
             .lines()
             .map(get_edge_from_as_rel_line)
-            .filter_map(|x| x)
+            .flatten()
         {
             outlinks.resize_with(max(outlinks.len(), max(sink, source) + 1), BTreeSet::new);
             outlinks[source].insert(sink);

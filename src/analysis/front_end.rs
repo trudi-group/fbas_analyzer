@@ -202,6 +202,7 @@ impl Analysis {
         cache.borrow().clone().unwrap()
     }
 
+    #[rustfmt::skip]
     fn shrink_id_space_to_top_tier(&self) {
         debug!("Shrinking FBAS again, to top tier (for performance)...",);
         let top_tier_original = self
@@ -220,17 +221,12 @@ impl Analysis {
         assert!(
             self.mq_shrunken_cache.borrow().is_none() || self.mbs_shrunken_cache.borrow().is_none()
         );
-        let mq_shrunken_cache = if let Some(mq_shrunken) = self.mq_shrunken_cache.borrow().clone() {
-            Some(new_shrink_manager.reshrink_sets(&mq_shrunken, &self.shrink_manager.borrow()))
-        } else {
-            None
-        };
-        let mbs_shrunken_cache =
-            if let Some(mbs_shrunken) = self.mbs_shrunken_cache.borrow().clone() {
-                Some(new_shrink_manager.reshrink_sets(&mbs_shrunken, &self.shrink_manager.borrow()))
-            } else {
-                None
-            };
+        let mq_shrunken_cache = self.mq_shrunken_cache.borrow().clone().map(|mq_shrunken| {
+            new_shrink_manager.reshrink_sets(&mq_shrunken, &self.shrink_manager.borrow())
+        });
+        let mbs_shrunken_cache = self.mbs_shrunken_cache.borrow().clone().map(|mbs_shrunken| {
+            new_shrink_manager.reshrink_sets(&mbs_shrunken, &self.shrink_manager.borrow())
+        });
         self.fbas_shrunken.replace(new_fbas_shrunken);
         self.shrink_manager.replace(new_shrink_manager);
         self.mq_shrunken_cache.replace(mq_shrunken_cache);
