@@ -43,7 +43,7 @@ impl NodeIdSetResult {
         fbas: &Fbas,
         groupings: Option<&Groupings>,
     ) -> Self {
-        let nodes_by_id = if let Some(ref orgs) = groupings {
+        let nodes_by_id = if let Some(orgs) = groupings {
             from_grouping_names(nodes, fbas, orgs)
         } else {
             from_public_keys(nodes, fbas)
@@ -164,7 +164,7 @@ impl NodeIdSetVecResult {
         fbas: &Fbas,
         groupings: Option<&Groupings>,
     ) -> Self {
-        let nodes_by_id = if let Some(ref orgs) = groupings {
+        let nodes_by_id = if let Some(orgs) = groupings {
             from_grouping_names(nodes, fbas, orgs)
         } else {
             from_public_keys(nodes, fbas)
@@ -173,7 +173,7 @@ impl NodeIdSetVecResult {
     }
     fn unshrink(&mut self) {
         if let Some(unshrink_table) = &self.unshrink_table {
-            self.node_sets = unshrink_sets(&self.node_sets, &unshrink_table);
+            self.node_sets = unshrink_sets(&self.node_sets, unshrink_table);
         }
         self.unshrink_table = None;
     }

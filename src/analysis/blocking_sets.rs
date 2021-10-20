@@ -97,7 +97,7 @@ fn minimal_blocking_sets_finder_step(
         remaining.insert(current_candidate);
         max_remaining.insert(current_candidate);
 
-        if is_blocked_set(max_remaining, &fbas) {
+        if is_blocked_set(max_remaining, fbas) {
             minimal_blocking_sets_finder_step(
                 unprocessed,
                 selection,
@@ -167,8 +167,8 @@ impl QuorumSet {
 
 fn is_minimal_for_blocking_set(blocking_set: &NodeIdSet, fbas: &Fbas) -> bool {
     let mut blocked_set = fbas.all_nodes();
-    blocked_set.difference_with(&blocking_set);
-    is_minimal_for_blocking_set_with_precomputed_blocked_set(blocking_set, &blocking_set, fbas)
+    blocked_set.difference_with(blocking_set);
+    is_minimal_for_blocking_set_with_precomputed_blocked_set(blocking_set, blocking_set, fbas)
 }
 fn is_minimal_for_blocking_set_with_precomputed_blocked_set(
     blocking_set: &NodeIdSet,

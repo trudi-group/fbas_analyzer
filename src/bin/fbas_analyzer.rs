@@ -149,7 +149,7 @@ fn maybe_load_organizations<'a>(
 fn maybe_load_isps<'a>(o_nodes_path: Option<&PathBuf>, fbas: &'a Fbas) -> Option<Groupings<'a>> {
     if let Some(nodes_path) = o_nodes_path {
         eprintln!("Will merge nodes by ISP; reading FBAS JSON from file...");
-        let isps = Groupings::isps_from_json_file(nodes_path, &fbas);
+        let isps = Groupings::isps_from_json_file(nodes_path, fbas);
         eprintln!("Loaded {} ISPs.", isps.number_of_groupings());
         Some(isps)
     } else {
@@ -163,7 +163,7 @@ fn maybe_load_countries<'a>(
 ) -> Option<Groupings<'a>> {
     if let Some(nodes_path) = o_nodes_path {
         eprintln!("Will merge nodes by country; reading FBAS JSON from file...");
-        let countries = Groupings::countries_from_json_file(nodes_path, &fbas);
+        let countries = Groupings::countries_from_json_file(nodes_path, fbas);
         eprintln!("Loaded {} countries.", countries.number_of_groupings());
         Some(countries)
     } else {

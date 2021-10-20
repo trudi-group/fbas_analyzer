@@ -133,7 +133,7 @@ impl QuorumSet {
             validators,
             inner_quorum_sets,
         } = quorum_set;
-        let validators = if let Some(ref orgs) = groupings {
+        let validators = if let Some(orgs) = groupings {
             to_grouping_names(validators, fbas, orgs)
         } else {
             to_public_keys(validators, fbas)
@@ -157,7 +157,7 @@ impl NodeIdSetResult {
     /// The passed FBAS should be the same as the one used for analysis, otherwise the IDs might
     /// not match. Preserves the original node ID-based ordering.
     pub fn into_pretty_vec(self, fbas: &Fbas, groupings: Option<&Groupings>) -> Vec<PublicKey> {
-        if let Some(ref orgs) = groupings {
+        if let Some(orgs) = groupings {
             to_grouping_names(&self.unwrap(), fbas, orgs)
         } else {
             to_public_keys(&self.unwrap(), fbas)

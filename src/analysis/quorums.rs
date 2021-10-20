@@ -65,7 +65,7 @@ fn minimal_quorums_finder_step(
     selection_changed: bool,
 ) {
     if selection_changed && fbas.is_quorum(selection) {
-        if is_minimal_for_quorum(&selection, fbas) {
+        if is_minimal_for_quorum(selection, fbas) {
             found_quorums.push(selection.clone());
             if found_quorums.len() % 100_000 == 0 {
                 debug!("...{} quorums found", found_quorums.len());
@@ -155,9 +155,9 @@ fn nonintersecting_quorums_finder_step(
     picks_left: usize,
     selection_changed: bool,
 ) -> Option<[NodeIdSet; 2]> {
-    debug_assert!(selection.is_disjoint(&antiselection));
+    debug_assert!(selection.is_disjoint(antiselection));
     if selection_changed && fbas.is_quorum(selection) {
-        let (potential_complement, _) = find_satisfiable_nodes(&antiselection, fbas);
+        let (potential_complement, _) = find_satisfiable_nodes(antiselection, fbas);
 
         if !potential_complement.is_empty() {
             return Some([selection.clone(), potential_complement]);

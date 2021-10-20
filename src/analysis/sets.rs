@@ -62,7 +62,7 @@ where
     debug!("Reducing to strongly connected components that contain quorums...");
     let consensus_clusters: Vec<NodeIdSet> = sccs
         .into_iter()
-        .filter(|node_set| contains_quorum(&node_set, fbas))
+        .filter(|node_set| contains_quorum(node_set, fbas))
         .collect();
     if consensus_clusters.len() > 1 {
         warn!(

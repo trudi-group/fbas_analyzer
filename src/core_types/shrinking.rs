@@ -93,7 +93,7 @@ impl Fbas {
         let mut fbas_shrunken = Fbas::new_generic_unconfigured(unshrink_table.len());
         for old_id in 0..self.nodes.len() {
             if let Some(&new_id) = shrink_map.get(&old_id) {
-                fbas_shrunken.nodes[new_id] = Node::shrunken(&self.nodes[old_id], &shrink_map);
+                fbas_shrunken.nodes[new_id] = Node::shrunken(&self.nodes[old_id], shrink_map);
             }
         }
         (fbas_shrunken, shrink_manager)
@@ -111,7 +111,7 @@ impl QuorumSet {
     fn shrunken(quorum_set: &Self, shrink_map: &HashMap<NodeId, NodeId>) -> Self {
         let mut validators = vec![];
         for old_id in quorum_set.validators.iter() {
-            if let Some(&new_id) = shrink_map.get(&old_id) {
+            if let Some(&new_id) = shrink_map.get(old_id) {
                 validators.push(new_id);
             }
         }
@@ -154,7 +154,7 @@ impl Grouping {
     fn shrunken(grouping: &Self, shrink_map: &HashMap<NodeId, NodeId>) -> Self {
         let mut validators = vec![];
         for old_id in grouping.validators.iter() {
-            if let Some(&new_id) = shrink_map.get(&old_id) {
+            if let Some(&new_id) = shrink_map.get(old_id) {
                 validators.push(new_id);
             }
         }
