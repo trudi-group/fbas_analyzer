@@ -1,4 +1,5 @@
 use super::*;
+use serde_with::{serde_as, NoneAsEmptyString};
 use std::convert::TryInto;
 
 #[derive(Serialize, Deserialize)]
@@ -22,9 +23,11 @@ pub(crate) struct RawQuorumSet {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) inner_quorum_sets: Vec<RawQuorumSet>,
 }
+#[serde_as]
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RawGeoData {
+    #[serde_as(as = "NoneAsEmptyString")]
     pub(crate) country_name: Option<String>,
 }
 

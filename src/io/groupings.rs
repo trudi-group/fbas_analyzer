@@ -167,9 +167,9 @@ impl RawGroupings {
 
 fn remove_special_chars_from_grouping_name(mut name: String) -> String {
     name.retain(|c| c != ',');
-    let mut maybe_fullstop = name.split_off(name.len() - 1);
-    maybe_fullstop.retain(|c| c != '.');
-    name.push_str(&maybe_fullstop);
+    if name.ends_with('.') {
+        name.pop();
+    }
     name
 }
 
@@ -262,7 +262,7 @@ mod tests {
         assert_eq!(expected_validators, actual_validators);
     }
     #[test]
-    fn missing_ctry_key_in_json_doesnt_panic() {
+    fn missing_or_empty_ctry_key_in_json_doesnt_panic() {
         let json = r#"[
             {
                 "publicKey": "GCGB2",
@@ -278,6 +278,12 @@ mod tests {
             },
             {
                 "publicKey": "GABMK"
+            },
+            {
+                "publicKey": "GCARK",
+                "geoData": {
+                    "countryName": ""
+                }
             }]"#;
         let fbas = Fbas::from_json_str(&json);
         let countries = Groupings::countries_from_json_str(&json, &fbas);
