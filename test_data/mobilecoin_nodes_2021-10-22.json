@@ -1,0 +1,232 @@
+[
+  {
+    "publicKey": "XVfN4JQH+6vkFzrzBNezoknl9eCiz3ZbubwyCeOdt/0=",
+    "hostname": "peer3.prod.mobilecoinww.com",
+    "port": 443,
+    "active": true,
+    "quorumSet": {
+      "threshold": 7,
+      "validators": [
+        "wxHjdoRQBF9Ozp8lE0wq9pppyP48nKphcQ0GeEb4zYg=",
+        "MtTj21PtiL+FQW3YbKZXfcfnFztHlVhnbvwvaiWDFuE=",
+        "/wMkv3+3MluopGsqtnZx4rbqzPR2axi7bCiqWWnOq0Q=",
+        "E+kgQW/ojERRdqnPFcoN3+e9dfe/eKDbaegmIlRjMRI=",
+        "5FAlOt1v7CFDeJIq/BIrZ1Gph+WQXZpRTW0cGLZGFyo=",
+        "Xd4Xyfv0OizkLKB/Jb7HM/KDjd1mMgbF34MStLqd1WY=",
+        "ExKHKhbtJiJxVSxLIsmIza3quRojV3W46y1s4AFTx3c=",
+        "I8W+znEPauMLeocYpdEy9pPskTshaVBRrHvCEutyYMs=",
+        "9uEO9eq8TKU0vrKt1R6p4wzkGJX7HbXDXyzs8HEX21g="
+      ]
+    },
+    "geoData": {
+      "countryName": "Netherlands"
+    }
+  },
+  {
+    "publicKey": "E+kgQW/ojERRdqnPFcoN3+e9dfe/eKDbaegmIlRjMRI=",
+    "hostname": "binance.mobilecoin.bdnodes.net",
+    "port": 8443,
+    "active": true,
+    "quorumSet": {
+      "threshold": 7,
+      "validators": [
+        "wxHjdoRQBF9Ozp8lE0wq9pppyP48nKphcQ0GeEb4zYg=",
+        "MtTj21PtiL+FQW3YbKZXfcfnFztHlVhnbvwvaiWDFuE=",
+        "XVfN4JQH+6vkFzrzBNezoknl9eCiz3ZbubwyCeOdt/0=",
+        "ExKHKhbtJiJxVSxLIsmIza3quRojV3W46y1s4AFTx3c=",
+        "I8W+znEPauMLeocYpdEy9pPskTshaVBRrHvCEutyYMs=",
+        "9uEO9eq8TKU0vrKt1R6p4wzkGJX7HbXDXyzs8HEX21g=",
+        "/wMkv3+3MluopGsqtnZx4rbqzPR2axi7bCiqWWnOq0Q=",
+        "5FAlOt1v7CFDeJIq/BIrZ1Gph+WQXZpRTW0cGLZGFyo=",
+        "Xd4Xyfv0OizkLKB/Jb7HM/KDjd1mMgbF34MStLqd1WY="
+      ]
+    },
+    "geoData": {
+      "countryName": "Netherlands"
+    }
+  },
+  {
+    "publicKey": "9uEO9eq8TKU0vrKt1R6p4wzkGJX7HbXDXyzs8HEX21g=",
+    "hostname": "ams1-mc-peer1.dreamhost.com",
+    "port": 8443,
+    "active": true,
+    "quorumSet": {
+      "threshold": 7,
+      "validators": [
+        "wxHjdoRQBF9Ozp8lE0wq9pppyP48nKphcQ0GeEb4zYg=",
+        "MtTj21PtiL+FQW3YbKZXfcfnFztHlVhnbvwvaiWDFuE=",
+        "XVfN4JQH+6vkFzrzBNezoknl9eCiz3ZbubwyCeOdt/0=",
+        "/wMkv3+3MluopGsqtnZx4rbqzPR2axi7bCiqWWnOq0Q=",
+        "E+kgQW/ojERRdqnPFcoN3+e9dfe/eKDbaegmIlRjMRI=",
+        "5FAlOt1v7CFDeJIq/BIrZ1Gph+WQXZpRTW0cGLZGFyo=",
+        "Xd4Xyfv0OizkLKB/Jb7HM/KDjd1mMgbF34MStLqd1WY=",
+        "ExKHKhbtJiJxVSxLIsmIza3quRojV3W46y1s4AFTx3c=",
+        "I8W+znEPauMLeocYpdEy9pPskTshaVBRrHvCEutyYMs="
+      ]
+    },
+    "geoData": {
+      "countryName": "Germany"
+    }
+  },
+  {
+    "publicKey": "MtTj21PtiL+FQW3YbKZXfcfnFztHlVhnbvwvaiWDFuE=",
+    "hostname": "peer2.prod.mobilecoinww.com",
+    "port": 443,
+    "active": true,
+    "quorumSet": {
+      "threshold": 7,
+      "validators": [
+        "wxHjdoRQBF9Ozp8lE0wq9pppyP48nKphcQ0GeEb4zYg=",
+        "XVfN4JQH+6vkFzrzBNezoknl9eCiz3ZbubwyCeOdt/0=",
+        "/wMkv3+3MluopGsqtnZx4rbqzPR2axi7bCiqWWnOq0Q=",
+        "E+kgQW/ojERRdqnPFcoN3+e9dfe/eKDbaegmIlRjMRI=",
+        "5FAlOt1v7CFDeJIq/BIrZ1Gph+WQXZpRTW0cGLZGFyo=",
+        "Xd4Xyfv0OizkLKB/Jb7HM/KDjd1mMgbF34MStLqd1WY=",
+        "ExKHKhbtJiJxVSxLIsmIza3quRojV3W46y1s4AFTx3c=",
+        "I8W+znEPauMLeocYpdEy9pPskTshaVBRrHvCEutyYMs=",
+        "9uEO9eq8TKU0vrKt1R6p4wzkGJX7HbXDXyzs8HEX21g="
+      ]
+    },
+    "geoData": {
+      "countryName": "Netherlands"
+    }
+  },
+  {
+    "publicKey": "Xd4Xyfv0OizkLKB/Jb7HM/KDjd1mMgbF34MStLqd1WY=",
+    "hostname": "thelongnowfoundation.mobilecoin.bdnodes.net",
+    "port": 8443,
+    "active": true,
+    "quorumSet": {
+      "threshold": 7,
+      "validators": [
+        "wxHjdoRQBF9Ozp8lE0wq9pppyP48nKphcQ0GeEb4zYg=",
+        "MtTj21PtiL+FQW3YbKZXfcfnFztHlVhnbvwvaiWDFuE=",
+        "XVfN4JQH+6vkFzrzBNezoknl9eCiz3ZbubwyCeOdt/0=",
+        "ExKHKhbtJiJxVSxLIsmIza3quRojV3W46y1s4AFTx3c=",
+        "I8W+znEPauMLeocYpdEy9pPskTshaVBRrHvCEutyYMs=",
+        "9uEO9eq8TKU0vrKt1R6p4wzkGJX7HbXDXyzs8HEX21g=",
+        "/wMkv3+3MluopGsqtnZx4rbqzPR2axi7bCiqWWnOq0Q=",
+        "E+kgQW/ojERRdqnPFcoN3+e9dfe/eKDbaegmIlRjMRI=",
+        "5FAlOt1v7CFDeJIq/BIrZ1Gph+WQXZpRTW0cGLZGFyo="
+      ]
+    },
+    "geoData": {
+      "countryName": "Netherlands"
+    }
+  },
+  {
+    "publicKey": "I8W+znEPauMLeocYpdEy9pPskTshaVBRrHvCEutyYMs=",
+    "hostname": "peer2.consensus.mob.production.namda.net",
+    "port": 443,
+    "active": true,
+    "quorumSet": {
+      "threshold": 7,
+      "validators": [
+        "wxHjdoRQBF9Ozp8lE0wq9pppyP48nKphcQ0GeEb4zYg=",
+        "MtTj21PtiL+FQW3YbKZXfcfnFztHlVhnbvwvaiWDFuE=",
+        "XVfN4JQH+6vkFzrzBNezoknl9eCiz3ZbubwyCeOdt/0=",
+        "/wMkv3+3MluopGsqtnZx4rbqzPR2axi7bCiqWWnOq0Q=",
+        "E+kgQW/ojERRdqnPFcoN3+e9dfe/eKDbaegmIlRjMRI=",
+        "5FAlOt1v7CFDeJIq/BIrZ1Gph+WQXZpRTW0cGLZGFyo=",
+        "Xd4Xyfv0OizkLKB/Jb7HM/KDjd1mMgbF34MStLqd1WY=",
+        "ExKHKhbtJiJxVSxLIsmIza3quRojV3W46y1s4AFTx3c=",
+        "9uEO9eq8TKU0vrKt1R6p4wzkGJX7HbXDXyzs8HEX21g="
+      ]
+    },
+    "geoData": {
+      "countryName": "Netherlands"
+    }
+  },
+  {
+    "publicKey": "5FAlOt1v7CFDeJIq/BIrZ1Gph+WQXZpRTW0cGLZGFyo=",
+    "hostname": "ideasbeyondborders.mobilecoin.bdnodes.net",
+    "port": 8443,
+    "active": true,
+    "quorumSet": {
+      "threshold": 7,
+      "validators": [
+        "wxHjdoRQBF9Ozp8lE0wq9pppyP48nKphcQ0GeEb4zYg=",
+        "MtTj21PtiL+FQW3YbKZXfcfnFztHlVhnbvwvaiWDFuE=",
+        "XVfN4JQH+6vkFzrzBNezoknl9eCiz3ZbubwyCeOdt/0=",
+        "ExKHKhbtJiJxVSxLIsmIza3quRojV3W46y1s4AFTx3c=",
+        "I8W+znEPauMLeocYpdEy9pPskTshaVBRrHvCEutyYMs=",
+        "9uEO9eq8TKU0vrKt1R6p4wzkGJX7HbXDXyzs8HEX21g=",
+        "/wMkv3+3MluopGsqtnZx4rbqzPR2axi7bCiqWWnOq0Q=",
+        "E+kgQW/ojERRdqnPFcoN3+e9dfe/eKDbaegmIlRjMRI=",
+        "Xd4Xyfv0OizkLKB/Jb7HM/KDjd1mMgbF34MStLqd1WY="
+      ]
+    },
+    "geoData": {
+      "countryName": "United Kingdom"
+    }
+  },
+  {
+    "publicKey": "/wMkv3+3MluopGsqtnZx4rbqzPR2axi7bCiqWWnOq0Q=",
+    "hostname": "blockdaemon.mobilecoin.bdnodes.net",
+    "port": 8443,
+    "active": true,
+    "quorumSet": {
+      "threshold": 7,
+      "validators": [
+        "wxHjdoRQBF9Ozp8lE0wq9pppyP48nKphcQ0GeEb4zYg=",
+        "MtTj21PtiL+FQW3YbKZXfcfnFztHlVhnbvwvaiWDFuE=",
+        "XVfN4JQH+6vkFzrzBNezoknl9eCiz3ZbubwyCeOdt/0=",
+        "ExKHKhbtJiJxVSxLIsmIza3quRojV3W46y1s4AFTx3c=",
+        "I8W+znEPauMLeocYpdEy9pPskTshaVBRrHvCEutyYMs=",
+        "9uEO9eq8TKU0vrKt1R6p4wzkGJX7HbXDXyzs8HEX21g=",
+        "E+kgQW/ojERRdqnPFcoN3+e9dfe/eKDbaegmIlRjMRI=",
+        "5FAlOt1v7CFDeJIq/BIrZ1Gph+WQXZpRTW0cGLZGFyo=",
+        "Xd4Xyfv0OizkLKB/Jb7HM/KDjd1mMgbF34MStLqd1WY="
+      ]
+    },
+    "geoData": {
+      "countryName": "United Kingdom"
+    }
+  },
+  {
+    "publicKey": "ExKHKhbtJiJxVSxLIsmIza3quRojV3W46y1s4AFTx3c=",
+    "hostname": "peer1.consensus.mob.production.namda.net",
+    "port": 443,
+    "active": true,
+    "quorumSet": {
+      "threshold": 7,
+      "validators": [
+        "wxHjdoRQBF9Ozp8lE0wq9pppyP48nKphcQ0GeEb4zYg=",
+        "MtTj21PtiL+FQW3YbKZXfcfnFztHlVhnbvwvaiWDFuE=",
+        "XVfN4JQH+6vkFzrzBNezoknl9eCiz3ZbubwyCeOdt/0=",
+        "/wMkv3+3MluopGsqtnZx4rbqzPR2axi7bCiqWWnOq0Q=",
+        "E+kgQW/ojERRdqnPFcoN3+e9dfe/eKDbaegmIlRjMRI=",
+        "5FAlOt1v7CFDeJIq/BIrZ1Gph+WQXZpRTW0cGLZGFyo=",
+        "Xd4Xyfv0OizkLKB/Jb7HM/KDjd1mMgbF34MStLqd1WY=",
+        "I8W+znEPauMLeocYpdEy9pPskTshaVBRrHvCEutyYMs=",
+        "9uEO9eq8TKU0vrKt1R6p4wzkGJX7HbXDXyzs8HEX21g="
+      ]
+    },
+    "geoData": {
+      "countryName": "Netherlands"
+    }
+  },
+  {
+    "publicKey": "wxHjdoRQBF9Ozp8lE0wq9pppyP48nKphcQ0GeEb4zYg=",
+    "hostname": "peer1.prod.mobilecoinww.com",
+    "port": 443,
+    "active": true,
+    "quorumSet": {
+      "threshold": 7,
+      "validators": [
+        "MtTj21PtiL+FQW3YbKZXfcfnFztHlVhnbvwvaiWDFuE=",
+        "XVfN4JQH+6vkFzrzBNezoknl9eCiz3ZbubwyCeOdt/0=",
+        "/wMkv3+3MluopGsqtnZx4rbqzPR2axi7bCiqWWnOq0Q=",
+        "E+kgQW/ojERRdqnPFcoN3+e9dfe/eKDbaegmIlRjMRI=",
+        "5FAlOt1v7CFDeJIq/BIrZ1Gph+WQXZpRTW0cGLZGFyo=",
+        "Xd4Xyfv0OizkLKB/Jb7HM/KDjd1mMgbF34MStLqd1WY=",
+        "ExKHKhbtJiJxVSxLIsmIza3quRojV3W46y1s4AFTx3c=",
+        "I8W+znEPauMLeocYpdEy9pPskTshaVBRrHvCEutyYMs=",
+        "9uEO9eq8TKU0vrKt1R6p4wzkGJX7HbXDXyzs8HEX21g="
+      ]
+    },
+    "geoData": {
+      "countryName": "Netherlands"
+    }
+  }
+]

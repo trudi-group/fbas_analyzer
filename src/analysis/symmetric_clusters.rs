@@ -1,12 +1,14 @@
 use super::*;
 
 /// Finds groups of nodes (represented as quorum sets) such that all members of the same group have
-/// the same quorum set, and the nodes contained in this quorum set are exactly the group of nodes
-/// (a symmetric cluster). Getting a result with more than 1 entry implies that we
-/// don't have quorum intersection.
+/// (logically) the same quorum set and the common quorum set is comprised of exactly the group of
+/// nodes (a symmetric cluster). This function implicitly patches quorum sets so that each node is
+/// always included in its own quorum set.
+/// Getting a result with more than 1 entry implies that we don't have quorum intersection.
 pub fn find_symmetric_clusters(fbas: &Fbas) -> Vec<QuorumSet> {
     info!("Starting to look for symmetric quorum clusters...");
-    let symmetric_clusters = find_sets(fbas, symmetric_clusters_finder);
+    let mut symmetric_clusters = find_sets(fbas, symmetric_clusters_finder);
+    symmetric_clusters.sort_unstable();
     info!(
         "Found {} different quorum clusters.",
         symmetric_clusters.len()
@@ -15,7 +17,8 @@ pub fn find_symmetric_clusters(fbas: &Fbas) -> Vec<QuorumSet> {
 }
 
 /// If the top tier is symmetric, i.e., each two top-tier nodes have the same quorum set,
-/// return the top tier's common quorum set. Else return `None`.
+/// return the top tier's common quorum set. Else return `None`. This function implicitly patches
+/// quorum sets so that each node is always included in its own quorum set.
 pub fn find_symmetric_top_tier(fbas: &Fbas) -> Option<QuorumSet> {
     let symmetric_clusters = find_symmetric_clusters(fbas);
     if symmetric_clusters.len() == 1
@@ -60,9 +63,9 @@ pub(crate) fn find_symmetric_clusters_in_node_set(
     let mut found_clusters = vec![];
 
     for node_id in nodes.iter() {
-        let qset = &fbas.nodes[node_id].quorum_set;
+        let qset = fbas.nodes[node_id].quorum_set.to_standard_form(node_id);
         if qset.contained_nodes().contains(node_id) {
-            let (count, goal) = if let Some((counter, goal)) = qset_occurances.get_mut(qset) {
+            let (count, goal) = if let Some((counter, goal)) = qset_occurances.get_mut(&qset) {
                 *counter += 1;
                 (*counter, *goal)
             } else {
@@ -71,11 +74,34 @@ pub(crate) fn find_symmetric_clusters_in_node_set(
                 (1, goal)
             };
             if count == goal {
-                found_clusters.push(qset.clone());
+                found_clusters.push(qset);
             }
         }
     }
     found_clusters
+}
+
+impl QuorumSet {
+    /// Make sure that node is included and all validator lists are sorted.
+    fn to_standard_form(&self, node_id: NodeId) -> Self {
+        let mut qset = self.clone();
+        qset.ensure_node_included(node_id);
+        qset.ensure_sorted();
+        qset
+    }
+    fn ensure_node_included(&mut self, node_id: NodeId) {
+        if !self.contained_nodes().contains(node_id) {
+            self.validators.push(node_id);
+            self.threshold += 1;
+        }
+    }
+    fn ensure_sorted(&mut self) {
+        self.validators.sort_unstable();
+        for qset in self.inner_quorum_sets.iter_mut() {
+            qset.ensure_sorted();
+        }
+        self.inner_quorum_sets.sort_unstable();
+    }
 }
 
 #[cfg(test)]
@@ -121,11 +147,18 @@ mod tests {
         );
         assert!(!Analysis::new(&fbas).has_quorum_intersection());
 
-        let expected = vec![QuorumSet {
-            validators: vec![0, 1],
-            threshold: 2,
-            inner_quorum_sets: vec![],
-        }];
+        let expected = vec![
+            QuorumSet {
+                validators: vec![0, 1],
+                threshold: 2,
+                inner_quorum_sets: vec![],
+            },
+            QuorumSet {
+                validators: vec![2, 3],
+                threshold: 2,
+                inner_quorum_sets: vec![],
+            },
+        ];
         let actual = find_symmetric_clusters(&fbas);
 
         assert_eq!(expected, actual);
@@ -169,7 +202,11 @@ mod tests {
             }
         ]"#,
         );
-        let expected = None;
+        let expected = Some(QuorumSet {
+            validators: vec![0, 1],
+            threshold: 2,
+            inner_quorum_sets: vec![],
+        });
         let actual = find_symmetric_cluster_in_consensus_cluster(&bitset![0, 1], &fbas);
 
         assert_eq!(expected, actual);
@@ -186,6 +223,30 @@ mod tests {
             {
                 "publicKey": "n1",
                 "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            }
+        ]"#,
+        );
+        let expected = Some(QuorumSet {
+            validators: vec![0, 1],
+            threshold: 2,
+            inner_quorum_sets: vec![],
+        });
+        let actual = find_symmetric_top_tier(&fbas);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_symmetric_top_tier_in_mobilecoinish_fbas() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 1, "validators": ["n1"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 1, "validators": ["n0"] }
             }
         ]"#,
         );
@@ -281,6 +342,40 @@ mod tests {
 
         let expected = None;
         let actual = find_symmetric_top_tier(&fbas);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn standard_form_on_good_qset_does_nothing() {
+        let qset = QuorumSet {
+            threshold: 2,
+            validators: vec![0, 1],
+            inner_quorum_sets: vec![],
+        };
+        let node_id = 0;
+
+        let expected = qset.clone();
+        let actual = qset.to_standard_form(node_id);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn standard_form_on_weird_qset_includes_node_and_sorts_correctly() {
+        let qset = QuorumSet {
+            threshold: 1,
+            validators: vec![1],
+            inner_quorum_sets: vec![],
+        };
+        let node_id = 0;
+
+        let expected = QuorumSet {
+            threshold: 2,
+            validators: vec![0, 1],
+            inner_quorum_sets: vec![],
+        };
+        let actual = qset.to_standard_form(node_id);
 
         assert_eq!(expected, actual);
     }

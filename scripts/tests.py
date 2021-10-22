@@ -35,6 +35,7 @@ def test_fbas_analyzer():
     test_fbas_analyzer_with_organizations()
     test_fbas_analyzer_with_ids()
     test_fbas_analyzer_on_broken()
+    test_fbas_analyzer_on_mobilecoin()
 
 
 def test_fbas_analyzer_with_organizations():
@@ -64,6 +65,14 @@ def test_fbas_analyzer_on_broken():
         'minimal_blocking_sets: [[3,4],[4,10],[3,6,10]]',
         'minimal_splitting_sets: [[]]',
         'top_tier: [3,4,6,10]',
+    ]
+    run_and_check_output(command, expected_strings=expected_strings)
+
+
+def test_fbas_analyzer_on_mobilecoin():
+    command = "target/release/fbas_analyzer test_data/mobilecoin_nodes_2021-10-22.json"
+    expected_strings = [
+        'symmetric_clusters: [{"threshold":8,"validators":[0,1,2,3,4,5,6,7,8,9]}]',
     ]
     run_and_check_output(command, expected_strings=expected_strings)
 
