@@ -22,15 +22,15 @@ impl<'fbas> Groupings<'fbas> {
     }
     pub fn isps_from_json_str(nodes_json: &str, fbas: &'fbas Fbas) -> Self {
         let raw_nodes: Vec<RawNode> =
-            serde_json::from_str(&nodes_json).expect("Error parsing FBAS JSON");
+            serde_json::from_str(nodes_json).expect("Error parsing FBAS JSON");
         let raw_groupings = RawGroupings::isps_from_raw_nodes(raw_nodes);
-        Groupings::from_raw(raw_groupings, &fbas)
+        Groupings::from_raw(raw_groupings, fbas)
     }
     pub fn countries_from_json_str(nodes_json: &str, fbas: &'fbas Fbas) -> Self {
         let raw_nodes: Vec<RawNode> =
-            serde_json::from_str(&nodes_json).expect("Error parsing FBAS JSON");
+            serde_json::from_str(nodes_json).expect("Error parsing FBAS JSON");
         let raw_groupings = RawGroupings::countries_from_raw_nodes(raw_nodes);
-        Groupings::from_raw(raw_groupings, &fbas)
+        Groupings::from_raw(raw_groupings, fbas)
     }
     pub fn from_json_file(path: &Path, fbas: &'fbas Fbas) -> Self {
         Self::from_json_str(&read_or_panic!(path), fbas)
@@ -39,10 +39,10 @@ impl<'fbas> Groupings<'fbas> {
         Self::organizations_from_json_str(&read_or_panic!(path), fbas)
     }
     pub fn isps_from_json_file(path: &Path, fbas: &'fbas Fbas) -> Self {
-        Self::isps_from_json_str(&read_or_panic!(path), &fbas)
+        Self::isps_from_json_str(&read_or_panic!(path), fbas)
     }
     pub fn countries_from_json_file(path: &Path, fbas: &'fbas Fbas) -> Self {
-        Self::countries_from_json_str(&read_or_panic!(path), &fbas)
+        Self::countries_from_json_str(&read_or_panic!(path), fbas)
     }
     fn from_raw(raw_groupings: RawGroupings, fbas: &'fbas Fbas) -> Self {
         let groupings: Vec<Grouping> = raw_groupings

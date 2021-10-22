@@ -61,7 +61,7 @@ fn main() -> CliResult {
 
     let head_comment = format!("Graph generated using {:?}", &algorithm_config);
     if let Some(is_path) = &path {
-        Graph::to_as_rel_file(&graph, &is_path, Some(&head_comment))?;
+        Graph::to_as_rel_file(&graph, is_path, Some(&head_comment))?;
     } else {
         let graph_as_string = Graph::to_as_rel_string(&graph, Some(&head_comment)).unwrap();
         eprintln!("Printing graph with {} nodes...", graph.number_of_nodes());

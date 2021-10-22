@@ -127,7 +127,7 @@ fn splitting_sets_finder_step(
 
 impl Node {
     fn is_slice_intersection(&self, node_set: &NodeIdSet) -> bool {
-        self.quorum_set.is_slice_intersection(&node_set)
+        self.quorum_set.is_slice_intersection(node_set)
     }
 }
 impl QuorumSet {

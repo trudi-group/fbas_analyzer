@@ -2,6 +2,7 @@
 
 [![Cargo](https://img.shields.io/crates/v/fbas_analyzer.svg)](https://crates.io/crates/fbas_analyzer)
 [![Documentation](https://docs.rs/fbas_analyzer/badge.svg)](https://docs.rs/fbas_analyzer)
+[![CI](https://github.com/wiberlin/fbas_analyzer/actions/workflows/test.yml/badge.svg)](https://github.com/wiberlin/fbas_analyzer/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/wiberlin/fbas_analyzer/branch/master/graph/badge.svg?token=SADRQEH8DT)](https://codecov.io/gh/wiberlin/fbas_analyzer)
 
 Library and tools for analyzing the quorum structure of Federated Byzantine Agreement Systems (FBASs) like [Stellar](https://www.stellar.org/).

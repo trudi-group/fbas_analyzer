@@ -385,9 +385,9 @@ fn extract_organizations_paths_by_label(
 ) -> BTreeMap<String, PathBuf> {
     input_paths
         .iter()
-        .filter(|&p| extract_file_name(p).ends_with(".json"))
-        .filter(|&p| extract_file_name(p).contains("organizations"))
-        .map(|p| (extract_label(&p, substring_to_ignore_for_label), p.clone()))
+        .filter(|p| extract_file_name(p).ends_with(".json"))
+        .filter(|p| extract_file_name(p).contains("organizations"))
+        .map(|p| (extract_label(p, substring_to_ignore_for_label), p.clone()))
         .collect()
 }
 fn build_inputs(
@@ -418,7 +418,7 @@ fn extract_file_name(path: &Path) -> String {
 }
 fn extract_label(path: &Path, substring_to_ignore_for_label: &str) -> String {
     let ignore_list = vec!["nodes", "organizations", substring_to_ignore_for_label];
-    let label_parts: Vec<String> = extract_file_name(&path)
+    let label_parts: Vec<String> = extract_file_name(path)
         .replace(".json", "")
         .split_terminator('_')
         .filter(|s| !ignore_list.contains(s))
@@ -437,7 +437,7 @@ fn maybe_load_organizations<'a>(
     organizations_path.map(|path| Groupings::organizations_from_json_file(path, fbas))
 }
 fn maybe_load_isps<'a>(nodes_path: &Path, fbas: &'a Fbas) -> Option<Groupings<'a>> {
-    let isps = Groupings::isps_from_json_file(nodes_path, &fbas);
+    let isps = Groupings::isps_from_json_file(nodes_path, fbas);
     if isps.number_of_groupings() != 0 {
         Some(isps)
     } else {
@@ -445,7 +445,7 @@ fn maybe_load_isps<'a>(nodes_path: &Path, fbas: &'a Fbas) -> Option<Groupings<'a
     }
 }
 fn maybe_load_countries<'a>(nodes_path: &Path, fbas: &'a Fbas) -> Option<Groupings<'a>> {
-    let countries = Groupings::countries_from_json_file(nodes_path, &fbas);
+    let countries = Groupings::countries_from_json_file(nodes_path, fbas);
     if countries.number_of_groupings() != 0 {
         Some(countries)
     } else {

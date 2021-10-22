@@ -61,7 +61,7 @@ impl Fbas {
         Fbas { nodes, pk_to_id }
     }
     pub(crate) fn to_raw(&self) -> RawFbas {
-        RawFbas(self.nodes.iter().map(|n| n.to_raw(&self)).collect())
+        RawFbas(self.nodes.iter().map(|n| n.to_raw(self)).collect())
     }
 }
 impl fmt::Display for Fbas {
@@ -96,7 +96,7 @@ impl Node {
     fn to_raw(&self, fbas: &Fbas) -> RawNode {
         RawNode {
             public_key: self.public_key.clone(),
-            quorum_set: self.quorum_set.to_raw(&fbas),
+            quorum_set: self.quorum_set.to_raw(fbas),
             isp: None,
             geo_data: None,
         }
@@ -142,7 +142,7 @@ impl QuorumSet {
             inner_quorum_sets: self
                 .inner_quorum_sets
                 .iter()
-                .map(|iqs| iqs.to_raw(&fbas))
+                .map(|iqs| iqs.to_raw(fbas))
                 .collect(),
         }
     }

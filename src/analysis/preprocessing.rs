@@ -47,7 +47,7 @@ impl Fbas {
 pub fn find_satisfiable_nodes(node_set: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
     let (mut satisfiable, mut unsatisfiable): (NodeIdSet, NodeIdSet) = node_set
         .iter()
-        .partition(|&x| fbas.nodes[x].is_quorum_slice(&node_set));
+        .partition(|&x| fbas.nodes[x].is_quorum_slice(node_set));
 
     while let Some(unsatisfiable_node) = satisfiable
         .iter()
