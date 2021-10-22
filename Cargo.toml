@@ -37,27 +37,27 @@ bulk-analyzer = ["csv", "par-map", "sha3", "hex"]
 qsc-simulation = ["rand", "bzip2"]
 
 [dev-dependencies]
-criterion = "0.3.2"
-sha3 = "0.9.1"
-hex = "0.4.2"
-assert_cmd = "1.0.2"
-predicates = "1.0.5"
+criterion = "0.3"
+sha3 = "0.9"
+hex = "0.4"
+assert_cmd = "2.0"
+predicates = "2.0"
 
 [dependencies]
-bit-set = "0.5.2"
+bit-set = "0.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
-pathfinding = "2.0.4"
-itertools = "0.9.0"
+pathfinding = "2.2"
+itertools = "0.10"
 quicli = { version = "0.4", optional = true }
-structopt = {version = "0.2", optional = true }
-rand = { version = "0.7", optional = true }
-bzip2 = { version = "0.3.2", optional = true }
-csv = { version = "1.1.3", optional = true }
-par-map = { version = "0.1.4", optional = true }
-sha3 = { version = "0.9.1", optional = true }
-hex = { version = "0.4.2", optional = true }
+structopt = { version = "0.2", optional = true }
+rand = { version = "0.8", optional = true }
+bzip2 = { version = "0.3", optional = true }
+csv = { version = "1.1", optional = true }
+par-map = { version = "0.1", optional = true }
+sha3 = { version = "0.9", optional = true }
+hex = { version = "0.4", optional = true }
 
 [[bench]]
 name = "benchmarks"
