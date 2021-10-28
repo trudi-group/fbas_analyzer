@@ -284,6 +284,12 @@ mod tests {
                 "geoData": {
                     "countryName": ""
                 }
+            },
+            {
+                "publicKey": "GCHAR",
+                "geoData": {
+                    "planet": "Earth"
+                }
             }]"#;
         let fbas = Fbas::from_json_str(&json);
         let countries = Groupings::countries_from_json_str(&json, &fbas);

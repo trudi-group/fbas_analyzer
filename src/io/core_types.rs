@@ -28,6 +28,7 @@ pub(crate) struct RawQuorumSet {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RawGeoData {
     #[serde_as(as = "NoneAsEmptyString")]
+    #[serde(default)]
     pub(crate) country_name: Option<String>,
 }
 
