@@ -39,6 +39,15 @@ struct Cli {
     #[structopt(short = "i", long = "ignore-for-label", default_value = "stellarbeat")]
     ignore_for_label: String,
 
+    /// Prior to any analysis, filter out all nodes marked as `"active" == false` in input JSONs.
+    #[structopt(long = "ignore-inactive-nodes")]
+    ignore_inactive_nodes: bool,
+
+    /// Prior to any analysis, filter out all nodes v for which {v} is a quorum slice (and hence a
+    /// quorum).
+    #[structopt(long = "ignore-one-node-quorums")]
+    ignore_one_node_quorums: bool,
+
     /// Number of threads to use. Defaults to 1.
     #[structopt(short = "j", long = "jobs", default_value = "1")]
     jobs: usize,
@@ -60,7 +69,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let tasks = make_sorted_tasklist(inputs, existing_outputs);
 
-    let output_iterator = bulk_do(tasks, args.jobs);
+    let prep_opts =
+        PreprocessingOptions::new(args.ignore_inactive_nodes, args.ignore_one_node_quorums);
+
+    let output_iterator = bulk_do(tasks, prep_opts, args.jobs);
     write_csv(output_iterator, &args.output_path, args.update)?;
     Ok(())
 }
@@ -120,6 +132,19 @@ struct OutputDataPoint {
     analysis_duration_mbs: f64,
     analysis_duration_mss: f64,
     analysis_duration_total: f64,
+}
+#[derive(Debug, Clone, Copy)]
+struct PreprocessingOptions {
+    ignore_inactive_nodes: bool,
+    ignore_one_node_quorums: bool,
+}
+impl PreprocessingOptions {
+    pub fn new(ignore_inactive_nodes: bool, ignore_one_node_quorums: bool) -> Self {
+        Self {
+            ignore_inactive_nodes,
+            ignore_one_node_quorums,
+        }
+    }
 }
 type AnalysisResults = (
     Option<usize>,
@@ -213,24 +238,28 @@ fn make_sorted_tasklist(
     tasks
 }
 
-fn bulk_do(tasks: Vec<Task>, jobs: usize) -> impl Iterator<Item = OutputDataPoint> {
+fn bulk_do(
+    tasks: Vec<Task>,
+    prep_opts: PreprocessingOptions,
+    jobs: usize,
+) -> impl Iterator<Item = OutputDataPoint> {
     tasks
         .into_iter()
         .with_nb_threads(jobs)
-        .par_map(analyze_or_reuse)
+        .par_map(move |task| analyze_or_reuse(task, prep_opts))
 }
-fn analyze_or_reuse(task: Task) -> OutputDataPoint {
+fn analyze_or_reuse(task: Task, prep_opts: PreprocessingOptions) -> OutputDataPoint {
     match task {
         Task::Reuse(output) => {
             eprintln!("Reusing existing analysis results for {}.", output.label);
             output
         }
-        Task::Analyze(input) => analyze(input),
+        Task::Analyze(input) => analyze(input, prep_opts),
     }
 }
-fn analyze(input: InputDataPoint) -> OutputDataPoint {
+fn analyze(input: InputDataPoint, prep_opts: PreprocessingOptions) -> OutputDataPoint {
     let (result_without_total_duration, analysis_duration_total) = timed_secs!({
-        let fbas = load_fbas(&input.nodes_path);
+        let fbas = load_fbas(&input.nodes_path, prep_opts);
         let organizations = maybe_load_organizations(input.organizations_path.as_ref(), &fbas);
         let isps = maybe_load_isps(&input.nodes_path, &fbas);
         let countries = maybe_load_countries(&input.nodes_path, &fbas);
@@ -427,8 +456,16 @@ fn extract_label(path: &Path, substring_to_ignore_for_label: &str) -> String {
     label_parts.join("_")
 }
 
-fn load_fbas(nodes_path: &Path) -> Fbas {
-    Fbas::from_json_file(nodes_path)
+fn load_fbas(nodes_path: &Path, prep_opts: PreprocessingOptions) -> Fbas {
+    let mut fbas = Fbas::from_json_file(nodes_path);
+    if prep_opts.ignore_inactive_nodes {
+        let inactive_nodes = FilteredNodes::from_json_file(nodes_path, |v| v["active"] == false);
+        fbas = fbas.without_nodes_pretty(&inactive_nodes.into_pretty_vec());
+    }
+    if prep_opts.ignore_one_node_quorums {
+        fbas = fbas.without_nodes(&fbas.one_node_quorums());
+    }
+    fbas
 }
 fn maybe_load_organizations<'a>(
     organizations_path: Option<&PathBuf>,

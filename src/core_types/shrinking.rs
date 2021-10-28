@@ -90,11 +90,16 @@ impl Fbas {
         let unshrink_table = &shrink_manager.unshrink_table;
         let shrink_map = &shrink_manager.shrink_map;
 
-        let mut fbas_shrunken = Fbas::new_generic_unconfigured(unshrink_table.len());
+        let mut nodes = vec![Node::default(); unshrink_table.len()];
         for old_id in 0..self.nodes.len() {
             if let Some(&new_id) = shrink_map.get(&old_id) {
-                fbas_shrunken.nodes[new_id] = Node::shrunken(&self.nodes[old_id], shrink_map);
+                nodes[new_id] = Node::shrunken(&self.nodes[old_id], shrink_map);
             }
+        }
+        let mut fbas_shrunken = Fbas::new();
+        for node in nodes.into_iter() {
+            assert_ne!(node, Node::default());
+            fbas_shrunken.add_node(node);
         }
         (fbas_shrunken, shrink_manager)
     }
@@ -179,6 +184,28 @@ mod tests {
         let expected = 3;
         let actual = fbas_shrunken.number_of_nodes();
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn shrunken_fbas_has_correct_public_keys() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let reduce_to = bitset![0, 23, 42];
+        let (fbas_shrunken, _) = Fbas::shrunken(&fbas, reduce_to);
+        let expected = vec![
+            String::from("GASN57EFNZWME73BJXYZUTCD34EPX4KIIZQTQDTMBWWVH6JIZJUCBGQX"),
+            String::from("GC7MH45NSXXPBLQJRSEVF2DFUVLGGYOJER5FRUNVCYVMXJYJT5LLQJW5"),
+            String::from("GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH"),
+        ];
+        let mut actual: Vec<PublicKey> = fbas_shrunken.pk_to_id.keys().cloned().collect();
+        actual.sort();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn shrinking_to_all_nodes_does_nothing() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let (fbas_shrunken, _) = Fbas::shrunken(&fbas, fbas.all_nodes());
+        assert_eq!(fbas, fbas_shrunken);
     }
 
     #[test]

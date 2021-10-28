@@ -31,6 +31,17 @@ impl Fbas {
         }
         relevant_nodes
     }
+    /// Returns all nodes v for which {v} is a quorum slice (and hence a quorum).
+    /// These are often nodes that are somehow broken.
+    pub fn one_node_quorums(&self) -> Vec<NodeId> {
+        let mut nodes = vec![];
+        for (node_id, node) in self.nodes.iter().enumerate() {
+            if node.is_quorum_slice(&bitset![node_id]) {
+                nodes.push(node_id);
+            }
+        }
+        nodes
+    }
     /// Reduces the FBAS to nodes relevant to analysis (nodes part of a quorum-containing strongly
     /// connected component) and reorders node IDs so that nodes are sorted by public key.
     pub fn to_standard_form(&self) -> Self {
@@ -40,6 +51,17 @@ impl Fbas {
             .0
             .sort_by_cached_key(|n| n.public_key.clone());
         Fbas::from_raw(raw_shrunken_self)
+    }
+    pub fn without_nodes_pretty(&self, nodes: &[PublicKey]) -> Self {
+        let nodes: Vec<usize> = nodes.iter().filter_map(|p| self.get_node_id(p)).collect();
+        self.without_nodes(&nodes)
+    }
+    pub fn without_nodes(&self, nodes: &[NodeId]) -> Self {
+        let mut remaining_nodes = self.all_nodes();
+        for &node in nodes.iter() {
+            remaining_nodes.remove(node);
+        }
+        self.shrunken(remaining_nodes).0
     }
 }
 
@@ -181,6 +203,33 @@ mod tests {
         assert_eq!(expected, actual);
     }
 
+    #[test]
+    fn one_node_quorums_returns_only_one_node_quorums() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 1, "validators": ["n1"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 1, "validators": ["n0"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 0, "validators": ["n3"] }
+            }
+        ]"#,
+        );
+        let actual = fbas.one_node_quorums();
+        let expected = vec![1];
+        assert_eq!(expected, actual);
+    }
+
     fn toy_standard_form_fbas() -> Fbas {
         Fbas::from_json_str(
             r#"[
@@ -295,6 +344,42 @@ mod tests {
         assert_eq!(
             standard_form_fbas_expected_hash,
             standard_form_fbas_actual_hash
+        );
+    }
+
+    #[test]
+    fn remove_nodes_from_fbas() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+            }
+        ]"#,
+        );
+        let fbas = fbas.without_nodes_pretty(&[String::from("n2")]);
+
+        assert_eq!(2, fbas.number_of_nodes());
+        assert_eq!(None, fbas.get_node_id("n2"));
+        assert_eq!(
+            QuorumSet {
+                validators: vec![0, 1],
+                inner_quorum_sets: vec![],
+                threshold: 2
+            },
+            fbas.get_quorum_set(0).unwrap()
+        );
+        assert_eq!(
+            fbas.get_quorum_set(0).unwrap(),
+            fbas.get_quorum_set(1).unwrap()
         );
     }
 }

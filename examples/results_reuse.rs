@@ -13,7 +13,15 @@ use hex;
 use sha3::{Digest, Sha3_256};
 
 pub fn main() {
-    let fbas = Fbas::from_json_file(Path::new("test_data/stellarbeat_nodes_2019-09-17.json"));
+    let nodes_json = Path::new("test_data/stellarbeat_nodes_2019-09-17.json");
+
+    let fbas = Fbas::from_json_file(nodes_json);
+
+    // We can remove nodes from the FBAS before starting any analyses. For example, the below code
+    // filters out nodes marked "inactive" in the source JSON. You can filter by other predicates
+    // as well!
+    let inactive_nodes = FilteredNodes::from_json_file(nodes_json, |v| v["active"] == false);
+    let fbas = fbas.without_nodes_pretty(&inactive_nodes.into_pretty_vec());
 
     // This changes the order of nodes (sorts them by public key) and hence renumbers all IDs!
     // This also discard all nodes that are not part of a strongly connected component, as they
@@ -68,8 +76,8 @@ pub fn main() {
 
     // Let's say we observe that some nodes are failing...
     let failing_nodes = vec![
-        "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
-        "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+        String::from("GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH"),
+        String::from("GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ"),
     ];
     let remaining_mbs = mbs
         .without_nodes_pretty(&failing_nodes, &fbas, None)

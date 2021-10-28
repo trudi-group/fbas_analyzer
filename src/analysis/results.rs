@@ -37,9 +37,9 @@ impl NodeIdSetResult {
         }
         new
     }
-    pub fn without_nodes_pretty<'a>(
+    pub fn without_nodes_pretty(
         &self,
-        nodes: &[&'a str],
+        nodes: &[PublicKey],
         fbas: &Fbas,
         groupings: Option<&Groupings>,
     ) -> Self {
@@ -158,9 +158,9 @@ impl NodeIdSetVecResult {
         }
         new
     }
-    pub fn without_nodes_pretty<'a>(
+    pub fn without_nodes_pretty(
         &self,
-        nodes: &[&'a str],
+        nodes: &[PublicKey],
         fbas: &Fbas,
         groupings: Option<&Groupings>,
     ) -> Self {
@@ -179,10 +179,10 @@ impl NodeIdSetVecResult {
     }
 }
 
-fn from_public_keys<'a>(nodes: &[&'a str], fbas: &Fbas) -> Vec<NodeId> {
+fn from_public_keys(nodes: &[PublicKey], fbas: &Fbas) -> Vec<NodeId> {
     nodes.iter().filter_map(|pk| fbas.get_node_id(pk)).collect()
 }
-fn from_grouping_names<'a>(nodes: &[&'a str], fbas: &Fbas, groupings: &Groupings) -> Vec<NodeId> {
+fn from_grouping_names(nodes: &[PublicKey], fbas: &Fbas, groupings: &Groupings) -> Vec<NodeId> {
     nodes
         .iter()
         .map(|name| match groupings.get_by_name(name) {
@@ -285,7 +285,11 @@ mod tests {
         let result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {3}], None);
         let expected = bitsetvec![{ 0 }, { 3 }];
         let actual = result
-            .without_nodes_pretty(&["Bob", "Helen the non-existent"], &fbas, None)
+            .without_nodes_pretty(
+                &[String::from("Bob"), String::from("Helen the non-existent")],
+                &fbas,
+                None,
+            )
             .unwrap();
         assert_eq!(expected, actual);
     }
@@ -321,7 +325,11 @@ mod tests {
         let expected = bitsetvec![{}, { 2 }, {}];
         let actual = result
             .without_nodes_pretty(
-                &["J Mafia", "Bob", "Helen the non-existent"],
+                &[
+                    String::from("J Mafia"),
+                    String::from("Bob"),
+                    String::from("Helen the non-existent"),
+                ],
                 &fbas,
                 Some(&organizations),
             )

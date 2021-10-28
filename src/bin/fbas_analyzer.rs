@@ -69,6 +69,16 @@ struct Cli {
     #[structopt(long = "merge-by-country")]
     ctry_merge: bool,
 
+    /// Prior to any analysis, filter out all nodes marked as `"active" == false` in the input
+    /// nodes JSON (the one at `nodes_path`).
+    #[structopt(long = "ignore-inactive-nodes")]
+    ignore_inactive_nodes: bool,
+
+    /// Prior to any analysis, filter out all nodes v for which {v} is a quorum slice (and hence a
+    /// quorum).
+    #[structopt(long = "ignore-one-node-quorums")]
+    ignore_one_node_quorums: bool,
+
     #[structopt(flatten)]
     verbosity: Verbosity,
 }
@@ -77,7 +87,11 @@ fn main() -> CliResult {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
-    let fbas = load_fbas(args.nodes_path.as_ref());
+    let fbas = load_fbas(
+        args.nodes_path.as_ref(),
+        args.ignore_inactive_nodes,
+        args.ignore_one_node_quorums,
+    );
     let (ctry, isp, org) = extract_groupings_todos(&args);
     let groupings = if ctry {
         maybe_load_countries(args.nodes_path.as_ref(), &fbas)
@@ -122,12 +136,31 @@ fn main() -> CliResult {
     Ok(())
 }
 
-fn load_fbas(o_nodes_path: Option<&PathBuf>) -> Fbas {
+fn load_fbas(
+    o_nodes_path: Option<&PathBuf>,
+    ignore_inactive_nodes: bool,
+    ignore_one_node_quorums: bool,
+) -> Fbas {
     let fbas = if let Some(nodes_path) = o_nodes_path {
         eprintln!("Reading FBAS JSON from file...");
-        Fbas::from_json_file(nodes_path)
+        let mut fbas = Fbas::from_json_file(nodes_path);
+        if ignore_inactive_nodes {
+            let inactive_nodes =
+                FilteredNodes::from_json_file(nodes_path, |v| v["active"] == false);
+            fbas = fbas.without_nodes_pretty(&inactive_nodes.into_pretty_vec());
+        }
+        if ignore_one_node_quorums {
+            fbas = fbas.without_nodes(&fbas.one_node_quorums());
+        }
+        fbas
     } else {
         eprintln!("Reading FBAS JSON from STDIN...");
+        if ignore_inactive_nodes || ignore_one_node_quorums {
+            panic!(
+                "Ignoring nodes is currently not supported when reading an FBAS from STDIN;
+                perhaps filter the input yourself? (e.g., with `jq`)"
+            );
+        }
         Fbas::from_json_stdin()
     };
     eprintln!("Loaded FBAS with {} nodes.", fbas.number_of_nodes());

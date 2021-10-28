@@ -8,8 +8,9 @@ def main():
 
     cargo_debug_build()
     cargo_test()
-    cargo_build()
+    test_example()
 
+    cargo_build()
     test_fbas_analyzer()
     test_bulk_fbas_analyzer()
     test_qsc_simulator()
@@ -29,6 +30,15 @@ def cargo_build():
 
 def cargo_debug_build():
     run_and_check_return('cargo build', 'Building project to make sure we have up-to-date debug binaries for some tests')
+
+
+def test_example():
+    command = "cargo run --example results_reuse"
+    expected_strings = [
+        'c6602f930734bf9eb3dd35387aa0e8d0a31438ef57dbb4745e3ddfe6acf2b073', # standard form hash after removing inactive nodes
+        'GA35T3723UP2XJLC2H7MNL6VMKZZIFL2VW7XHMFFJKKIA2FJCYTLKFBW', # a minimal blocking set member
+    ]
+    run_and_check_output(command, expected_strings=expected_strings)
 
 
 def test_fbas_analyzer():

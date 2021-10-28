@@ -16,6 +16,9 @@ use core_types::*;
 
 mod groupings;
 
+mod filtered_nodes;
+pub use filtered_nodes::FilteredNodes;
+
 mod results;
 pub use results::*;
 
