@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/wiberlin/fbas_analyzer/branch/master/graph/badge.svg?token=SADRQEH8DT)](https://codecov.io/gh/wiberlin/fbas_analyzer)
 
 Library and tools for analyzing the quorum structure of Federated Byzantine Agreement Systems (FBASs) like [Stellar](https://www.stellar.org/).
-Related (slightly outdated) research paper [here](https://arxiv.org/abs/2002.08101).
+Related research paper [here](https://arxiv.org/abs/2002.08101).
 
 Among other things, the implementation here can:
 
@@ -45,6 +45,8 @@ target/release/bulk_fbas_analyzer -h
 target/release/qsc_simulator -h
 target/release/graph_generator -h
 ```
+
+You can also just `cargo install fbas_analyzer`, of course.
 
 ## Usage as Rust library
 
