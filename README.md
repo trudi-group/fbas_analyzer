@@ -53,12 +53,12 @@ You can also just `cargo install fbas_analyzer`, of course.
 Add this to your `Cargo.toml`:
 ```
 [dependencies]
-fbas_analyzer = { version = "0.5", default-features = false }
+fbas_analyzer = { version = "0.6", default-features = false }
 ```
 Or this, if you need simulation functionality:
 ```
 [dependencies]
-fbas_analyzer = { version = "0.5", default-features = false, features = ["qsc_simulation"] }
+fbas_analyzer = { version = "0.6", default-features = false, features = ["qsc_simulation"] }
 ```
 
 Check out the [API Reference](https://docs.rs/fbas_analyzer/)
