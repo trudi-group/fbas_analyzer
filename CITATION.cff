@@ -1,0 +1,53 @@
+cff-version: "1.2.0"
+message: "If you use this software, please cite it as below."
+
+authors:
+- given-names: Martin
+  family-names: Florian
+  affiliation: >-
+    Humboldt University of Berlin / Weizenbaum
+    Institute
+- given-names: Sebastian
+  family-names: Henningsen
+  affiliation: >-
+    Humboldt University of Berlin / Weizenbaum
+    Institute
+- given-names: Charmaine
+  family-names: Ndolo
+  affiliation: >-
+    Humboldt University of Berlin / Weizenbaum
+    Institute
+- given-names: "Björn"
+  family-names: Scheuermann
+  affiliation: >-
+    Humboldt University of Berlin / Weizenbaum
+    Institute
+title: "The Sum of Its Parts: Analysis of Federated Byzantine Agreement Systems"
+
+preferred-citation:
+  type: generic
+  notes: "Under journal review."
+  title: "The Sum of Its Parts: Analysis of Federated Byzantine Agreement Systems"
+  url: 'https://arxiv.org/abs/2002.08101'
+  date-released: '2020-02-19'
+  authors:
+    - given-names: Martin
+      family-names: Florian
+      affiliation: >-
+        Humboldt University of Berlin / Weizenbaum
+    - given-names: Sebastian
+      family-names: Henningsen
+      affiliation: >-
+        Humboldt University of Berlin / Weizenbaum
+        Institute
+        Institute
+    - given-names: Charmaine
+      family-names: Ndolo
+      affiliation: >-
+        Humboldt University of Berlin / Weizenbaum
+        Institute
+    - given-names: "Björn"
+      family-names: Scheuermann
+      affiliation: >-
+        Humboldt University of Berlin / Weizenbaum
+        Institute
