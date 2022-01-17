@@ -1,0 +1,34 @@
+image: rust:latest
+
+default:
+before_script:
+  - rustc --version
+  - cargo --version
+
+stages:
+  - build-and-test
+  - lint
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+build-test:
+  stage: build-and-test
+  script:
+    - echo "Calling scripts/tests.py"
+    - ./scripts/tests.py
+
+code-quality:
+  stage: lint
+  script:
+    - echo "Running cargo clippy"
+    - rustup component add clippy
+    - cargo clippy -p db --release -- -D warnings
+  stage: lint
+  script:
+    - echo "Running cargo fmt"
+    - rustup component add rustfmt
+    - cargo fmt -p db --all -- --check
+
