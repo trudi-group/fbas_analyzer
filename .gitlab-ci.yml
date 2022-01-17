@@ -25,10 +25,10 @@ code-quality:
   script:
     - echo "Running cargo clippy"
     - rustup component add clippy
-    - cargo clippy -p db --release -- -D warnings
+    - cargo clippy --release -- -D warnings
   stage: lint
   script:
     - echo "Running cargo fmt"
     - rustup component add rustfmt
-    - cargo fmt -p db --all -- --check
+    - cargo fmt --all -- --check
 
