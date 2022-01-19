@@ -6,8 +6,9 @@ before_script:
   - cargo --version
 
 stages:
-  - build-and-test
-  - lint
+  - test
+  - fmt
+  - clippy
 
 workflow:
   rules:
@@ -15,20 +16,21 @@ workflow:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 build-test:
-  stage: build-and-test
+  stage: test
   script:
     - echo "Calling scripts/tests.py"
     - ./scripts/tests.py
 
-code-quality:
-  stage: lint
-  script:
-    - echo "Running cargo clippy"
-    - rustup component add clippy
-    - cargo clippy --release -- -D warnings
-  stage: lint
+pretty:
+  stage: fmt
   script:
     - echo "Running cargo fmt"
     - rustup component add rustfmt
     - cargo fmt --all -- --check
 
+code-quality:
+  stage: clippy
+  script:
+    - echo "Running cargo clippy"
+    - rustup component add clippy
+    - cargo clippy --release -- -D warnings
