@@ -247,7 +247,7 @@ mod tests {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
         let minimal_quorums = bitsetvec![{0, 1}, {0, 10}, {1, 10}];
 
-        let expected = vec![bitset![0], bitset![1], bitset![10]];
+        let expected = vec![bitset![0], bitset![1], bitset![4], bitset![10]]; // 4 is Eno!
         let actual = find_minimal_splitting_sets(&fbas, &minimal_quorums);
 
         assert_eq!(expected, actual);
@@ -427,13 +427,72 @@ mod tests {
                 "publicKey": "n5",
                 "quorumSet": { "threshold": 2, "validators": ["n2", "n3"] }
             }
-
         ]"#,
         );
         let minimal_quorums = bitsetvec![{0, 1, 2, 3, 4}, {0, 1, 2, 3, 5}];
         assert_eq!(minimal_quorums, find_minimal_quorums(&fbas));
 
-        let expected: Vec<NodeIdSet> = bitsetvec![{0, 1, 2, 3}];
+        let expected: Vec<NodeIdSet> = bitsetvec![{2, 3}, {2, 4}, {2, 5}, {3, 4}, {3, 5}];
+        let actual = find_minimal_splitting_sets(&fbas, &minimal_quorums);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_splitting_sets_that_split_single_nodes_by_qset_lying() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            }
+        ]"#,
+        );
+        let minimal_quorums = bitsetvec![{0, 1, 2}];
+        assert_eq!(minimal_quorums, find_minimal_quorums(&fbas));
+
+        let expected: Vec<NodeIdSet> = bitsetvec![{ 1 }];
+        let actual = find_minimal_splitting_sets(&fbas, &minimal_quorums);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_splitting_sets_that_split_multiple_nodes_by_qset_lying() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 5, "validators": ["n0", "n1", "n2", "n3", "n4"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 3, "validators": ["n2", "n3", "n4"] }
+            },
+            {
+                "publicKey": "n4",
+                "quorumSet": { "threshold": 3, "validators": ["n2", "n3", "n4"] }
+            }
+        ]"#,
+        );
+        let minimal_quorums = bitsetvec![{0, 1, 2, 3, 4}];
+        assert_eq!(minimal_quorums, find_minimal_quorums(&fbas));
+
+        let expected: Vec<NodeIdSet> = bitsetvec![{ 2 }];
         let actual = find_minimal_splitting_sets(&fbas, &minimal_quorums);
         assert_eq!(expected, actual);
     }
