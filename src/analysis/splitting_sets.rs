@@ -5,15 +5,31 @@ use itertools::Itertools;
 /// sub-FBASs. As this is probably not what you want then, you should check for quorum
 /// intersection before using this function.
 pub fn find_minimal_splitting_sets(fbas: &Fbas, minimal_quorums: &[NodeIdSet]) -> Vec<NodeIdSet> {
-    info!("Starting to look for minimal splitting_sets...");
+    info!("Starting to look for minimal splitting sets...");
     let minimal_splitting_sets = find_minimal_sets(fbas, |clusters, fbas| {
         minimal_splitting_sets_finder(clusters, fbas, minimal_quorums)
     });
     info!(
-        "Found {} minimal splitting_sets.",
+        "Found {} minimal splitting sets.",
         minimal_splitting_sets.len()
     );
     minimal_splitting_sets
+}
+
+/// Finds all nodes that, if they want to help causing splits, can potentially benefit from lying
+/// or changing their quorum sets for making quorums smaller by more than one node.
+pub fn find_quorum_expanders(fbas: &Fbas) -> NodeIdSet {
+    info!("Starting to look for minimal quorum reducing nodes...");
+    let mut result = NodeIdSet::new();
+    let mut processed = HashSet::new();
+    for node in fbas.nodes.iter() {
+        if !processed.contains(&node.quorum_set) {
+            result.union_with(&node.quorum_set.quorum_expanders(fbas));
+            processed.insert(node.quorum_set.clone());
+        }
+    }
+    info!("Found {} quorum expanders.", result.len());
+    result
 }
 
 fn minimal_splitting_sets_finder(
@@ -41,7 +57,7 @@ fn minimal_splitting_sets_finder(
 
             let mut found_splitting_sets_in_cluster: Vec<NodeIdSet> = vec![];
 
-            debug!("Collecting splitting_sets...");
+            debug!("Collecting splitting sets...");
             splitting_sets_finder_step(
                 &mut unprocessed.into(),
                 &mut selection,
@@ -52,7 +68,7 @@ fn minimal_splitting_sets_finder(
                 true,
             );
             debug!(
-                "Found {} splitting_sets. Reducing to minimal splitting sets...",
+                "Found {} splitting sets. Reducing to minimal splitting sets...",
                 found_splitting_sets_in_cluster.len()
             );
             found_splitting_sets.append(&mut remove_non_minimal_node_sets(
@@ -76,7 +92,7 @@ fn splitting_sets_finder_step(
     } else if selection_changed && is_quorum_intersection(selection, fbas, &relevant_quorum_parts) {
         found_splitting_sets.push(selection.clone());
         if found_splitting_sets.len() % 100_000 == 0 {
-            debug!("...{} splitting_sets found", found_splitting_sets.len());
+            debug!("...{} splitting sets found", found_splitting_sets.len());
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
         selection.insert(current_candidate);
@@ -131,6 +147,18 @@ impl Node {
     }
 }
 impl QuorumSet {
+    fn quorum_expanders(&self, fbas: &Fbas) -> NodeIdSet {
+        self.to_quorum_slices()
+            .into_iter()
+            .map(|slice| {
+                slice
+                    .iter()
+                    .filter(|node| fbas.nodes[*node].is_quorum_slice(&slice))
+                    .collect::<Vec<NodeId>>()
+            })
+            .flatten()
+            .collect()
+    }
     fn is_slice_intersection(&self, node_set: &NodeIdSet) -> bool {
         let splitting_threshold = self.splitting_threshold();
         if splitting_threshold == 0 {
@@ -240,6 +268,30 @@ mod tests {
             inner_quorum_sets: vec![],
         };
         assert!(qset.is_slice_intersection(&bitset![0]));
+    }
+
+    #[test]
+    fn find_quorum_expanders_in_3_circle() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n2"] }
+            }
+        ]"#,
+        );
+        let expected = bitset! {0, 1, 2};
+        let actual = find_quorum_expanders(&fbas);
+
+        assert_eq!(expected, actual);
     }
 
     #[test]
