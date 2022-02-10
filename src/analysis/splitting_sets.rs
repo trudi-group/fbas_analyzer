@@ -1,9 +1,7 @@
 use super::*;
 use itertools::Itertools;
 
-/// If the FBAS *doesn't* enjoy quorum intersection, this returns the minimal splitting sets of all
-/// sub-FBASs. As this is probably not what you want then, you should check for quorum
-/// intersection before using this function.
+/// If the FBAS *doesn't* enjoy quorum intersection, this will just return `bitsetvec![{}]`...
 pub fn find_minimal_splitting_sets(fbas: &Fbas, minimal_quorums: &[NodeIdSet]) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal splitting sets...");
     let minimal_splitting_sets = find_minimal_sets(fbas, |clusters, fbas| {
@@ -37,13 +35,20 @@ fn minimal_splitting_sets_finder(
     fbas: &Fbas,
     minimal_quorums: &[NodeIdSet],
 ) -> Vec<NodeIdSet> {
-    let mut found_splitting_sets: Vec<NodeIdSet> = vec![];
-    for (i, nodes) in consensus_clusters.into_iter().enumerate() {
-        debug!("Finding minimal splitting sets in cluster {}...", i);
+    if consensus_clusters.len() > 1 {
+        debug!("It's clear that we lack quorum intersection; the empty set is a splitting set.");
+        bitsetvec![{}]
+    } else if consensus_clusters.is_empty() {
+        debug!("There can't be any quorums, and hence there are no splitting sets.");
+        assert!(minimal_quorums.is_empty());
+        bitsetvec![]
+    } else {
+        debug!("Finding minimal splitting sets...");
+        let nodes = consensus_clusters.into_iter().next().unwrap();
 
         if let Some(symmetric_cluster) = find_symmetric_cluster_in_consensus_cluster(&nodes, fbas) {
             debug!("Cluster contains a symmetric quorum cluster! Extracting splitting sets...");
-            found_splitting_sets.append(&mut symmetric_cluster.to_minimal_splitting_sets());
+            symmetric_cluster.to_minimal_splitting_sets()
         } else {
             debug!("Sorting nodes by rank...");
             let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
@@ -51,32 +56,29 @@ fn minimal_splitting_sets_finder(
 
             let unprocessed = sorted_nodes;
             let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
-            let mut available = unprocessed.iter().cloned().collect();
+            let mut available = nodes.clone();
 
             let relevant_quorum_parts = minimal_quorums.to_vec();
 
-            let mut found_splitting_sets_in_cluster: Vec<NodeIdSet> = vec![];
+            let mut found_splitting_sets: Vec<NodeIdSet> = vec![];
 
             debug!("Collecting splitting sets...");
             splitting_sets_finder_step(
                 &mut unprocessed.into(),
                 &mut selection,
                 &mut available,
-                &mut found_splitting_sets_in_cluster,
+                &mut found_splitting_sets,
                 fbas,
                 relevant_quorum_parts,
                 true,
             );
             debug!(
                 "Found {} splitting sets. Reducing to minimal splitting sets...",
-                found_splitting_sets_in_cluster.len()
+                found_splitting_sets.len()
             );
-            found_splitting_sets.append(&mut remove_non_minimal_node_sets(
-                found_splitting_sets_in_cluster,
-            ));
+            remove_non_minimal_node_sets(found_splitting_sets)
         }
     }
-    found_splitting_sets
 }
 fn splitting_sets_finder_step(
     unprocessed: &mut NodeIdDeque,
@@ -311,38 +313,29 @@ mod tests {
             r#"[
             {
                 "publicKey": "n0",
-                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
             },
             {
                 "publicKey": "n1",
-                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
             },
             {
                 "publicKey": "n2",
-                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+                "quorumSet": { "threshold": 2, "validators": ["n2", "n3"] }
             },
             {
                 "publicKey": "n3",
-                "quorumSet": { "threshold": 2, "validators": ["n3", "n4", "n5"] }
-            },
-            {
-                "publicKey": "n4",
-                "quorumSet": { "threshold": 2, "validators": ["n3", "n4", "n5"] }
-            },
-            {
-                "publicKey": "n5",
-                "quorumSet": { "threshold": 2, "validators": ["n3", "n4", "n5"] }
+                "quorumSet": { "threshold": 2, "validators": ["n2", "n3"] }
             }
         ]"#,
         );
-        let minimal_quorums = bitsetvec![{0, 1}, {0, 2}, {1, 2}, {3, 4}, {3, 5}, {4, 5}];
+        let minimal_quorums = bitsetvec![{0, 1}, {2, 3}];
         assert_eq!(find_minimal_quorums(&fbas), minimal_quorums);
 
-        // No quorum intersection => the FBAS is splitting even without faulty nodes. In these
-        // cases `find_minimal_splitting_sets`, assumes that we have sub-FBASs and finds the
-        // splitting sets in all of them.
+        // No quorum intersection => the FBAS is splitting even without faulty nodes => the empty
+        // set is a splitting set.
         let actual = find_minimal_splitting_sets(&fbas, &minimal_quorums);
-        let expected = bitsetvec![{ 0 }, { 1 }, { 2 }, { 3 }, { 4 }, { 5 }];
+        let expected = bitsetvec![{}];
 
         assert_eq!(expected, actual);
     }
