@@ -3,7 +3,21 @@ use super::*;
 /// Find all minimal quorums in the FBAS.
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
     info!("Starting to look for minimal quorums...");
-    let minimal_quorums = find_minimal_sets(fbas, minimal_quorums_finder);
+    let minimal_quorums = find_minimal_sets(fbas, |cc, fbas| {
+        minimal_quorums_finder(cc, fbas, &bitset![])
+    });
+    info!("Found {} minimal quorums.", minimal_quorums.len());
+    minimal_quorums
+}
+
+/// Finds all minimal quorums that contain `nodes`.
+pub fn find_minimal_quorums_that_contain(fbas: &Fbas, nodes: &NodeIdSet) -> Vec<NodeIdSet> {
+    info!(
+        "Starting to look for minimal quorums that contain {:?}...",
+        nodes
+    );
+    let minimal_quorums =
+        find_minimal_sets(fbas, |cc, fbas| minimal_quorums_finder(cc, fbas, nodes));
     info!("Found {} minimal quorums.", minimal_quorums.len());
     minimal_quorums
 }
@@ -26,22 +40,45 @@ pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Option<Vec<NodeIdSet>> {
     }
 }
 
-fn minimal_quorums_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
+fn minimal_quorums_finder(
+    consensus_clusters: Vec<NodeIdSet>,
+    fbas: &Fbas,
+    must_contain: &NodeIdSet,
+) -> Vec<NodeIdSet> {
     let mut found_quorums: Vec<NodeIdSet> = vec![];
+
+    if consensus_clusters
+        .iter()
+        .all(|cluster| !cluster.is_superset(must_contain))
+        && !is_minimal_for_quorum(must_contain, fbas)
+    {
+        debug!(
+            "There can't be any minimal quorums that contain {:?}.",
+            must_contain
+        );
+        return found_quorums;
+    }
+
     for (i, nodes) in consensus_clusters.into_iter().enumerate() {
         debug!("Finding minimal quorums in cluster {}...", i);
 
         if let Some(symmetric_cluster) = find_symmetric_cluster_in_consensus_cluster(&nodes, fbas) {
             debug!("Cluster contains a symmetric quorum cluster! Extracting quorums...");
-            found_quorums.append(&mut symmetric_cluster.to_minimal_quorums(fbas));
+            found_quorums.extend(
+                symmetric_cluster
+                    .to_minimal_quorums(fbas)
+                    .into_iter()
+                    .filter(|quorum| quorum.is_superset(must_contain)),
+            );
         } else {
             debug!("Sorting nodes by rank...");
-            let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
+            let sorted_candidate_nodes =
+                sort_by_rank(nodes.difference(must_contain).collect(), fbas);
             debug!("Sorted.");
 
-            let unprocessed = sorted_nodes;
-            let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
-            let mut available = unprocessed.iter().cloned().collect();
+            let unprocessed = sorted_candidate_nodes;
+            let mut selection = must_contain.clone();
+            let mut available = nodes.clone();
 
             debug!("Collecting quorums...");
             minimal_quorums_finder_step(
@@ -265,6 +302,26 @@ mod tests {
 
         let expected = vec![bitset![0], bitset![1, 2]];
         let actual = find_minimal_quorums(&fbas);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_quorums_that_contain_in_correct_trivial() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
+
+        let expected = vec![bitset![0, 1], bitset![1, 2]];
+        let actual = find_minimal_quorums_that_contain(&fbas, &bitset![1]);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_quorums_that_contain_in_broken_trivial() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
+
+        let expected = vec![bitset![1, 2]];
+        let actual = find_minimal_quorums_that_contain(&fbas, &bitset![1]);
 
         assert_eq!(expected, actual);
     }
