@@ -8,6 +8,7 @@ mod quorums;
 mod splitting_sets;
 mod symmetric_clusters;
 
+pub mod assume_faulty;
 mod merge_by_group;
 pub mod preprocessing;
 pub mod sets;
