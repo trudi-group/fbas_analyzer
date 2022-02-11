@@ -1,7 +1,7 @@
 use super::*;
 use itertools::Itertools;
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuorumSet {
     pub threshold: usize,
@@ -11,12 +11,24 @@ pub struct QuorumSet {
     pub inner_quorum_sets: Vec<QuorumSet>,
 }
 impl QuorumSet {
-    pub fn new() -> Self {
+    pub fn new(
+        validators: Vec<NodeId>,
+        inner_quorum_sets: Vec<QuorumSet>,
+        threshold: usize,
+    ) -> Self {
         QuorumSet {
-            threshold: 0,
-            validators: vec![],
-            inner_quorum_sets: vec![],
+            threshold,
+            validators,
+            inner_quorum_sets,
         }
+    }
+    /// A quorum set tho basically mark a node as broken.
+    pub fn new_unsatisfiable() -> Self {
+        Self::new(vec![], vec![], 1)
+    }
+    /// A quorum set that is always satisfiable and induces a one-node quorum.
+    pub fn new_empty() -> Self {
+        Self::new(vec![], vec![], 0)
     }
     pub fn contained_nodes(&self) -> NodeIdSet {
         self.contained_nodes_with_duplicates().into_iter().collect()
@@ -27,25 +39,24 @@ impl QuorumSet {
         let nodes_set: NodeIdSet = nodes_vec.iter().copied().collect();
         nodes_vec.len() != nodes_set.len()
     }
+    pub fn is_satisfiable(&self) -> bool {
+        self.validators.len() + self.inner_quorum_sets.len() >= self.threshold
+    }
     pub fn is_quorum_slice(&self, node_set: &NodeIdSet) -> bool {
-        if self.threshold == 0 {
-            false // badly configured quorum set
-        } else {
-            let found_validator_matches = self
-                .validators
-                .iter()
-                .filter(|x| node_set.contains(**x))
-                .take(self.threshold)
-                .count();
-            let found_inner_quorum_set_matches = self
-                .inner_quorum_sets
-                .iter()
-                .filter(|x| x.is_quorum_slice(node_set))
-                .take(self.threshold - found_validator_matches)
-                .count();
+        let found_validator_matches = self
+            .validators
+            .iter()
+            .filter(|x| node_set.contains(**x))
+            .take(self.threshold)
+            .count();
+        let found_inner_quorum_set_matches = self
+            .inner_quorum_sets
+            .iter()
+            .filter(|x| x.is_quorum_slice(node_set))
+            .take(self.threshold - found_validator_matches)
+            .count();
 
-            found_validator_matches + found_inner_quorum_set_matches == self.threshold
-        }
+        found_validator_matches + found_inner_quorum_set_matches == self.threshold
     }
     /// Each valid quorum slice for this quorum set is a superset (i.e., equal to or a proper superset of)
     /// of at least one of the sets returned by this function.
@@ -94,11 +105,7 @@ mod tests {
     use super::*;
 
     fn flat_qset(validators: &[NodeId], threshold: usize) -> QuorumSet {
-        QuorumSet {
-            threshold,
-            validators: validators.iter().copied().collect(),
-            inner_quorum_sets: vec![],
-        }
+        QuorumSet::new(validators.iter().copied().collect(), vec![], threshold)
     }
 
     #[test]
@@ -143,12 +150,12 @@ mod tests {
     }
 
     #[test]
-    fn quorum_set_with_threshold_0_trusts_no_one() {
+    fn quorum_set_with_threshold_0_matches_always() {
         let quorum_set = flat_qset(&[0, 1, 2], 0);
-        assert!(!quorum_set.is_quorum_slice(&bitset![]));
-        assert!(!quorum_set.is_quorum_slice(&bitset![0]));
-        assert!(!quorum_set.is_quorum_slice(&bitset![0, 1]));
-        assert!(!quorum_set.is_quorum_slice(&bitset![0, 1, 2]));
+        assert!(quorum_set.is_quorum_slice(&bitset![]));
+        assert!(quorum_set.is_quorum_slice(&bitset![0]));
+        assert!(quorum_set.is_quorum_slice(&bitset![0, 1]));
+        assert!(quorum_set.is_quorum_slice(&bitset![0, 1, 2]));
     }
 
     #[test]

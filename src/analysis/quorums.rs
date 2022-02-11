@@ -375,21 +375,14 @@ mod tests {
     }
 
     #[test]
-    fn find_satisfiable_nodes_in_unconfigured_fbas() {
-        let fbas = Fbas::new_generic_unconfigured(10);
-        let all_nodes: NodeIdSet = (0..10).collect();
-
-        let actual = find_satisfiable_nodes(&all_nodes, &fbas);
-        let expected = (bitset![], all_nodes);
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
     fn find_transitively_unsatisfiable_nodes() {
         let mut fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
 
-        let directly_unsatisfiable = fbas.add_generic_node(QuorumSet::new());
+        let directly_unsatisfiable = fbas.add_generic_node(QuorumSet {
+            threshold: 1,
+            validators: vec![],
+            inner_quorum_sets: vec![],
+        });
         let transitively_unsatisfiable = fbas.add_generic_node(QuorumSet {
             threshold: 1,
             validators: vec![directly_unsatisfiable],

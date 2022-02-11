@@ -290,7 +290,7 @@ fn make_almost_ideal_stellarlike_fbas(top_tier_size: usize) -> Fbas {
         top_tier_size % 3 == 0,
         "Nodes in the Stellar network top tier always come in groups of (at least) 3..."
     );
-    let mut quorum_set = QuorumSet::new();
+    let mut quorum_set = QuorumSet::new_empty();
     for org_id in 0..top_tier_size / 3 {
         let validators = vec![org_id * 3, org_id * 3 + 1, org_id * 3 + 2];
         quorum_set.inner_quorum_sets.push(QuorumSet {

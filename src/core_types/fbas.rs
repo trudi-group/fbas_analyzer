@@ -62,7 +62,7 @@ impl Fbas {
     pub fn new_generic_unconfigured(n: usize) -> Self {
         let mut fbas = Fbas::new();
         for _ in 0..n {
-            fbas.add_generic_node(QuorumSet::new());
+            fbas.add_generic_node(QuorumSet::new_empty());
         }
         fbas
     }
@@ -132,17 +132,17 @@ impl PartialEq for Fbas {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Node {
     pub(crate) public_key: PublicKey,
     pub(crate) quorum_set: QuorumSet,
 }
 impl Node {
-    pub fn new(public_key: PublicKey) -> Self {
-        let quorum_set = QuorumSet::new();
+    /// Returns a node with an empty quorum set that induces one-node quorums!
+    pub fn new_unconfigured() -> Self {
         Node {
-            public_key,
-            quorum_set,
+            public_key: PublicKey::default(),
+            quorum_set: QuorumSet::new_empty(),
         }
     }
     pub fn is_quorum_slice(&self, node_set: &NodeIdSet) -> bool {
@@ -160,24 +160,13 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn new_node() {
-        let node = Node::new("test".to_string());
-        assert_eq!(node.public_key, "test");
-        assert_eq!(
-            node.quorum_set,
-            QuorumSet {
-                threshold: 0,
-                validators: vec![],
-                inner_quorum_sets: vec![]
-            }
-        );
-    }
-
-    #[test]
     #[should_panic]
     fn add_node_panics_on_duplicate_public_key() {
         let mut fbas = Fbas::new();
-        let node = Node::new("test".to_string());
+        let node = Node {
+            public_key: "test".to_string(),
+            quorum_set: QuorumSet::new_empty(),
+        };
         fbas.add_node(node.clone());
         fbas.add_node(node);
     }

@@ -221,12 +221,12 @@ mod tests {
             },
             {
                 "publicKey": "n3",
-                "quorumSet": { "threshold": 0, "validators": ["n3"] }
+                "quorumSet": { "threshold": 0, "validators": [] }
             }
         ]"#,
         );
         let actual = fbas.one_node_quorums();
-        let expected = vec![1];
+        let expected = vec![1, 3];
         assert_eq!(expected, actual);
     }
 
