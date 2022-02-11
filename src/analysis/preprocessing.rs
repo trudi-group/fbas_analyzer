@@ -19,9 +19,8 @@ impl Fbas {
         let all_nodes: Vec<NodeId> = (0..self.nodes.len()).collect();
         rank_nodes(&all_nodes, self)
     }
-    /// Returns all nodes part of a quorum-containing strongly connected component (the only
-    /// nodes relevant for analysis).
-    pub fn relevant_nodes(&self) -> NodeIdSet {
+    /// Returns all nodes part of a quorum-containing strongly connected component.
+    pub fn core_nodes(&self) -> NodeIdSet {
         let sccs = partition_into_strongly_connected_components(&self.satisfiable_nodes(), self);
         let mut relevant_nodes = bitset![];
         for scc in sccs {
@@ -45,7 +44,7 @@ impl Fbas {
     /// Reduces the FBAS to nodes relevant to analysis (nodes part of a quorum-containing strongly
     /// connected component) and reorders node IDs so that nodes are sorted by public key.
     pub fn to_standard_form(&self) -> Self {
-        let shrunken_self = self.shrunken(self.relevant_nodes()).0;
+        let shrunken_self = self.shrunken(self.core_nodes()).0;
         let mut raw_shrunken_self = shrunken_self.to_raw();
         raw_shrunken_self
             .0
@@ -175,7 +174,7 @@ mod tests {
             }
         ]"#,
         );
-        let actual = fbas.relevant_nodes();
+        let actual = fbas.core_nodes();
         let expected = bitset![0, 1];
         assert_eq!(expected, actual);
     }
@@ -198,7 +197,7 @@ mod tests {
             }
         ]"#,
         );
-        let actual = fbas.relevant_nodes();
+        let actual = fbas.core_nodes();
         let expected = bitset![0, 1, 2];
         assert_eq!(expected, actual);
     }

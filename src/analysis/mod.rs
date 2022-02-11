@@ -25,6 +25,7 @@ pub use symmetric_clusters::{find_symmetric_clusters, find_symmetric_top_tier};
 pub(crate) use preprocessing::*;
 pub(crate) use quorums::*;
 pub(crate) use sets::*;
+pub(crate) use splitting_sets::find_minimal_splitting_sets_with_minimal_quorums;
 pub(crate) use symmetric_clusters::*;
 
 #[cfg(test)]
@@ -83,7 +84,8 @@ mod tests {
     #[test]
     fn analysis_nontrivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let analysis = Analysis::new(&fbas);
+        let mut analysis = Analysis::new(&fbas);
+        analysis.shrink_to_core_nodes();
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(
@@ -98,20 +100,41 @@ mod tests {
         );
         assert_eq!(
             analysis.minimal_splitting_sets().describe(),
-            NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![10]], None).describe()
+            NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![4], bitset![10]], None)
+                .describe()
         );
     }
 
     #[test]
     fn analysis_nontrivial_blocking_sets_first() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let analysis = Analysis::new(&fbas);
+        let mut analysis = Analysis::new(&fbas);
+        analysis.shrink_to_core_nodes();
 
         assert_eq!(
             analysis.minimal_blocking_sets().describe(),
             NodeIdSetVecResult::new(vec![bitset![0, 1], bitset![0, 10], bitset![1, 10]], None)
                 .describe()
         );
+
+        assert!(analysis.has_quorum_intersection());
+        assert_eq!(
+            analysis.minimal_quorums().describe(),
+            NodeIdSetVecResult::new(vec![bitset![0, 1], bitset![0, 10], bitset![1, 10]], None)
+                .describe()
+        );
+        assert_eq!(
+            analysis.minimal_splitting_sets().describe(),
+            NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![4], bitset![10]], None)
+                .describe()
+        );
+    }
+
+    #[test]
+    fn analysis_nontrivial_shrink_to_top_tier() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let mut analysis = Analysis::new(&fbas);
+        analysis.shrink_to_top_tier();
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(
@@ -159,17 +182,23 @@ mod tests {
         let organizations = Groupings::organizations_from_json_str(
             r#"[
             {
-                "id": "266107f8966d45eedce41fee2581326d",
                 "name": "Stellar Development Foundation",
                 "validators": [
                     "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK",
                     "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
                     "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ"
                 ]
+            },
+            {
+                "name": "Muyu Network",
+                "validators": [
+                    "GAOO3LWBC4XF6VWRP5ESJ6IBHAISVJMSBTALHOQM2EZG7Q477UWA6L7U"
+                ]
             }]"#,
             &fbas,
         );
-        let analysis = Analysis::new(&fbas);
+        let mut analysis = Analysis::new(&fbas);
+        analysis.shrink_to_core_nodes();
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(
@@ -194,7 +223,7 @@ mod tests {
                 .merged_by_group(&organizations)
                 .minimal_sets()
                 .len(),
-            1
+            2
         );
     }
 

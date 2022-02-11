@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn shrink_unshrink_find_minimal_quorums() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let (fbas_shrunken, shrink_manager) = Fbas::shrunken(&fbas, fbas.relevant_nodes());
+        let (fbas_shrunken, shrink_manager) = Fbas::shrunken(&fbas, fbas.core_nodes());
 
         let expected = find_minimal_quorums(&fbas);
         let actual = shrink_manager.unshrink_sets(&find_minimal_quorums(&fbas_shrunken));

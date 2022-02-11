@@ -2,9 +2,9 @@ use super::*;
 
 use std::cell::RefCell;
 
-/// Front end for the most interesting FBAS analyses.
-/// Among other things, it does ID space shrinking (which improves memory and performance when
-/// using bit sets) and caches the results of long-running computations.
+/// Front end for many interesting FBAS analyses. Among other things, it does ID space shrinking
+/// (which improves memory and performance when using bit sets) and caches the results of
+/// long-running computations.
 #[derive(Debug)]
 pub struct Analysis {
     fbas_original: Fbas,
@@ -19,11 +19,10 @@ impl Analysis {
     /// Start a new `Analysis`
     pub fn new(fbas: &Fbas) -> Self {
         debug!(
-            "Shrinking FBAS of size {} to set of strongly connected nodes (for performance)...",
+            "Shrinking FBAS of size {} to set of satisfiable nodes (for performance)...",
             fbas.number_of_nodes()
         );
-        let relevant_nodes = fbas.relevant_nodes();
-        let (fbas_shrunken, shrink_manager) = Fbas::shrunken(fbas, relevant_nodes);
+        let (fbas_shrunken, shrink_manager) = Fbas::shrunken(fbas, fbas.satisfiable_nodes());
         debug!(
             "Shrank to an FBAS of size {}.",
             fbas_shrunken.number_of_nodes()
@@ -37,6 +36,46 @@ impl Analysis {
             mbs_shrunken_cache: RefCell::new(None),
             mss_shrunken_cache: RefCell::new(None),
         }
+    }
+    /// Shrink the FBAS to its core nodes, i.e., to the union of all quorum-containing strongly
+    /// connected components. Future splitting sets returned by this object will miss any splitting
+    /// sets that do not consist of core nodes, i.e., only splitting sets within the set of core
+    /// nodes will be returned.
+    pub fn shrink_to_core_nodes(&mut self) {
+        debug!("Shrinking FBAS again, to core nodes...",);
+        let core_nodes_original = self.fbas_original.core_nodes();
+        let (new_fbas_shrunken, new_shrink_manager) =
+            Fbas::shrunken(&self.fbas_original, core_nodes_original);
+        debug!(
+            "Shrank to an FBAS of size {} (from size {}).",
+            new_fbas_shrunken.number_of_nodes(),
+            self.fbas_shrunken.borrow().number_of_nodes(),
+        );
+        debug!("Fixing previously cached values...");
+        self.reshrink_cached_results(&new_shrink_manager);
+        self.fbas_shrunken.replace(new_fbas_shrunken);
+        self.shrink_manager.replace(new_shrink_manager);
+    }
+    /// Shrink the FBAS to its top tier. Future splitting sets returned by this object will miss
+    /// any splitting sets that are outside of the top tier, i.e., only splitting sets that split
+    /// the top tier will be returned.
+    pub fn shrink_to_top_tier(&mut self) {
+        debug!("Shrinking FBAS again, to top tier...",);
+        let top_tier_original = self
+            .shrink_manager
+            .borrow()
+            .unshrink_set(&self.top_tier_shrunken());
+        let (new_fbas_shrunken, new_shrink_manager) =
+            Fbas::shrunken(&self.fbas_original, top_tier_original);
+        debug!(
+            "Shrank to an FBAS of size {} (from size {}).",
+            new_fbas_shrunken.number_of_nodes(),
+            self.fbas_shrunken.borrow().number_of_nodes(),
+        );
+        debug!("Fixing previously cached values...");
+        self.reshrink_cached_results(&new_shrink_manager);
+        self.fbas_shrunken.replace(new_fbas_shrunken);
+        self.shrink_manager.replace(new_shrink_manager);
     }
     /// Nodes in the analyzed FBAS - not filtered by relevance.
     pub fn all_nodes(&self) -> NodeIdSetResult {
@@ -99,6 +138,21 @@ impl Analysis {
         find_symmetric_clusters(&self.fbas_original)
     }
 
+    #[rustfmt::skip]
+    fn reshrink_cached_results(&mut self, new_shrink_manager: &ShrinkManager) {
+        let mq_shrunken_cache = self.mq_shrunken_cache.borrow().clone().map(|mq_shrunken| {
+            new_shrink_manager.reshrink_sets(&mq_shrunken, &self.shrink_manager.borrow())
+        });
+        let mbs_shrunken_cache = self.mbs_shrunken_cache.borrow().clone().map(|mbs_shrunken| {
+            new_shrink_manager.reshrink_sets(&mbs_shrunken, &self.shrink_manager.borrow())
+        });
+        let mss_shrunken_cache = self.mss_shrunken_cache.borrow().clone().map(|mss_shrunken| {
+            new_shrink_manager.reshrink_sets(&mss_shrunken, &self.shrink_manager.borrow())
+        });
+        self.mq_shrunken_cache.replace(mq_shrunken_cache);
+        self.mbs_shrunken_cache.replace(mbs_shrunken_cache);
+        self.mss_shrunken_cache.replace(mss_shrunken_cache);
+    }
     fn has_quorum_intersection_from_shrunken(&self) -> bool {
         self.cached_computation(
             &self.hqi_cache,
@@ -107,7 +161,6 @@ impl Analysis {
                 !quorums.is_empty() && all_intersect(&quorums)
             },
             "has quorum intersection",
-            false,
         )
     }
     fn minimal_quorums_shrunken(&self) -> Vec<NodeIdSet> {
@@ -115,7 +168,6 @@ impl Analysis {
             &self.mq_shrunken_cache,
             find_minimal_quorums,
             "minimal quorums",
-            true,
         )
     }
     fn minimal_blocking_sets_shrunken(&self) -> Vec<NodeIdSet> {
@@ -123,7 +175,6 @@ impl Analysis {
             &self.mbs_shrunken_cache,
             find_minimal_blocking_sets,
             "minimal blocking sets",
-            true,
         )
     }
     fn minimal_splitting_sets_shrunken(&self) -> Vec<NodeIdSet> {
@@ -132,13 +183,12 @@ impl Analysis {
             &self.mss_shrunken_cache,
             |fbas| {
                 if self.has_quorum_intersection() {
-                    find_minimal_splitting_sets(fbas, &minimal_quorums)
+                    find_minimal_splitting_sets_with_minimal_quorums(fbas, &minimal_quorums)
                 } else {
                     vec![bitset![]]
                 }
             },
             "minimal splitting sets",
-            false,
         )
     }
     fn top_tier_shrunken(&self) -> NodeIdSet {
@@ -156,7 +206,6 @@ impl Analysis {
         cache: &RefCell<Option<R>>,
         computation: F,
         log_name: &str,
-        result_defines_top_tier: bool,
     ) -> R
     where
         R: Clone,
@@ -166,7 +215,6 @@ impl Analysis {
             cache,
             || computation(&self.fbas_shrunken.borrow()),
             log_name,
-            result_defines_top_tier,
         )
     }
     fn cached_computation<R, F>(
@@ -174,7 +222,6 @@ impl Analysis {
         cache: &RefCell<Option<R>>,
         computation: F,
         log_name: &str,
-        result_defines_top_tier: bool,
     ) -> R
     where
         R: Clone,
@@ -182,55 +229,13 @@ impl Analysis {
     {
         let cache_is_empty = cache.borrow().is_none();
         if cache_is_empty {
-            let should_shrink = if result_defines_top_tier {
-                // top tier not defined yet
-                self.mq_shrunken_cache.borrow().is_none()
-                    && self.mbs_shrunken_cache.borrow().is_none()
-            } else {
-                false
-            };
-
             info!("Computing {}...", log_name);
             let result = computation();
             cache.replace(Some(result));
-            if should_shrink {
-                self.shrink_id_space_to_top_tier();
-            }
         } else {
             info!("Using cached {}.", log_name);
         }
         cache.borrow().clone().unwrap()
-    }
-
-    #[rustfmt::skip]
-    fn shrink_id_space_to_top_tier(&self) {
-        debug!("Shrinking FBAS again, to top tier (for performance)...",);
-        let top_tier_original = self
-            .shrink_manager
-            .borrow()
-            .unshrink_set(&self.top_tier_shrunken());
-        let (new_fbas_shrunken, new_shrink_manager) =
-            Fbas::shrunken(&self.fbas_original, top_tier_original);
-        debug!(
-            "Shrank to an FBAS of size {} (from size {}).",
-            new_fbas_shrunken.number_of_nodes(),
-            self.fbas_shrunken.borrow().number_of_nodes(),
-        );
-
-        debug!("Fixing previously cached values...");
-        assert!(
-            self.mq_shrunken_cache.borrow().is_none() || self.mbs_shrunken_cache.borrow().is_none()
-        );
-        let mq_shrunken_cache = self.mq_shrunken_cache.borrow().clone().map(|mq_shrunken| {
-            new_shrink_manager.reshrink_sets(&mq_shrunken, &self.shrink_manager.borrow())
-        });
-        let mbs_shrunken_cache = self.mbs_shrunken_cache.borrow().clone().map(|mbs_shrunken| {
-            new_shrink_manager.reshrink_sets(&mbs_shrunken, &self.shrink_manager.borrow())
-        });
-        self.fbas_shrunken.replace(new_fbas_shrunken);
-        self.shrink_manager.replace(new_shrink_manager);
-        self.mq_shrunken_cache.replace(mq_shrunken_cache);
-        self.mbs_shrunken_cache.replace(mbs_shrunken_cache);
     }
 
     fn make_unshrunken_set_result(&self, payload: NodeIdSet) -> NodeIdSetResult {
