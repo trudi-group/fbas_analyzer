@@ -164,7 +164,7 @@ fn nonintersecting_quorums_finder(
         let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
         let mut available: NodeIdSet = unprocessed.iter().cloned().collect();
         let mut antiselection = available.clone();
-        let picks_left = unprocessed.len() / 2; // testing quorums yields no benefit
+        let picks_left = unprocessed.len() / 2; // testing bigger quorums yields no benefit
         if let Some(intersecting_quorums) = nonintersecting_quorums_finder_step(
             &mut unprocessed.into(),
             &mut selection,
@@ -361,6 +361,35 @@ mod tests {
         );
         let expected = vec![bitset![0, 3], bitset![1, 2]];
         let actual = find_minimal_quorums(&fbas);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_nonintersecting_quorums_in_half_half() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2", "n3"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 2, "validators": ["n2", "n3"] }
+            }
+        ]"#,
+        );
+
+        let expected = Some(vec![bitset![0, 1], bitset![2, 3]]);
+        let actual = find_nonintersecting_quorums(&fbas);
+
         assert_eq!(expected, actual);
     }
 

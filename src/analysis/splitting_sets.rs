@@ -88,6 +88,7 @@ fn minimal_splitting_sets_finder(
                 &mut available,
                 &mut found_splitting_sets,
                 fbas,
+                &fbas.core_nodes(),
                 &quorum_expanders,
                 relevant_quorum_parts,
                 true,
@@ -106,16 +107,15 @@ fn splitting_sets_finder_step(
     available: &mut NodeIdSet,
     found_splitting_sets: &mut Vec<NodeIdSet>,
     fbas: &Fbas,
+    core_nodes: &NodeIdSet,
     quorum_expanders: &NodeIdSet,
     relevant_quorum_parts: Vec<NodeIdSet>,
-    selection_changed: bool,
+    minimal_quorums_changed: bool,
 ) {
     if relevant_quorum_parts.len() < 2 && !unprocessed.iter().any(|&n| quorum_expanders.contains(n))
     {
         // return
-    } else if selection_changed
-        && is_quorum_intersection(selection, fbas, quorum_expanders, &relevant_quorum_parts)
-    {
+    } else if minimal_quorums_changed && is_quorum_intersection(selection, &relevant_quorum_parts) {
         found_splitting_sets.push(selection.clone());
         if found_splitting_sets.len() % 100_000 == 0 {
             debug!("...{} splitting sets found", found_splitting_sets.len());
@@ -126,7 +126,20 @@ fn splitting_sets_finder_step(
         if quorum_expanders.contains(current_candidate) {
             let mut modified_fbas = fbas.clone();
             modified_fbas.assume_faulty(selection);
-            let relevant_quorum_parts = find_minimal_quorums(&modified_fbas);
+
+            let modified_fbas_core_nodes = modified_fbas.core_nodes();
+
+            // // Not sure anymore if this is helpful...
+            // if core_nodes.is_superset(&modified_fbas_core_nodes) {
+
+            let (relevant_quorum_parts, changed) = if core_nodes.eq(&modified_fbas_core_nodes) {
+                (relevant_quorum_parts.clone(), false)
+            // } else if false {
+            //     // TODO some optimization should be possible for if the core nodes shrank only
+            //     // by the current candidate?
+            } else {
+                (find_minimal_quorums(&modified_fbas), true)
+            };
 
             splitting_sets_finder_step(
                 unprocessed,
@@ -134,11 +147,28 @@ fn splitting_sets_finder_step(
                 available,
                 found_splitting_sets,
                 &modified_fbas,
+                &modified_fbas_core_nodes,
                 quorum_expanders,
                 relevant_quorum_parts,
-                true,
+                changed,
             );
+            // Not sure anymore if this is helpful...
+            // } else {
+            //     // We got different clusters!
+            //     found_splitting_sets.extend(
+            //         find_minimal_splitting_sets(&modified_fbas)
+            //             .into_iter()
+            //             .map(|mut ss| {
+            //                 ss.union_with(&selection);
+            //                 ss
+            //             }),
+            //     );
+            // }
         } else {
+            debug_assert!(core_nodes.contains(current_candidate));
+            let mut updated_core_nodes = core_nodes.clone();
+            updated_core_nodes.remove(current_candidate);
+
             let relevant_quorum_parts = relevant_quorum_parts
                 .iter()
                 .filter(|q| q.contains(current_candidate))
@@ -155,6 +185,7 @@ fn splitting_sets_finder_step(
                 available,
                 found_splitting_sets,
                 fbas,
+                &updated_core_nodes,
                 quorum_expanders,
                 relevant_quorum_parts,
                 true,
@@ -169,13 +200,14 @@ fn splitting_sets_finder_step(
             .filter(|q| !q.is_disjoint(available))
             .collect();
 
-        if has_potential(selection, available, fbas, quorum_expanders) {
+        if has_potential(available, fbas, core_nodes) {
             splitting_sets_finder_step(
                 unprocessed,
                 selection,
                 available,
                 found_splitting_sets,
                 fbas,
+                core_nodes,
                 quorum_expanders,
                 relevant_quorum_parts_for_available,
                 false,
@@ -285,30 +317,21 @@ impl QuorumSet {
     }
 }
 
-fn is_quorum_intersection(
-    selection: &NodeIdSet,
-    fbas: &Fbas,
-    quorum_expanders: &NodeIdSet,
-    relevant_quorum_parts: &[NodeIdSet],
-) -> bool {
-    !selection.is_empty()
-        && has_potential(selection, selection, fbas, quorum_expanders)
-        && !all_intersect(relevant_quorum_parts)
+fn is_quorum_intersection(selection: &NodeIdSet, relevant_quorum_parts: &[NodeIdSet]) -> bool {
+    !selection.is_empty() && !all_intersect(relevant_quorum_parts)
 }
 
-/// Heuristic check that filters out many irrelvant sets.
-// TODO check if this actually helps something still (via benches)
-fn has_potential(
-    selection: &NodeIdSet,
-    available: &NodeIdSet,
-    fbas: &Fbas,
-    quorum_expanders: &NodeIdSet,
-) -> bool {
-    !selection.is_disjoint(quorum_expanders)
-        || !available.is_disjoint(quorum_expanders)
-        || selection
-            .iter()
-            .all(|x| fbas.nodes[x].is_slice_intersection(available))
+// For pruning
+fn has_potential(available: &NodeIdSet, fbas: &Fbas, core_nodes: &NodeIdSet) -> bool {
+    // each node in available has either been a quorum expander or a core node;
+    // so, available either can never be "all nodes", or all nodes have been in SCCs
+    if available.is_disjoint(core_nodes) {
+        let mut modified_fbas = fbas.clone();
+        modified_fbas.assume_faulty(available);
+        !modified_fbas.core_nodes().eq(core_nodes)
+    } else {
+        true
+    }
 }
 
 #[cfg(test)]

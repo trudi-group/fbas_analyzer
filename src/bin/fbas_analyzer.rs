@@ -14,6 +14,8 @@ struct Cli {
     /// Will use STDIN if omitted.
     nodes_path: Option<PathBuf>,
 
+    core_only: bool,
+
     /// Output (and find) minimal quorums.
     #[structopt(short = "q", long = "minimal-quorums")]
     minimal_quorums: bool,
