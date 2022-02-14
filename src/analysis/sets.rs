@@ -106,17 +106,18 @@ pub(crate) fn remove_non_minimal_x<F>(
 where
     F: Fn(&NodeIdSet, &Fbas) -> bool,
 {
-    let mut minimal_x = vec![];
+    let mut minimal_x = BTreeSet::new();
 
     debug!("Filtering out non-minimal node sets...");
     for (i, node_set) in node_sets.into_iter().enumerate() {
         if i % 100_000 == 0 {
             debug!("...at set {}; {} minimal sets", i, minimal_x.len());
         }
-        if is_minimal(&node_set, fbas) {
-            minimal_x.push(node_set);
+        if !minimal_x.contains(&node_set) && is_minimal(&node_set, fbas) {
+            minimal_x.insert(node_set);
         }
     }
+    let minimal_x: Vec<NodeIdSet> = minimal_x.into_iter().collect();
     debug!("Filtering done.");
     debug_assert!(is_set_of_minimal_node_sets(&minimal_x));
     minimal_x
@@ -181,5 +182,13 @@ mod tests {
     fn is_set_of_minimal_node_sets_detects_duplicates() {
         let sets = vec![bitset![0, 1], bitset![0, 1]];
         assert!(!is_set_of_minimal_node_sets(&sets));
+    }
+
+    #[test]
+    fn remove_non_minimal_x_removes_duplicates() {
+        let sets = vec![bitset![0, 1], bitset![0, 1]];
+        let actual = remove_non_minimal_x(sets, |_, _| true, &Fbas::new());
+        let expected = vec![bitset![0, 1]];
+        assert_eq!(expected, actual);
     }
 }
