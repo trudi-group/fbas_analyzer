@@ -1,9 +1,10 @@
 use super::*;
 
 impl Fbas {
-    /// This corresponds to the *delete* operation from Mazières's original FBAS/SCP paper.
-    /// For keeping the IDs correct, it doesn't delete the node entirely but only makes it
-    /// unsatisfiable and redacts it from all quorum sets.
+    /// Assume that these nodes can fail arbitrarily, i.e., also in Byzantine ways. This
+    /// corresponds to the *delete* operation from Mazières's original FBAS/SCP paper. For keeping
+    /// the IDs correct, it doesn't delete the node entirely but only makes it unsatisfiable and
+    /// redacts it from all quorum sets.
     pub fn assume_faulty(&mut self, nodes: &NodeIdSet) {
         for node_id in nodes.iter() {
             self.nodes[node_id].quorum_set = QuorumSet::new_unsatisfiable();

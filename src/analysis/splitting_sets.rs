@@ -47,7 +47,7 @@ fn minimal_splitting_sets_finder(
         debug!("It's clear that we lack quorum intersection; the empty set is a splitting set.");
         bitsetvec![{}]
     } else if consensus_clusters.is_empty() {
-        debug!("There can't be any quorums, and hence there are no splitting sets.");
+        debug!("There aren't any quorums, and hence there are no splitting sets.");
         assert!(minimal_quorums.is_empty());
         bitsetvec![]
     } else {
@@ -64,19 +64,38 @@ fn minimal_splitting_sets_finder(
             .flatten();
 
         if let Some(symmetric_cluster) = usable_symmetric_cluster {
+            // TODO let's better do this in _step, whenever a selection consists of non-expanders?
             debug!("Cluster contains a symmetric quorum cluster! Extracting splitting sets...");
             symmetric_cluster.to_minimal_splitting_sets()
         } else {
-            let relevant_nodes = cluster_nodes.union(&quorum_expanders).collect();
+            let mut relevant_nodes: Vec<NodeId> = cluster_nodes.union(&quorum_expanders).collect();
 
-            debug!("Sorting nodes by rank...");
-            let sorted_nodes = sort_by_rank(relevant_nodes, fbas);
+            debug!("Counting the number of affected nodes by each node...");
+            let affected_nodes_per_node = find_affected_nodes_per_node(&fbas);
+            debug!("Done.");
+
+            debug!("Sorting nodes by the number of nodes they affect...");
+            relevant_nodes.sort_by(|x, y| {
+                affected_nodes_per_node[*y]
+                    .len()
+                    .partial_cmp(&affected_nodes_per_node[*x].len())
+                    .unwrap()
+            });
             debug!("Sorted.");
 
-            let unprocessed = sorted_nodes;
+            println!(
+                "{:?}",
+                fbas.all_nodes()
+                    .iter()
+                    .map(|node| format!("{}: {}", node, fbas.nodes[node].public_key))
+                    .collect::<Vec<String>>()
+            );
+
+            let unprocessed = relevant_nodes;
             let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
             let mut available = unprocessed.iter().copied().collect();
 
+            let affected_nodes_by_selection = fbas.all_nodes();
             let relevant_quorum_parts = minimal_quorums.to_vec();
 
             let mut found_splitting_sets: Vec<NodeIdSet> = vec![];
@@ -90,6 +109,8 @@ fn minimal_splitting_sets_finder(
                 fbas,
                 &fbas.core_nodes(),
                 &quorum_expanders,
+                &affected_nodes_per_node,
+                affected_nodes_by_selection,
                 relevant_quorum_parts,
                 true,
             );
@@ -109,6 +130,8 @@ fn splitting_sets_finder_step(
     fbas: &Fbas,
     core_nodes: &NodeIdSet,
     quorum_expanders: &NodeIdSet,
+    affected_nodes_per_node: &[NodeIdSet],
+    affected_nodes_by_selection: NodeIdSet,
     relevant_quorum_parts: Vec<NodeIdSet>,
     minimal_quorums_changed: bool,
 ) {
@@ -117,11 +140,38 @@ fn splitting_sets_finder_step(
         // return
     } else if minimal_quorums_changed && is_quorum_intersection(selection, &relevant_quorum_parts) {
         found_splitting_sets.push(selection.clone());
+        if found_splitting_sets.len() % 1_000 == 0 {
+            println!(
+                "...{} splitting sets found; {:?}, {:?}",
+                found_splitting_sets.len(),
+                selection,
+                affected_nodes_by_selection
+            );
+        }
         if found_splitting_sets.len() % 100_000 == 0 {
             debug!("...{} splitting sets found", found_splitting_sets.len());
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
+        debug_assert!(
+            affected_nodes_per_node[current_candidate].is_subset(&affected_nodes_by_selection)
+        );
+
         selection.insert(current_candidate);
+
+        // TODO: is "is_subset" part correct? we can assume that the ordering is topology-preserving?
+
+        let mut affected_nodes = affected_nodes_by_selection.clone();
+        affected_nodes.intersect_with(&affected_nodes_per_node[current_candidate]);
+
+        let mut new_unprocessed = VecDeque::new();
+        let mut new_available = selection.clone();
+        for &node in unprocessed
+            .iter()
+            .filter(|&&node| affected_nodes_per_node[node].is_subset(&affected_nodes))
+        {
+            new_unprocessed.push_back(node);
+            new_available.insert(node);
+        }
 
         if quorum_expanders.contains(current_candidate) {
             let mut modified_fbas = fbas.clone();
@@ -141,14 +191,19 @@ fn splitting_sets_finder_step(
                 (find_minimal_quorums(&modified_fbas), true)
             };
 
+            // probably no helpful at all
+            // let modified_affected_nodes_per_node = find_affected_nodes_per_node(&fbas);
+
             splitting_sets_finder_step(
-                unprocessed,
+                &mut new_unprocessed,
                 selection,
-                available,
+                &mut new_available,
                 found_splitting_sets,
                 &modified_fbas,
                 &modified_fbas_core_nodes,
                 quorum_expanders,
+                &affected_nodes_per_node,
+                affected_nodes,
                 relevant_quorum_parts,
                 changed,
             );
@@ -180,18 +235,19 @@ fn splitting_sets_finder_step(
                 .collect();
 
             splitting_sets_finder_step(
-                unprocessed,
+                &mut new_unprocessed,
                 selection,
-                available,
+                &mut new_available,
                 found_splitting_sets,
                 fbas,
                 &updated_core_nodes,
                 quorum_expanders,
+                affected_nodes_per_node,
+                affected_nodes,
                 relevant_quorum_parts,
                 true,
             );
         }
-
         selection.remove(current_candidate);
         available.remove(current_candidate);
 
@@ -209,6 +265,8 @@ fn splitting_sets_finder_step(
                 fbas,
                 core_nodes,
                 quorum_expanders,
+                affected_nodes_per_node,
+                affected_nodes_by_selection,
                 relevant_quorum_parts_for_available,
                 false,
             );
@@ -315,6 +373,37 @@ impl QuorumSet {
             0
         }
     }
+}
+
+// TODO was für preprocessing? (incl. test)
+/// Nodes that point to nodes after a few steps; nodes also affect themselves.
+fn find_affected_nodes_per_node(fbas: &Fbas) -> Vec<NodeIdSet> {
+    let mut result: Vec<NodeIdSet> = (0..fbas.number_of_nodes())
+        .map(|node_id| bitset! {node_id})
+        .collect();
+    let mut this_visit = NodeIdSet::new();
+    let mut next_visit = fbas.all_nodes();
+    let mut tmp = NodeIdSet::new(); // for fewer clones
+    while !next_visit.is_empty() {
+        this_visit.clear();
+        this_visit.union_with(&next_visit);
+        next_visit.clear();
+        for affected_node in this_visit.iter() {
+            for affecting_node in fbas.nodes[affected_node]
+                .quorum_set
+                .contained_nodes()
+                .iter()
+            {
+                tmp.clear();
+                tmp.union_with(&result[affected_node]);
+                if !result[affecting_node].is_superset(&tmp) {
+                    result[affecting_node].union_with(&tmp);
+                    next_visit.insert(affecting_node);
+                }
+            }
+        }
+    }
+    result
 }
 
 fn is_quorum_intersection(selection: &NodeIdSet, relevant_quorum_parts: &[NodeIdSet]) -> bool {
@@ -690,32 +779,100 @@ mod tests {
             r#"[
             {
                 "publicKey": "n0",
-                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
             },
             {
                 "publicKey": "n1",
-                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
             },
             {
                 "publicKey": "n2",
-                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
             },
             {
                 "publicKey": "n3",
-                "quorumSet": { "threshold": 6, "validators": ["n0", "n1", "n2", "n3", "n4", "n5"] }
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
             },
             {
                 "publicKey": "n4",
-                "quorumSet": { "threshold": 3, "validators": ["n3", "n4", "n5"] }
+                "quorumSet": { "threshold": 1, "validators": ["n2"] }
             },
             {
                 "publicKey": "n5",
-                "quorumSet": { "threshold": 3, "validators": ["n3", "n4", "n5"] }
+                "quorumSet": { "threshold": 2, "validators": ["n3", "n4"] }
+            },
+            {
+                "publicKey": "n6",
+                "quorumSet": { "threshold": 1, "validators": ["n5"] }
+            },
+            {
+                "publicKey": "n7",
+                "quorumSet": { "threshold": 1, "validators": ["n2"] }
+            },
+            {
+                "publicKey": "n8",
+                "quorumSet": { "threshold": 2, "validators": ["n3", "n7"] }
             }
         ]"#,
         );
-        let expected: Vec<NodeIdSet> = bitsetvec![{ 0 }, { 1 }, { 2 }, { 3 }];
+        let expected: Vec<NodeIdSet> = bitsetvec![{2}, {5}, {0, 1}, {0, 3}, {1, 3}, {3, 4}, {3, 7}];
         let actual = find_minimal_splitting_sets(&fbas);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn affected_nodes_outside_symmetric_cluster() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
+            },
+            {
+                "publicKey": "n4",
+                "quorumSet": { "threshold": 1, "validators": ["n2"] }
+            },
+            {
+                "publicKey": "n5",
+                "quorumSet": { "threshold": 2, "validators": ["n3", "n4"] }
+            },
+            {
+                "publicKey": "n6",
+                "quorumSet": { "threshold": 1, "validators": ["n5"] }
+            }
+        ]"#,
+        );
+        // let expected: Vec<NodeIdSet> = bitsetvec![
+        //     {1, 2, 3, 4, 5, 6},
+        //     {0, 2, 3, 4, 5, 6},
+        //     {0, 1, 3, 4, 5, 6},
+        //     {0, 1, 2, 4, 5, 6},
+        //     {5, 6},
+        //     {6},
+        //     {}
+        // ];
+        let expected: Vec<NodeIdSet> = bitsetvec![
+            {0, 1, 2, 3, 4, 5, 6},
+            {0, 1, 2, 3, 4, 5, 6},
+            {0, 1, 2, 3, 4, 5, 6},
+            {0, 1, 2, 3, 4, 5, 6},
+            {4, 5, 6},
+            {5, 6},
+            {6}
+        ];
+        let actual = find_affected_nodes_per_node(&fbas);
         assert_eq!(expected, actual);
     }
 }
