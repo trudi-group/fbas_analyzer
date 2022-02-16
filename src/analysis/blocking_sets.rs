@@ -126,6 +126,9 @@ impl QuorumSet {
     /// If `self` represents a symmetric quorum cluster, this function returns all minimal blocking sets of the induced FBAS,
     /// but perhaps also a few extra...
     fn to_blocking_sets(&self) -> Vec<NodeIdSet> {
+        if self.blocking_threshold() == 0 {
+            return vec![bitset![]];
+        }
         let mut subslice_groups: Vec<Vec<NodeIdSet>> = vec![];
         subslice_groups.extend(
             self.validators
@@ -217,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn blocking_sets_of_2_of_3_quorum_set() {
+    fn flat_2_of_3_quorum_set_to_blocking_sets() {
         let qset = QuorumSet {
             threshold: 2,
             validators: vec![0, 1, 2],
@@ -226,6 +229,22 @@ mod tests {
         let expected = bitsetvec![{0, 1}, {0, 2}, {1, 2}];
         let actual = qset.to_blocking_sets();
 
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn unsatisfiable_quorum_set_to_blocking_sets() {
+        let quorum_set = QuorumSet::new_unsatisfiable();
+        let expected = bitsetvec![{}];
+        let actual = quorum_set.to_blocking_sets();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn empty_quorum_set_to_blocking_sets() {
+        let quorum_set = QuorumSet::new_empty();
+        let expected: Vec<NodeIdSet> = bitsetvec![];
+        let actual = quorum_set.to_blocking_sets();
         assert_eq!(expected, actual);
     }
 

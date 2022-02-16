@@ -59,8 +59,12 @@ impl QuorumSet {
         found_validator_matches + found_inner_quorum_set_matches == self.threshold
     }
     /// Each valid quorum slice for this quorum set is a superset (i.e., equal to or a proper superset of)
-    /// of at least one of the sets returned by this function.
+    /// of at least one of the sets returned by this function. The slices returned here are not
+    /// necessarily minimal!
     pub fn to_quorum_slices(&self) -> Vec<NodeIdSet> {
+        if self.threshold == 0 {
+            return vec![bitset![]];
+        }
         let mut subslice_groups: Vec<Vec<NodeIdSet>> = vec![];
         subslice_groups.extend(
             self.validators
@@ -144,9 +148,21 @@ mod tests {
     }
 
     #[test]
-    fn empty_set_is_not_quorum_slice() {
+    fn empty_set_is_not_quorum_slice_of_nonempty_quorum_set() {
         let quorum_set = flat_qset(&[0, 1, 2], 2);
         assert!(!quorum_set.is_quorum_slice(&bitset![]));
+    }
+
+    #[test]
+    fn empty_set_is_not_quorum_slice_of_unsatisfiable_quorum_set() {
+        let quorum_set = QuorumSet::new_unsatisfiable();
+        assert!(!quorum_set.is_quorum_slice(&bitset![]));
+    }
+
+    #[test]
+    fn empty_set_is_quorum_slice_of_empty_quorum_set() {
+        let quorum_set = QuorumSet::new_empty();
+        assert!(quorum_set.is_quorum_slice(&bitset![]));
     }
 
     #[test]
@@ -159,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn flast_quorum_set_to_quorum_slices() {
+    fn flat_quorum_set_to_quorum_slices() {
         let quorum_set = flat_qset(&[0, 1, 2], 1);
         let expected = bitsetvec![[0], [1], [2]];
         let actual = quorum_set.to_quorum_slices();
@@ -167,11 +183,32 @@ mod tests {
     }
 
     #[test]
+    fn unsatisfiable_quorum_set_to_quorum_slices() {
+        let quorum_set = QuorumSet::new_unsatisfiable();
+        let expected: Vec<NodeIdSet> = bitsetvec![];
+        let actual = quorum_set.to_quorum_slices();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn empty_quorum_set_to_quorum_slices() {
+        let quorum_set = QuorumSet::new_empty();
+        let expected = bitsetvec![{}];
+        let actual = quorum_set.to_quorum_slices();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
     fn nested_quorum_set_to_quorum_slices() {
         let quorum_set = QuorumSet {
-            threshold: 3,
+            threshold: 4,
             validators: vec![0, 1],
             inner_quorum_sets: vec![
+                QuorumSet {
+                    threshold: 0,
+                    validators: vec![7, 8],
+                    inner_quorum_sets: vec![],
+                },
                 QuorumSet {
                     threshold: 1,
                     validators: vec![2, 3],
@@ -192,6 +229,8 @@ mod tests {
             [0, 1, 2],
             [0, 1, 3],
             [0, 1, 3, 4, 5],
+            [0, 1, 2, 3, 4, 5],
+            [0, 1, 3, 4, 5],
             [0, 2, 3, 4, 5],
             [0, 3, 4, 5],
             [1, 2, 3, 4, 5],
@@ -199,6 +238,48 @@ mod tests {
         ];
         let actual = quorum_set.to_quorum_slices();
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn weird_nested_quorum_set_to_quorum_slices() {
+        let quorum_set = QuorumSet {
+            threshold: 4,
+            validators: vec![],
+            inner_quorum_sets: vec![
+                QuorumSet {
+                    threshold: 0,
+                    validators: vec![25, 39],
+                    inner_quorum_sets: vec![],
+                },
+                QuorumSet {
+                    threshold: 1,
+                    validators: vec![4, 27],
+                    inner_quorum_sets: vec![],
+                },
+                QuorumSet {
+                    threshold: 1,
+                    validators: vec![15, 74],
+                    inner_quorum_sets: vec![],
+                },
+                QuorumSet {
+                    threshold: 2,
+                    validators: vec![11, 31, 71],
+                    inner_quorum_sets: vec![],
+                },
+                QuorumSet {
+                    threshold: 2,
+                    validators: vec![12, 48, 70],
+                    inner_quorum_sets: vec![],
+                },
+            ],
+        };
+        let miss_problem = bitset! {4, 11, 12, 15, 25, 31};
+        assert!(quorum_set.is_quorum_slice(&miss_problem));
+        assert!(quorum_set
+            .to_quorum_slices()
+            .iter()
+            .find(|&x| x.is_subset(&miss_problem))
+            .is_some());
     }
 
     #[test]

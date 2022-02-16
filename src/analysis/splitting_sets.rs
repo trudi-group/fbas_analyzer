@@ -875,4 +875,20 @@ mod tests {
         let actual = find_affected_nodes_per_node(&fbas);
         assert_eq!(expected, actual);
     }
+
+    #[test]
+    fn unsatisfiable_quorum_set_to_splitting_sets() {
+        let quorum_set = QuorumSet::new_unsatisfiable();
+        let expected: Vec<NodeIdSet> = bitsetvec![];
+        let actual = quorum_set.to_splitting_sets();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn empty_quorum_set_to_splitting_sets() {
+        let quorum_set = QuorumSet::new_empty();
+        let expected: Vec<NodeIdSet> = bitsetvec![];
+        let actual = quorum_set.to_splitting_sets();
+        assert_eq!(expected, actual);
+    }
 }
