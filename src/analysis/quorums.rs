@@ -141,6 +141,20 @@ impl QuorumSet {
             quorums
         }
     }
+    /// Makes sense if the quorum set represents a symmetric quorum cluster...
+    fn has_nonintersecting_quorums(&self) -> Option<(NodeIdSet, NodeIdSet)> {
+        // make sure we aren't really a 1-node quorum
+        if self
+            .nonempty_slices_iter(|qset| qset.threshold)
+            .take(2)
+            .count()
+            > 1
+        {
+            self.has_nonintersecting_quorum_slices()
+        } else {
+            None
+        }
+    }
 }
 
 fn nonintersecting_quorums_finder(
@@ -156,8 +170,20 @@ fn nonintersecting_quorums_finder(
     } else {
         warn!("There is only one consensus cluster - there might be no non-intersecting quorums and the subsequent search might be slow.");
         let nodes = consensus_clusters.into_iter().next().unwrap_or_default();
+        nonintersecting_quorums_finder_in_cluster(&nodes, fbas)
+    }
+}
+fn nonintersecting_quorums_finder_in_cluster(nodes: &NodeIdSet, fbas: &Fbas) -> Vec<BitSet> {
+    if let Some(symmetric_cluster) = find_symmetric_cluster_in_consensus_cluster(&nodes, fbas) {
+        debug!("Cluster contains a symmetric quorum cluster! Extracting using that...");
+        if let Some((quorum1, quorum2)) = symmetric_cluster.has_nonintersecting_quorums() {
+            vec![quorum1, quorum2]
+        } else {
+            vec![]
+        }
+    } else {
         debug!("Sorting nodes by rank...");
-        let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
+        let sorted_nodes = sort_by_rank(nodes.iter().collect(), fbas);
         debug!("Sorted.");
 
         let unprocessed = sorted_nodes;

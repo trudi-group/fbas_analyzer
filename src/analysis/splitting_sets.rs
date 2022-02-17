@@ -1,5 +1,4 @@
 use super::*;
-use itertools::Itertools;
 
 /// If the FBAS *doesn't* enjoy quorum intersection, this will just return `bitsetvec![{}]`...
 pub fn find_minimal_splitting_sets(fbas: &Fbas) -> Vec<NodeIdSet> {
@@ -93,10 +92,9 @@ fn minimal_splitting_sets_finder(
 
             let unprocessed = relevant_nodes;
             let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
-            let mut available = unprocessed.iter().copied().collect();
+            let mut remaining = unprocessed.iter().copied().collect();
 
             let affected_nodes_by_selection = fbas.all_nodes();
-            let relevant_quorum_parts = minimal_quorums.to_vec();
 
             let mut found_splitting_sets: Vec<NodeIdSet> = vec![];
 
@@ -104,14 +102,13 @@ fn minimal_splitting_sets_finder(
             splitting_sets_finder_step(
                 &mut unprocessed.into(),
                 &mut selection,
-                &mut available,
+                &mut remaining,
                 &mut found_splitting_sets,
                 fbas,
                 &fbas.core_nodes(),
                 &quorum_expanders,
                 &affected_nodes_per_node,
                 affected_nodes_by_selection,
-                relevant_quorum_parts,
                 true,
             );
             debug!(
@@ -125,20 +122,18 @@ fn minimal_splitting_sets_finder(
 fn splitting_sets_finder_step(
     unprocessed: &mut NodeIdDeque,
     selection: &mut NodeIdSet,
-    available: &mut NodeIdSet,
+    remaining: &mut NodeIdSet,
     found_splitting_sets: &mut Vec<NodeIdSet>,
     fbas: &Fbas,
     core_nodes: &NodeIdSet,
     quorum_expanders: &NodeIdSet,
     affected_nodes_per_node: &[NodeIdSet],
     affected_nodes_by_selection: NodeIdSet,
-    relevant_quorum_parts: Vec<NodeIdSet>,
-    minimal_quorums_changed: bool,
+    core_nodes_changed: bool,
 ) {
-    if relevant_quorum_parts.len() < 2 && !unprocessed.iter().any(|&n| quorum_expanders.contains(n))
-    {
+    if core_nodes.is_empty() && remaining.is_disjoint(&quorum_expanders) {
         // return
-    } else if minimal_quorums_changed && is_quorum_intersection(selection, &relevant_quorum_parts) {
+    } else if core_nodes_changed && has_quorum_intersection(&core_nodes, &fbas) {
         found_splitting_sets.push(selection.clone());
         if found_splitting_sets.len() % 1_000 == 0 {
             println!(
@@ -152,135 +147,76 @@ fn splitting_sets_finder_step(
             debug!("...{} splitting sets found", found_splitting_sets.len());
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
+        // TODO: is "is_subset" part correct? we can assume that the ordering is topology-preserving?
         debug_assert!(
             affected_nodes_per_node[current_candidate].is_subset(&affected_nodes_by_selection)
         );
 
+        remaining.remove(current_candidate);
         selection.insert(current_candidate);
 
-        // TODO: is "is_subset" part correct? we can assume that the ordering is topology-preserving?
-
-        let mut affected_nodes = affected_nodes_by_selection.clone();
-        affected_nodes.intersect_with(&affected_nodes_per_node[current_candidate]);
+        let mut new_affected_nodes_by_selection = affected_nodes_by_selection.clone();
+        new_affected_nodes_by_selection.intersect_with(&affected_nodes_per_node[current_candidate]);
 
         let mut new_unprocessed = VecDeque::new();
-        let mut new_available = selection.clone();
-        for &node in unprocessed
-            .iter()
-            .filter(|&&node| affected_nodes_per_node[node].is_subset(&affected_nodes))
-        {
+        let mut new_remaining = bitset![];
+        for &node in unprocessed.iter().filter(|&&node| {
+            affected_nodes_per_node[node].is_subset(&new_affected_nodes_by_selection)
+        }) {
             new_unprocessed.push_back(node);
-            new_available.insert(node);
+            new_remaining.insert(node);
         }
 
-        if quorum_expanders.contains(current_candidate) {
-            let mut modified_fbas = fbas.clone();
-            modified_fbas.assume_faulty(selection);
+        let mut new_fbas = fbas.clone();
+        new_fbas.assume_faulty(&bitset![current_candidate]);
 
-            let modified_fbas_core_nodes = modified_fbas.core_nodes();
+        let new_core_nodes = new_fbas.core_nodes();
 
-            // // Not sure anymore if this is helpful...
-            // if core_nodes.is_superset(&modified_fbas_core_nodes) {
-
-            let (relevant_quorum_parts, changed) = if core_nodes.eq(&modified_fbas_core_nodes) {
-                (relevant_quorum_parts.clone(), false)
-            // } else if false {
-            //     // TODO some optimization should be possible for if the core nodes shrank only
-            //     // by the current candidate?
-            } else {
-                (find_minimal_quorums(&modified_fbas), true)
-            };
-
-            // probably no helpful at all
-            // let modified_affected_nodes_per_node = find_affected_nodes_per_node(&fbas);
-
-            splitting_sets_finder_step(
-                &mut new_unprocessed,
-                selection,
-                &mut new_available,
-                found_splitting_sets,
-                &modified_fbas,
-                &modified_fbas_core_nodes,
-                quorum_expanders,
-                &affected_nodes_per_node,
-                affected_nodes,
-                relevant_quorum_parts,
-                changed,
-            );
-            // Not sure anymore if this is helpful...
-            // } else {
-            //     // We got different clusters!
-            //     found_splitting_sets.extend(
-            //         find_minimal_splitting_sets(&modified_fbas)
-            //             .into_iter()
-            //             .map(|mut ss| {
-            //                 ss.union_with(&selection);
-            //                 ss
-            //             }),
-            //     );
-            // }
-        } else {
-            debug_assert!(core_nodes.contains(current_candidate));
-            let mut updated_core_nodes = core_nodes.clone();
-            updated_core_nodes.remove(current_candidate);
-
-            let relevant_quorum_parts = relevant_quorum_parts
-                .iter()
-                .filter(|q| q.contains(current_candidate))
-                .cloned()
-                .map(|mut q| {
-                    q.remove(current_candidate);
-                    q
-                })
-                .collect();
-
-            splitting_sets_finder_step(
-                &mut new_unprocessed,
-                selection,
-                &mut new_available,
-                found_splitting_sets,
-                fbas,
-                &updated_core_nodes,
-                quorum_expanders,
-                affected_nodes_per_node,
-                affected_nodes,
-                relevant_quorum_parts,
-                true,
-            );
-        }
+        splitting_sets_finder_step(
+            &mut new_unprocessed,
+            selection,
+            &mut new_remaining,
+            found_splitting_sets,
+            &new_fbas,
+            &new_core_nodes,
+            quorum_expanders,
+            affected_nodes_per_node,
+            new_affected_nodes_by_selection,
+            !core_nodes.eq(&new_core_nodes),
+        );
         selection.remove(current_candidate);
-        available.remove(current_candidate);
+        // Not sure anymore if this is helpful...
+        // } else {
+        //     // We got different clusters!
+        //     found_splitting_sets.extend(
+        //         find_minimal_splitting_sets(&modified_fbas)
+        //             .into_iter()
+        //             .map(|mut ss| {
+        //                 ss.union_with(&selection);
+        //                 ss
+        //             }),
+        //     );
+        // }
 
-        let relevant_quorum_parts_for_available: Vec<NodeIdSet> = relevant_quorum_parts
-            .into_iter()
-            .filter(|q| !q.is_disjoint(available))
-            .collect();
-
-        if has_potential(available, fbas, core_nodes) {
+        if has_potential(remaining, fbas, core_nodes) {
             splitting_sets_finder_step(
                 unprocessed,
                 selection,
-                available,
+                remaining,
                 found_splitting_sets,
                 fbas,
                 core_nodes,
                 quorum_expanders,
                 affected_nodes_per_node,
                 affected_nodes_by_selection,
-                relevant_quorum_parts_for_available,
                 false,
             );
         }
         unprocessed.push_front(current_candidate);
-        available.insert(current_candidate);
+        remaining.insert(current_candidate);
     }
 }
 
-impl Node {
-    fn is_slice_intersection(&self, node_set: &NodeIdSet) -> bool {
-        self.quorum_set.is_slice_intersection(node_set)
-    }
-}
 impl QuorumSet {
     /// Nodes that are not satisfied by one of my slices, thereby potentially expanding it to a
     /// larger quorum.
@@ -297,25 +233,7 @@ impl QuorumSet {
             .collect()
     }
     fn is_slice_intersection(&self, node_set: &NodeIdSet) -> bool {
-        let splitting_threshold = self.splitting_threshold();
-        if splitting_threshold == 0 {
-            true // everything is splitting what is already split
-        } else {
-            let found_validator_matches = self
-                .validators
-                .iter()
-                .filter(|x| node_set.contains(**x))
-                .take(splitting_threshold)
-                .count();
-            let found_inner_quorum_set_matches = self
-                .inner_quorum_sets
-                .iter()
-                .filter(|x| x.is_slice_intersection(node_set))
-                .take(splitting_threshold - found_validator_matches)
-                .count();
-
-            found_validator_matches + found_inner_quorum_set_matches == splitting_threshold
-        }
+        self.is_slice(node_set, |qset| qset.splitting_threshold())
     }
     /// If `self` represents a symmetric quorum cluster, this function returns all minimal splitting sets of the induced FBAS.
     fn to_minimal_splitting_sets(&self) -> Vec<NodeIdSet> {
@@ -329,35 +247,7 @@ impl QuorumSet {
     /// If `self` represents a symmetric quorum cluster, this function returns all minimal splitting sets of the induced FBAS,
     /// but perhaps also a few extra...
     fn to_splitting_sets(&self) -> Vec<NodeIdSet> {
-        let mut subslice_groups: Vec<Vec<NodeIdSet>> = vec![];
-        subslice_groups.extend(
-            self.validators
-                .iter()
-                .map(|&node_id| vec![bitset![node_id]]),
-        );
-        subslice_groups.extend(
-            self.inner_quorum_sets
-                .iter()
-                .map(|qset| qset.to_splitting_sets()),
-        );
-        let potential_splitting_sets: Vec<NodeIdSet> = subslice_groups
-            .into_iter()
-            .combinations(self.splitting_threshold())
-            .map(|group_combination| {
-                group_combination
-                    .into_iter()
-                    .map(|subslice_group| subslice_group.into_iter())
-                    .multi_cartesian_product()
-                    .map(|subslice_combination| {
-                        let mut slice = bitset![];
-                        for node_set in subslice_combination.into_iter() {
-                            slice.union_with(&node_set);
-                        }
-                        slice
-                    })
-                    .collect()
-            })
-            .concat();
+        let potential_splitting_sets = self.to_slices(|qset| qset.splitting_threshold());
         // check to see if we aren't really a 1-quorum quorum set
         if potential_splitting_sets.len() == 1 && self.is_quorum_slice(&potential_splitting_sets[0])
         {
@@ -406,17 +296,18 @@ fn find_affected_nodes_per_node(fbas: &Fbas) -> Vec<NodeIdSet> {
     result
 }
 
-fn is_quorum_intersection(selection: &NodeIdSet, relevant_quorum_parts: &[NodeIdSet]) -> bool {
-    !selection.is_empty() && !all_intersect(relevant_quorum_parts)
+fn has_quorum_intersection(cluster: &NodeIdSet, fbas: &Fbas) -> bool {
+    // nonintersecting_quorums_finder_in_cluster(&cluster, &fbas).len() > 1
+    find_nonintersecting_quorums(&fbas).is_some()
 }
 
 // For pruning
-fn has_potential(available: &NodeIdSet, fbas: &Fbas, core_nodes: &NodeIdSet) -> bool {
+fn has_potential(remaining: &NodeIdSet, fbas: &Fbas, core_nodes: &NodeIdSet) -> bool {
     // each node in available has either been a quorum expander or a core node;
     // so, available either can never be "all nodes", or all nodes have been in SCCs
-    if available.is_disjoint(core_nodes) {
+    if remaining.is_disjoint(core_nodes) {
         let mut modified_fbas = fbas.clone();
-        modified_fbas.assume_faulty(available);
+        modified_fbas.assume_faulty(remaining);
         !modified_fbas.core_nodes().eq(core_nodes)
     } else {
         true
@@ -888,6 +779,14 @@ mod tests {
     fn empty_quorum_set_to_splitting_sets() {
         let quorum_set = QuorumSet::new_empty();
         let expected: Vec<NodeIdSet> = bitsetvec![];
+        let actual = quorum_set.to_splitting_sets();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn quorum_set_with_non_intersecting_slices_to_splitting_sets() {
+        let quorum_set = QuorumSet::new(vec![0, 1, 2, 3], vec![], 2);
+        let expected: Vec<NodeIdSet> = vec![bitset![]];
         let actual = quorum_set.to_splitting_sets();
         assert_eq!(expected, actual);
     }

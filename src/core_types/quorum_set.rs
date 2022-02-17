@@ -35,14 +35,41 @@ impl QuorumSet {
     }
     /// Whether some nodes appear more than once
     pub fn contains_duplicates(&self) -> bool {
-        let nodes_vec = self.contained_nodes_with_duplicates();
-        let nodes_set: NodeIdSet = nodes_vec.iter().copied().collect();
-        nodes_vec.len() != nodes_set.len()
+        self.contained_nodes_with_duplicates()
+            .into_iter()
+            .duplicates()
+            .next()
+            .is_some()
     }
     pub fn is_satisfiable(&self) -> bool {
         self.validators.len() + self.inner_quorum_sets.len() >= self.threshold
     }
     pub fn is_quorum_slice(&self, node_set: &NodeIdSet) -> bool {
+        self.is_slice(node_set, |qset| qset.threshold)
+    }
+    /// Each valid quorum slice for this quorum set is a superset (i.e., equal to or a proper superset of)
+    /// of at least one of the sets returned by this function. The slices returned here are not
+    /// necessarily minimal!
+    pub fn to_quorum_slices(&self) -> Vec<NodeIdSet> {
+        self.to_slices(|qset| qset.threshold)
+    }
+    /// Returns some pair of nonintersecting slices if there are any, `None` otherwise.
+    pub fn has_nonintersecting_quorum_slices(&self) -> Option<(NodeIdSet, NodeIdSet)> {
+        if self.threshold == 0 {
+            Some((bitset! {}, bitset! {}))
+        } else {
+            if self.contained_nodes().len() < self.contained_nodes_with_duplicates().len() {
+                self.has_nonintersecting_quorum_slices_if_duplicates()
+            } else {
+                self.has_nonintersecting_quorum_slices_if_no_duplicates()
+            }
+        }
+    }
+    pub(crate) fn is_slice(
+        &self,
+        node_set: &NodeIdSet,
+        relevant_threshold: impl Fn(&QuorumSet) -> usize,
+    ) -> bool {
         let found_validator_matches = self
             .validators
             .iter()
@@ -53,32 +80,27 @@ impl QuorumSet {
             .inner_quorum_sets
             .iter()
             .filter(|x| x.is_quorum_slice(node_set))
-            .take(self.threshold - found_validator_matches)
+            .take(relevant_threshold(self) - found_validator_matches)
             .count();
 
-        found_validator_matches + found_inner_quorum_set_matches == self.threshold
+        found_validator_matches + found_inner_quorum_set_matches == relevant_threshold(self)
     }
-    /// Each valid quorum slice for this quorum set is a superset (i.e., equal to or a proper superset of)
-    /// of at least one of the sets returned by this function. The slices returned here are not
-    /// necessarily minimal!
-    pub fn to_quorum_slices(&self) -> Vec<NodeIdSet> {
-        if self.threshold == 0 {
-            return vec![bitset![]];
+    pub(crate) fn to_slices(
+        &self,
+        relevant_threshold: impl Copy + Fn(&QuorumSet) -> usize,
+    ) -> Vec<NodeIdSet> {
+        if relevant_threshold(self) == 0 {
+            vec![bitset![]]
+        } else {
+            self.nonempty_slices_iter(relevant_threshold).collect()
         }
-        let mut subslice_groups: Vec<Vec<NodeIdSet>> = vec![];
-        subslice_groups.extend(
-            self.validators
-                .iter()
-                .map(|&node_id| vec![bitset![node_id]]),
-        );
-        subslice_groups.extend(
-            self.inner_quorum_sets
-                .iter()
-                .map(|qset| qset.to_quorum_slices()),
-        );
-        subslice_groups
-            .into_iter()
-            .combinations(self.threshold)
+    }
+    pub(crate) fn nonempty_slices_iter<'a>(
+        &'a self,
+        relevant_threshold: impl Copy + Fn(&QuorumSet) -> usize + 'a,
+    ) -> impl Iterator<Item = NodeIdSet> + '_ {
+        self.to_subslice_groups(relevant_threshold)
+            .combinations(relevant_threshold(self))
             .map(|group_combination| {
                 group_combination
                     .into_iter()
@@ -91,16 +113,84 @@ impl QuorumSet {
                         }
                         slice
                     })
-                    .collect()
             })
-            .concat()
+            .flatten()
+    }
+    fn to_subslice_groups<'a>(
+        &'a self,
+        relevant_threshold: impl Copy + Fn(&QuorumSet) -> usize + 'a,
+    ) -> impl Iterator<Item = Vec<NodeIdSet>> + 'a {
+        self.validators
+            .iter()
+            .map(|&node_id| vec![bitset![node_id]])
+            .chain(
+                self.inner_quorum_sets
+                    .iter()
+                    .map(move |qset| qset.to_slices(relevant_threshold)),
+            )
     }
     fn contained_nodes_with_duplicates(&self) -> Vec<NodeId> {
-        let mut nodes = self.validators.clone();
-        for inner_quorum_set in self.inner_quorum_sets.iter() {
-            nodes.append(&mut inner_quorum_set.contained_nodes_with_duplicates());
+        self.validators
+            .iter()
+            .copied()
+            .chain(
+                self.inner_quorum_sets
+                    .iter()
+                    .flat_map(|inner_qset| inner_qset.contained_nodes_with_duplicates()),
+            )
+            .collect()
+    }
+    fn has_nonintersecting_quorum_slices_if_duplicates(&self) -> Option<(NodeIdSet, NodeIdSet)> {
+        let mut tester = NodeIdSet::new();
+        let contained_unique_nodes = self.contained_nodes();
+        self.nonempty_slices_iter(|qset| qset.threshold)
+            .find_map(|slice| {
+                if slice.len() < contained_unique_nodes.len() / 2 {
+                    tester.union_with(&contained_unique_nodes);
+                    tester.difference_with(&slice);
+                    if self.is_quorum_slice(&tester) {
+                        Some((slice, tester.clone()))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+    }
+    fn has_nonintersecting_quorum_slices_if_no_duplicates(&self) -> Option<(NodeIdSet, NodeIdSet)> {
+        let mut slices = [bitset![], bitset![]];
+        let mut i = 0;
+        for &validator in self.validators.iter().take(2 * self.threshold) {
+            slices[i % 2].insert(validator);
+            i += 1;
         }
-        nodes
+        for inner_qset in self.inner_quorum_sets.iter() {
+            if i >= 2 * self.threshold {
+                break;
+            } else if let Some(subslices) =
+                inner_qset.has_nonintersecting_quorum_slices_if_no_duplicates()
+            {
+                slices[i % 2].union_with(&subslices.0);
+                slices[(i + 1) % 2].union_with(&subslices.1);
+                i += 2;
+            } else if let Some(subslice) = inner_qset
+                .nonempty_slices_iter(|qset| qset.threshold)
+                .next()
+            {
+                slices[i % 2].union_with(&subslice);
+                i += 1;
+            }
+        }
+        if i == 2 * self.threshold {
+            let [slice1, slice2] = slices;
+            debug_assert!(slice1.is_disjoint(&slice2));
+            debug_assert!(self.is_quorum_slice(&slice1));
+            debug_assert!(self.is_quorum_slice(&slice2));
+            Some((slice1, slice2))
+        } else {
+            None
+        }
     }
 }
 
@@ -280,6 +370,64 @@ mod tests {
             .iter()
             .find(|&x| x.is_subset(&miss_problem))
             .is_some());
+    }
+
+    #[test]
+    fn nested_quorum_set_has_nonintersecting_quorum_slices() {
+        let quorum_set = QuorumSet {
+            threshold: 3,
+            validators: vec![],
+            inner_quorum_sets: vec![
+                QuorumSet {
+                    threshold: 1,
+                    validators: vec![0, 1],
+                    inner_quorum_sets: vec![],
+                },
+                QuorumSet {
+                    threshold: 1,
+                    validators: vec![2, 3],
+                    inner_quorum_sets: vec![],
+                },
+                QuorumSet {
+                    threshold: 1,
+                    validators: vec![4, 6],
+                    inner_quorum_sets: vec![],
+                },
+            ],
+        };
+        let result = quorum_set.has_nonintersecting_quorum_slices();
+        assert!(result.is_some());
+        let (slice_1, slice_2) = result.unwrap();
+        assert!(quorum_set.is_quorum_slice(&slice_1));
+        assert!(quorum_set.is_quorum_slice(&slice_2));
+        assert!(slice_1.is_disjoint(&slice_2));
+    }
+
+    #[test]
+    fn nested_quorum_set_with_duplicates_has_no_nonintersecting_quorum_slices() {
+        let quorum_set = QuorumSet {
+            threshold: 3,
+            validators: vec![],
+            inner_quorum_sets: vec![
+                QuorumSet {
+                    threshold: 1,
+                    validators: vec![0, 1],
+                    inner_quorum_sets: vec![],
+                },
+                QuorumSet {
+                    threshold: 1,
+                    validators: vec![1, 2],
+                    inner_quorum_sets: vec![],
+                },
+                QuorumSet {
+                    threshold: 1,
+                    validators: vec![2, 3],
+                    inner_quorum_sets: vec![],
+                },
+            ],
+        };
+        let result = quorum_set.has_nonintersecting_quorum_slices();
+        assert!(result.is_none());
     }
 
     #[test]
