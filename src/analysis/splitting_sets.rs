@@ -58,7 +58,7 @@ fn minimal_splitting_sets_finder(
         debug!("Done.");
 
         let usable_symmetric_cluster = quorum_expanders
-            .is_empty()
+            .is_disjoint(&cluster_nodes)
             .then(|| find_symmetric_cluster_in_consensus_cluster(&cluster_nodes, fbas))
             .flatten();
 
@@ -82,13 +82,14 @@ fn minimal_splitting_sets_finder(
             });
             debug!("Sorted.");
 
-            println!(
-                "{:?}",
-                fbas.all_nodes()
-                    .iter()
-                    .map(|node| format!("{}: {}", node, fbas.nodes[node].public_key))
-                    .collect::<Vec<String>>()
-            );
+            // TODO FIXME
+            // println!(
+            //     "{:?}",
+            //     fbas.all_nodes()
+            //         .iter()
+            //         .map(|node| format!("{}: {}", node, fbas.nodes[node].public_key))
+            //         .collect::<Vec<String>>()
+            // );
 
             let unprocessed = relevant_nodes;
             let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
