@@ -25,7 +25,6 @@ pub use symmetric_clusters::{find_symmetric_clusters, find_symmetric_top_tier};
 pub(crate) use preprocessing::*;
 pub(crate) use quorums::*;
 pub(crate) use sets::*;
-pub(crate) use splitting_sets::find_minimal_splitting_sets_with_minimal_quorums;
 pub(crate) use symmetric_clusters::*;
 
 #[cfg(test)]
@@ -160,7 +159,8 @@ mod tests {
         );
         assert_eq!(
             analysis.minimal_splitting_sets().describe(),
-            NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![4], bitset![10]], None).describe()
+            NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![4], bitset![10]], None)
+                .describe()
         );
     }
 

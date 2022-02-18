@@ -178,16 +178,9 @@ impl Analysis {
         )
     }
     fn minimal_splitting_sets_shrunken(&self) -> Vec<NodeIdSet> {
-        let minimal_quorums = self.minimal_quorums_shrunken();
         self.cached_computation_from_fbas_shrunken(
             &self.mss_shrunken_cache,
-            |fbas| {
-                if self.has_quorum_intersection() {
-                    find_minimal_splitting_sets_with_minimal_quorums(fbas, &minimal_quorums)
-                } else {
-                    vec![bitset![]]
-                }
-            },
+            find_minimal_splitting_sets,
             "minimal splitting sets",
         )
     }

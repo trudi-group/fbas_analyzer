@@ -116,6 +116,7 @@ fn do_analysis(fbas: &Fbas) -> CustomResultsStruct {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct CustomResultsStruct {
     minimal_blocking_sets: NodeIdSetVecResult,
     minimal_splitting_sets: NodeIdSetVecResult,

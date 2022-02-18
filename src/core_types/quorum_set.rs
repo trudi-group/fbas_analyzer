@@ -57,12 +57,10 @@ impl QuorumSet {
     pub fn has_nonintersecting_quorum_slices(&self) -> Option<(NodeIdSet, NodeIdSet)> {
         if self.threshold == 0 {
             Some((bitset! {}, bitset! {}))
+        } else if self.contained_nodes().len() < self.contained_nodes_with_duplicates().len() {
+            self.has_nonintersecting_quorum_slices_if_duplicates()
         } else {
-            if self.contained_nodes().len() < self.contained_nodes_with_duplicates().len() {
-                self.has_nonintersecting_quorum_slices_if_duplicates()
-            } else {
-                self.has_nonintersecting_quorum_slices_if_no_duplicates()
-            }
+            self.has_nonintersecting_quorum_slices_if_no_duplicates()
         }
     }
     pub(crate) fn is_slice(
