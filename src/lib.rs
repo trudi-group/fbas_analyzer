@@ -17,10 +17,6 @@
 //! // corresponding to node indices in the input JSON.
 //! assert_eq!(bitsetvec![{0,1},{0,10},{1,10}], analysis.minimal_blocking_sets().unwrap());
 //!
-//! // Finding all minimal splitting sets can take forever for a larger FBAS; you might want to
-//! // "shrink" the FBAS before trying it.
-//! analysis.shrink_to_core_nodes();
-//!
 //! // You can directly transform results into vectors of public keys or organization names...
 //! let mss_pretty = analysis.minimal_splitting_sets().into_pretty_vec_vec(&fbas, None);
 //! assert_eq!(vec!["GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH"], mss_pretty[0]);

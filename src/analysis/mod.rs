@@ -84,8 +84,7 @@ mod tests {
     #[test]
     fn analysis_nontrivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let mut analysis = Analysis::new(&fbas);
-        analysis.shrink_to_core_nodes();
+        let analysis = Analysis::new(&fbas);
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(
@@ -108,8 +107,7 @@ mod tests {
     #[test]
     fn analysis_nontrivial_blocking_sets_first() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let mut analysis = Analysis::new(&fbas);
-        analysis.shrink_to_core_nodes();
+        let analysis = Analysis::new(&fbas);
 
         assert_eq!(
             analysis.minimal_blocking_sets().describe(),
@@ -145,6 +143,24 @@ mod tests {
         assert_eq!(
             analysis.minimal_splitting_sets().describe(),
             NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![10]], None).describe()
+        );
+    }
+
+    #[test]
+    fn analysis_nontrivial_shrink_to_core_nodes() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let mut analysis = Analysis::new(&fbas);
+        analysis.shrink_to_core_nodes();
+
+        assert!(analysis.has_quorum_intersection());
+        assert_eq!(
+            analysis.minimal_quorums().describe(),
+            NodeIdSetVecResult::new(vec![bitset![0, 1], bitset![0, 10], bitset![1, 10]], None)
+                .describe()
+        );
+        assert_eq!(
+            analysis.minimal_splitting_sets().describe(),
+            NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![4], bitset![10]], None).describe()
         );
     }
 
@@ -197,8 +213,7 @@ mod tests {
             }]"#,
             &fbas,
         );
-        let mut analysis = Analysis::new(&fbas);
-        analysis.shrink_to_core_nodes();
+        let analysis = Analysis::new(&fbas);
 
         assert!(analysis.has_quorum_intersection());
         assert_eq!(
