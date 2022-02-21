@@ -311,7 +311,7 @@ impl QuorumSet {
             .map(|slice| {
                 slice
                     .iter()
-                    .filter(|&node| !fbas.nodes[node].is_quorum_slice(node, &slice))
+                    .filter(|&node| !fbas.nodes[node].quorum_set.is_quorum_slice(&slice))
                     .collect::<Vec<NodeId>>()
             })
             .flatten()

@@ -107,7 +107,7 @@ impl Fbas {
         !node_set.is_empty()
             && node_set
                 .iter()
-                .all(|x| self.nodes[x].is_quorum_slice(x, node_set))
+                .all(|x| self.nodes[x].quorum_set.is_quorum_slice(node_set))
     }
 }
 impl Hash for Fbas {

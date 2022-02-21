@@ -244,7 +244,7 @@ fn nonintersecting_quorums_finder_step(
 fn selection_satisfiable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
     selection
         .iter()
-        .all(|x| fbas.nodes[x].is_quorum_slice(x, available))
+        .all(|x| fbas.nodes[x].quorum_set.is_quorum_slice(available))
 }
 
 pub(crate) fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
@@ -252,7 +252,7 @@ pub(crate) fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
 
     while let Some(unsatisfiable_node) = satisfiable
         .iter()
-        .find(|&x| !fbas.nodes[x].is_quorum_slice(x, &satisfiable))
+        .find(|&x| !fbas.nodes[x].quorum_set.is_quorum_slice(&satisfiable))
     {
         satisfiable.remove(unsatisfiable_node);
     }

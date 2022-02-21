@@ -36,7 +36,7 @@ impl Fbas {
     pub fn one_node_quorums(&self) -> Vec<NodeId> {
         let mut nodes = vec![];
         for (node_id, node) in self.nodes.iter().enumerate() {
-            if node.is_quorum_slice(node_id, &bitset![node_id]) {
+            if node.quorum_set.is_quorum_slice(&bitset![node_id]) {
                 nodes.push(node_id);
             }
         }
@@ -75,11 +75,11 @@ impl Fbas {
 pub fn find_satisfiable_nodes(node_set: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
     let (mut satisfiable, mut unsatisfiable): (NodeIdSet, NodeIdSet) = node_set
         .iter()
-        .partition(|&x| fbas.nodes[x].is_quorum_slice(x, node_set));
+        .partition(|&x| fbas.nodes[x].quorum_set.is_quorum_slice(node_set));
 
     while let Some(unsatisfiable_node) = satisfiable
         .iter()
-        .find(|&x| !fbas.nodes[x].is_quorum_slice(x, &satisfiable))
+        .find(|&x| !fbas.nodes[x].quorum_set.is_quorum_slice(&satisfiable))
     {
         satisfiable.remove(unsatisfiable_node);
         unsatisfiable.insert(unsatisfiable_node);
