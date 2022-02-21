@@ -141,7 +141,7 @@ fn load_fbas(
     ignore_inactive_nodes: bool,
     ignore_one_node_quorums: bool,
 ) -> Fbas {
-    let fbas = if let Some(nodes_path) = o_nodes_path {
+    let mut fbas = if let Some(nodes_path) = o_nodes_path {
         eprintln!("Reading FBAS JSON from file...");
         let mut fbas = Fbas::from_json_file(nodes_path);
         if ignore_inactive_nodes {
@@ -149,20 +149,20 @@ fn load_fbas(
                 FilteredNodes::from_json_file(nodes_path, |v| v["active"] == false);
             fbas = fbas.without_nodes_pretty(&inactive_nodes.into_pretty_vec());
         }
-        if ignore_one_node_quorums {
-            fbas = fbas.without_nodes(&fbas.one_node_quorums());
-        }
         fbas
     } else {
         eprintln!("Reading FBAS JSON from STDIN...");
-        if ignore_inactive_nodes || ignore_one_node_quorums {
+        if ignore_inactive_nodes {
             panic!(
-                "Ignoring nodes is currently not supported when reading an FBAS from STDIN;
-                perhaps filter the input yourself? (e.g., with `jq`)"
+                "Ignoring nodes based on additional JSON fields is currently not supported when
+                reading an FBAS from STDIN; perhaps filter the input yourself? (e.g., with `jq`)"
             );
         }
         Fbas::from_json_stdin()
     };
+    if ignore_one_node_quorums {
+        fbas = fbas.without_nodes(&fbas.one_node_quorums());
+    }
     eprintln!("Loaded FBAS with {} nodes.", fbas.number_of_nodes());
     fbas
 }
