@@ -260,7 +260,7 @@ impl FbasValues {
         faulty_nodes.union_with(&new_faulty_nodes);
 
         let mut fbas = self.fbas.clone();
-        fbas.assume_faulty(&faulty_nodes);
+        fbas.assume_split_faulty(&faulty_nodes);
 
         // sccs can't become bigger by adding faulty nodes
         let sccs = self
@@ -311,7 +311,7 @@ impl QuorumSet {
             .map(|slice| {
                 slice
                     .iter()
-                    .filter(|node| !fbas.nodes[*node].is_quorum_slice(&slice))
+                    .filter(|&node| !fbas.nodes[node].is_quorum_slice(node, &slice))
                     .collect::<Vec<NodeId>>()
             })
             .flatten()

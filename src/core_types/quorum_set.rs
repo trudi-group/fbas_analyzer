@@ -49,7 +49,9 @@ impl QuorumSet {
     }
     /// Each valid quorum slice for this quorum set is a superset (i.e., equal to or a proper superset of)
     /// of at least one of the sets returned by this function. The slices returned here are not
-    /// necessarily minimal!
+    /// necessarily minimal! Also: The returned slices are not (yet) valid quorum slices for a
+    /// specific *node*; for that we would need to make sure that that the node itself is included
+    /// in the slices (e.g., by inserting it into each slice).
     pub fn to_quorum_slices(&self) -> Vec<NodeIdSet> {
         self.to_slices(|qset| qset.threshold)
     }

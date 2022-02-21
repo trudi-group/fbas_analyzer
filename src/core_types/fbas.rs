@@ -107,7 +107,7 @@ impl Fbas {
         !node_set.is_empty()
             && node_set
                 .iter()
-                .all(|x| self.nodes[x].is_quorum_slice(node_set))
+                .all(|x| self.nodes[x].is_quorum_slice(x, node_set))
     }
 }
 impl Hash for Fbas {
@@ -145,8 +145,8 @@ impl Node {
             quorum_set: QuorumSet::new_empty(),
         }
     }
-    pub fn is_quorum_slice(&self, node_set: &NodeIdSet) -> bool {
-        self.quorum_set.is_quorum_slice(node_set)
+    pub fn is_quorum_slice(&self, own_id: NodeId, node_set: &NodeIdSet) -> bool {
+        node_set.contains(own_id) && self.quorum_set.is_quorum_slice(node_set)
     }
 }
 

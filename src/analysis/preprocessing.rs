@@ -15,6 +15,7 @@ impl Fbas {
     pub fn strongly_connected_components(&self) -> Vec<NodeIdSet> {
         partition_into_strongly_connected_components(&self.all_nodes(), self)
     }
+    /// Rank all nodes in the FBAS using an algorithm vaguely resembling PageRank.
     pub fn rank_nodes(&self) -> Vec<RankScore> {
         let all_nodes: Vec<NodeId> = (0..self.nodes.len()).collect();
         rank_nodes(&all_nodes, self)
@@ -35,7 +36,7 @@ impl Fbas {
     pub fn one_node_quorums(&self) -> Vec<NodeId> {
         let mut nodes = vec![];
         for (node_id, node) in self.nodes.iter().enumerate() {
-            if node.is_quorum_slice(&bitset![node_id]) {
+            if node.is_quorum_slice(node_id, &bitset![node_id]) {
                 nodes.push(node_id);
             }
         }
@@ -51,10 +52,16 @@ impl Fbas {
             .sort_by_cached_key(|n| n.public_key.clone());
         Fbas::from_raw(raw_shrunken_self)
     }
+    /// Remove `nodes` (referred to by their public keys) from the FBAS and all quorum sets,
+    /// basically assuming they have irrevocably crashed. Changes the node IDs of remaining nodes!
+    /// For a similar method hat keeps node IDs unchanged see [`Fbas::assume_crash_faulty`].
     pub fn without_nodes_pretty(&self, nodes: &[PublicKey]) -> Self {
         let nodes: Vec<usize> = nodes.iter().filter_map(|p| self.get_node_id(p)).collect();
         self.without_nodes(&nodes)
     }
+    /// Remove `nodes` (referred to by their node IDs) from the FBAS and all quorum sets, basically
+    /// assuming they have irrevocably crashed. Changes the node IDs of remaining nodes! For a
+    /// similar method hat keeps node IDs unchanged see [`Fbas::assume_crash_faulty`].
     pub fn without_nodes(&self, nodes: &[NodeId]) -> Self {
         let mut remaining_nodes = self.all_nodes();
         for &node in nodes.iter() {
@@ -68,11 +75,11 @@ impl Fbas {
 pub fn find_satisfiable_nodes(node_set: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
     let (mut satisfiable, mut unsatisfiable): (NodeIdSet, NodeIdSet) = node_set
         .iter()
-        .partition(|&x| fbas.nodes[x].is_quorum_slice(node_set));
+        .partition(|&x| fbas.nodes[x].is_quorum_slice(x, node_set));
 
     while let Some(unsatisfiable_node) = satisfiable
         .iter()
-        .find(|&x| !fbas.nodes[x].is_quorum_slice(&satisfiable))
+        .find(|&x| !fbas.nodes[x].is_quorum_slice(x, &satisfiable))
     {
         satisfiable.remove(unsatisfiable_node);
         unsatisfiable.insert(unsatisfiable_node);

@@ -1,28 +1,36 @@
 use super::*;
 
 impl Fbas {
-    /// Assume that these nodes can fail arbitrarily, i.e., also in Byzantine ways. This
-    /// corresponds to the *delete* operation from Mazières's original FBAS/SCP paper. For keeping
-    /// the IDs correct, it doesn't delete the node entirely but only makes it unsatisfiable and
-    /// redacts it from all quorum sets.
-    pub fn assume_faulty(&mut self, nodes: &NodeIdSet) {
+    /// Assume in the following that `nodes` can exhibit crash failures with the "goal" of
+    /// blocking individual nodes or the whole FBAS. For keeping node IDs unchanged, this method
+    /// doesn't delete the node entirely but only makes it unsatisfiable.
+    pub fn assume_crash_faulty(&mut self, nodes: &NodeIdSet) {
+        for node_id in nodes.iter() {
+            self.nodes[node_id].quorum_set = QuorumSet::new_unsatisfiable();
+        }
+    }
+    /// Assume in the following that `nodes` can exhibit Byzantine failures with the "goal" of
+    /// provoking splits. This corresponds to the *delete* operation from Mazières's original
+    /// FBAS/SCP paper. For keeping node IDs unchanged, this method doesn't delete the node
+    /// entirely but only makes it unsatisfiable and redacts it from all quorum sets.
+    pub fn assume_split_faulty(&mut self, nodes: &NodeIdSet) {
         for node_id in nodes.iter() {
             self.nodes[node_id].quorum_set = QuorumSet::new_unsatisfiable();
         }
         for node in self.nodes.iter_mut() {
-            node.assume_faulty(nodes);
+            node.assume_split_faulty(nodes);
         }
     }
 }
 impl Node {
     /// This corresponds to the *delete* operation from Mazières's original FBAS/SCP paper.
-    pub fn assume_faulty(&mut self, nodes: &NodeIdSet) {
-        self.quorum_set.assume_faulty(nodes);
+    pub fn assume_split_faulty(&mut self, nodes: &NodeIdSet) {
+        self.quorum_set.assume_split_faulty(nodes);
     }
 }
 impl QuorumSet {
     /// This corresponds to the *delete* operation from Mazières's original FBAS/SCP paper.
-    pub fn assume_faulty(&mut self, nodes: &NodeIdSet) {
+    pub fn assume_split_faulty(&mut self, nodes: &NodeIdSet) {
         let n_validators_before = self.validators.len();
         self.validators = self
             .validators
@@ -33,7 +41,7 @@ impl QuorumSet {
         let n_validator_deletions = n_validators_before - self.validators.len();
 
         for iqs in self.inner_quorum_sets.iter_mut() {
-            iqs.assume_faulty(nodes);
+            iqs.assume_split_faulty(nodes);
         }
         self.threshold = self.threshold.saturating_sub(n_validator_deletions);
     }
@@ -44,7 +52,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn assume_faulty_makes_nodes_unsatisfiable() {
+    fn assume_crash_faulty_makes_nodes_unsatisfiable() {
         let mut fbas = Fbas::from_json_str(
             r#"[
             {
@@ -57,13 +65,44 @@ mod tests {
             }
         ]"#,
         );
-        fbas.assume_faulty(&bitset! {0, 1});
+        fbas.assume_crash_faulty(&bitset! {1});
+        let actual = fbas;
+        let expected = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"], "innerQuorumSets": [] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 1, "validators": [], "innerQuorumSets": [] }
+            }
+        ]"#,
+        );
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn assume_split_faulty_makes_nodes_unsatisfiable() {
+        let mut fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"], "innerQuorumSets": [] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"], "innerQuorumSets": [] }
+            }
+        ]"#,
+        );
+        fbas.assume_split_faulty(&bitset! {0, 1});
         assert!(!fbas.nodes[0].quorum_set.is_satisfiable());
         assert!(!fbas.nodes[1].quorum_set.is_satisfiable());
     }
 
     #[test]
-    fn assume_faulty_removes_from_quorum_sets() {
+    fn assume_split_faulty_removes_from_quorum_sets() {
         let mut fbas = Fbas::from_json_str(
             r#"[
             {
@@ -76,14 +115,14 @@ mod tests {
             }
         ]"#,
         );
-        fbas.assume_faulty(&bitset! {1});
+        fbas.assume_split_faulty(&bitset! {1});
         let actual = fbas.nodes[0].quorum_set.clone();
         let expected = QuorumSet::new(vec![0], vec![], 1);
         assert_eq!(expected, actual);
     }
 
     #[test]
-    fn assume_faulty_works_on_a_more_complex_fbas() {
+    fn assume_split_faulty_works_on_a_more_complex_fbas() {
         let mut fbas = Fbas::from_json_str(
             r#"[
             {
@@ -106,7 +145,7 @@ mod tests {
             }
         ]"#,
         );
-        fbas.assume_faulty(&bitset! {0, 2});
+        fbas.assume_split_faulty(&bitset! {0, 2});
         let actual = fbas;
         let expected = Fbas::from_json_str(
             r#"[

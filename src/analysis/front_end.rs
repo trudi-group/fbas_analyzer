@@ -122,8 +122,8 @@ impl Analysis {
     pub fn minimal_splitting_sets(&self) -> NodeIdSetVecResult {
         self.make_shrunken_set_vec_result(self.minimal_splitting_sets_shrunken())
     }
-    /// Top tier - the set of nodes exclusively relevant when determining minimal blocking sets and
-    /// minimal splitting sets.
+    /// Top tier - the set of nodes exclusively relevant when determining minimal quorums and
+    /// minimal blocking sets.
     pub fn top_tier(&self) -> NodeIdSetResult {
         self.make_shrunken_set_result(self.top_tier_shrunken())
     }
