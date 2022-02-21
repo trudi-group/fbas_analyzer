@@ -41,10 +41,10 @@ impl Fbas {
         }
         nodes
     }
-    /// Reduces the FBAS to nodes relevant to analysis (nodes part of a quorum-containing strongly
-    /// connected component) and reorders node IDs so that nodes are sorted by public key.
+    /// Removes all unsatisfiable nodes and reorders node IDs so that nodes are sorted by public
+    /// key.
     pub fn to_standard_form(&self) -> Self {
-        let shrunken_self = self.shrunken(self.core_nodes()).0;
+        let shrunken_self = self.shrunken(self.satisfiable_nodes()).0;
         let mut raw_shrunken_self = shrunken_self.to_raw();
         raw_shrunken_self
             .0
@@ -329,7 +329,8 @@ mod tests {
     }
 
     #[test]
-    fn to_standard_form_filters_edge_nodes() {
+    fn to_standard_form_keeps_satisfiable_edge_nodes() {
+        // because they can be relevant for determining splitting sets!
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -346,7 +347,7 @@ mod tests {
             }
         ]"#,
         );
-        let expected = toy_standard_form_fbas();
+        let expected = fbas.clone();
         let actual = fbas.to_standard_form();
         assert_eq!(expected, actual);
     }
@@ -374,7 +375,7 @@ mod tests {
             &standard_form_fbas.to_json_string().into_bytes(),
         ));
         let standard_form_fbas_expected_hash =
-            "6f73c7787f38fdde66470cc3b2e469e092c70f52823396ae13e52c9a561b20f5";
+            "d7ffa370c12ea97a2c51c87b752ab89914081704b824caef660896eb68adb75d";
 
         assert_eq!(
             standard_form_fbas_expected_hash,

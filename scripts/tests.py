@@ -33,9 +33,9 @@ def cargo_debug_build():
 
 
 def test_example():
-    command = "cargo run --example results_reuse"
+    command = "cargo run --release --example results_reuse"
     expected_strings = [
-        'c6602f930734bf9eb3dd35387aa0e8d0a31438ef57dbb4745e3ddfe6acf2b073', # standard form hash after removing inactive nodes
+        'a973afb6bac6df244b45c55ff98e0f49a0f6ac4a0c6a7e1cda0844dd24ec761a', # standard form hash after removing inactive nodes
         'GA35T3723UP2XJLC2H7MNL6VMKZZIFL2VW7XHMFFJKKIA2FJCYTLKFBW', # a minimal blocking set member
     ]
     run_and_check_output(command, expected_strings=expected_strings)
@@ -106,7 +106,7 @@ def test_bulk_fbas_analyzer_to_stdout():
         'label,has_quorum_intersection,top_tier_size,mbs_min,mbs_max,mbs_mean,mss_min,mss_max,mss_mean,mq_min,mq_max,mq_mean,orgs_top_tier_size,orgs_mbs_min,orgs_mbs_max,orgs_mbs_mean,orgs_mss_min,orgs_mss_max,orgs_mss_mean,orgs_mq_min,orgs_mq_max,orgs_mq_mean,isps_top_tier_size,isps_mbs_min,isps_mbs_max,isps_mbs_mean,isps_mss_min,isps_mss_max,isps_mss_mean,isps_mq_min,isps_mq_max,isps_mq_mean,ctries_top_tier_size,ctries_mbs_min,ctries_mbs_max,ctries_mbs_mean,ctries_mss_min,ctries_mss_max,ctries_mss_mean,ctries_mq_min,ctries_mq_max,ctries_mq_mean,standard_form_hash,analysis_duration_mq,analysis_duration_mbs,analysis_duration_mss,analysis_duration_total',
         'broken,false,4,2,3',
         'correct,true,3,2,2,2.0,1,1,1.0,2,2,2.0,,,,,,,,,,,',
-        '2019-09-17,true,17,4,5,4.689655172413793,2,9,3.3200934579439254,8,9,8.930232558139535,5,2,2,2.0,1,3,2.375,4,4,4.0,,,,,,,,,,,3,1,1,1.0,1,1,1.0,1,1,1.0,6f73c7787f38fdde66470cc3b2e469e092c70f52823396ae13e52c9a561b20f5,0.',
+        '2019-09-17,true,17,4,5,4.689655172413793,2,9,3.3200934579439254,8,9,8.930232558139535,5,2,2,2.0,1,3,2.375,4,4,4.0,,,,,,,,,,,3,1,1,1.0,1,1,1.0,1,1,1.0,d7ffa370c12ea97a2c51c87b752ab89914081704b824caef660896eb68adb75d,0.',
         '2020-01-16_broken_by_hand,false,22,5,6,5.625,0,0,0.0,2,11,10.9413',
         ]
     run_and_check_output(command, expected_strings=expected_strings)
@@ -136,7 +136,7 @@ def test_bulk_fbas_analyzer_update_flag():
         'broken,false,4,2,3',
         'correct,true,3,2,2,2.0,1,1,1.0,2,2,2.0,,,,,,,,,,,',
         '2020-01-16_broken_by_hand,false,22,5,6,5.625,0,0,0.0,2,11,10.9413',
-        '2019-09-17,true,17,4,5,4.689655172413793,2,9,3.3200934579439254,8,9,8.930232558139535,5,2,2,2.0,1,3,2.375,4,4,4.0,,,,,,,,,,,3,1,1,1.0,1,1,1.0,1,1,1.0,6f73c7787f38fdde66470cc3b2e469e092c70f52823396ae13e52c9a561b20f5,0.',
+        '2019-09-17,true,17,4,5,4.689655172413793,2,9,3.3200934579439254,8,9,8.930232558139535,5,2,2,2.0,1,3,2.375,4,4,4.0,,,,,,,,,,,3,1,1,1.0,1,1,1.0,1,1,1.0,d7ffa370c12ea97a2c51c87b752ab89914081704b824caef660896eb68adb75d,0.',
         ]
     run_redirect_stdout_to_file_and_check_output(command, tf, expected_strings=expected_strings)
     tf.close()
