@@ -22,6 +22,10 @@ pub use quorums::{find_minimal_quorums, find_nonintersecting_quorums};
 pub use splitting_sets::find_minimal_splitting_sets;
 pub use symmetric_clusters::{find_symmetric_clusters, find_symmetric_top_tier};
 
+pub use sets::{
+    all_intersect, involved_nodes, is_set_of_minimal_node_sets, remove_non_minimal_node_sets,
+};
+
 pub(crate) use preprocessing::*;
 pub(crate) use quorums::*;
 pub(crate) use sets::*;
@@ -162,6 +166,25 @@ mod tests {
             NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![4], bitset![10]], None)
                 .describe()
         );
+    }
+
+    #[test]
+    fn splitting_sets_with_affected_quorums() {
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let analysis = Analysis::new(&fbas);
+
+        let actual: Vec<(NodeIdSet, Vec<NodeIdSet>)> = analysis
+            .minimal_splitting_sets_with_affected_quorums()
+            .into_iter()
+            .map(|(key, value)| (key.unwrap(), value.unwrap()))
+            .collect();
+        let expected = vec![
+            (bitset![0], bitsetvec![{ 1 }, { 10 }]),
+            (bitset![1], bitsetvec![{0}, {4,10}]),
+            (bitset![4], bitsetvec![{0}, {1,10}]),
+            (bitset![10], bitsetvec![{0}, {1,4}]),
+        ];
+        assert_eq!(expected, actual);
     }
 
     #[test]

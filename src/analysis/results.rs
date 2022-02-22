@@ -57,6 +57,11 @@ impl NodeIdSetResult {
         }
     }
 }
+impl From<NodeIdSet> for NodeIdSetResult {
+    fn from(set: NodeIdSet) -> Self {
+        Self::new(set, None)
+    }
+}
 
 /// Wraps a vector of node ID sets. Node ID sets are stored in shrunken form to preserve memory.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
@@ -176,6 +181,11 @@ impl NodeIdSetVecResult {
             self.node_sets = unshrink_sets(&self.node_sets, unshrink_table);
         }
         self.unshrink_table = None;
+    }
+}
+impl From<Vec<NodeIdSet>> for NodeIdSetVecResult {
+    fn from(sets: Vec<NodeIdSet>) -> Self {
+        Self::new(sets, None)
     }
 }
 

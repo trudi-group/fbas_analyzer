@@ -122,6 +122,20 @@ impl Analysis {
     pub fn minimal_splitting_sets(&self) -> NodeIdSetVecResult {
         self.make_shrunken_set_vec_result(self.minimal_splitting_sets_shrunken())
     }
+    /// For each minimal splitting set, returns two or more quorums that it's splitting, i.e.,
+    /// quorums that lack quorum intersection after the splitting sets are deleted from the FBAS.
+    pub fn minimal_splitting_sets_with_affected_quorums(
+        &self,
+    ) -> Vec<(NodeIdSetResult, NodeIdSetVecResult)> {
+        self.minimal_splitting_sets_with_affected_quorums_shrunken()
+            .into_iter()
+            .map(|(splitting_set, split_quorums)| {
+                let key = self.make_shrunken_set_result(splitting_set);
+                let result = self.make_shrunken_set_vec_result(split_quorums);
+                (key, result)
+            })
+            .collect()
+    }
     /// Top tier - the set of nodes exclusively relevant when determining minimal quorums and
     /// minimal blocking sets.
     pub fn top_tier(&self) -> NodeIdSetResult {
@@ -183,6 +197,20 @@ impl Analysis {
             find_minimal_splitting_sets,
             "minimal splitting sets",
         )
+    }
+    fn minimal_splitting_sets_with_affected_quorums_shrunken(
+        &self,
+    ) -> Vec<(NodeIdSet, Vec<NodeIdSet>)> {
+        let minimal_splitting_sets = self.minimal_splitting_sets_shrunken();
+        minimal_splitting_sets
+            .into_iter()
+            .map(|splitting_set| {
+                let mut fbas = self.fbas_shrunken.borrow().clone();
+                fbas.assume_split_faulty(&splitting_set);
+                let split_quorums = find_nonintersecting_quorums(&fbas).unwrap();
+                (splitting_set, split_quorums)
+            })
+            .collect()
     }
     fn top_tier_shrunken(&self) -> NodeIdSet {
         // The top tier is defined as either the union of all minimal quorums but can also be found
