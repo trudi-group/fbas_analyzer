@@ -15,8 +15,8 @@ pub fn find_minimal_splitting_sets(fbas: &Fbas) -> Vec<NodeIdSet> {
     minimal_splitting_sets
 }
 
-/// Finds all nodes that, if they want to help causing splits, can potentially benefit from lying
-/// or changing their quorum sets for making quorums smaller by more than one node.
+/// Finds all nodes that can potentially make quorums smaller by more than one node (i.e., more
+/// than by just themselves) by changing their quorum sets or lying about them.
 pub fn find_quorum_expanders(fbas: &Fbas) -> NodeIdSet {
     info!("Starting to look for minimal quorum reducing nodes...");
     let mut result = NodeIdSet::new();

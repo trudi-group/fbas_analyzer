@@ -55,7 +55,7 @@ def test_fbas_analyzer_with_organizations():
         'minimal_quorums: [["Stellar Development Foundation","LOBSTR","SatoshiPay","COINQVEST Limited"],["Stellar Development Foundation","LOBSTR","SatoshiPay","Keybase"],["Stellar Development Foundation","LOBSTR","COINQVEST Limited","Keybase"],["Stellar Development Foundation","SatoshiPay","COINQVEST Limited","Keybase"],["LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]]',
         'minimal_blocking_sets: [["Stellar Development Foundation","LOBSTR"],["Stellar Development Foundation","SatoshiPay"],["Stellar Development Foundation","COINQVEST Limited"],["Stellar Development Foundation","Keybase"],["LOBSTR","SatoshiPay"],["LOBSTR","COINQVEST Limited"],["LOBSTR","Keybase"],["SatoshiPay","COINQVEST Limited"],["SatoshiPay","Keybase"],["COINQVEST Limited","Keybase"]]',
         'minimal_splitting_sets: [["Stellar Development Foundation"],["LOBSTR","SatoshiPay"],["LOBSTR","COINQVEST Limited"],["SatoshiPay","COINQVEST Limited"],["LOBSTR","Muyu Network","Keybase"],["Muyu Network","SatoshiPay","Keybase"],["Muyu Network","COINQVEST Limited","Keybase"],["SatoshiPay","IBM worldwire","Keybase"]]',
-        'minimal_splitting_sets_with_affected_nodes:',
+        'minimal_splitting_sets_with_affected_quorums:',
         '- ["SatoshiPay","IBM worldwire","Keybase"]: [["paywith.glass"],["Stellar Development Foundation","LOBSTR","COINQVEST Limited"]]',
         'top_tier: ["Stellar Development Foundation","LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]',
         ]

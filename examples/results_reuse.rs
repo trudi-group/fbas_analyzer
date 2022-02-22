@@ -24,7 +24,7 @@ pub fn main() {
     let fbas = fbas.without_nodes_pretty(&inactive_nodes.into_pretty_vec());
 
     // This changes the order of nodes (sorts them by public key) and hence renumbers all IDs!
-    // This also discard all unsatisfiable nodes as they are irrelevant for analysis.
+    // This also discards all unsatisfiable nodes as they are irrelevant for analysis.
     let fbas = fbas.to_standard_form();
 
     // Now we can calculate a hash of the FBAS such that, if two FBASs have the same hash, their

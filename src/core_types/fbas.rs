@@ -139,9 +139,9 @@ pub struct Node {
 }
 impl Node {
     /// Returns a node with an empty quorum set that induces one-node quorums!
-    pub fn new_unconfigured() -> Self {
+    pub fn new_unconfigured(public_key: PublicKey) -> Self {
         Node {
-            public_key: PublicKey::default(),
+            public_key,
             quorum_set: QuorumSet::new_empty(),
         }
     }

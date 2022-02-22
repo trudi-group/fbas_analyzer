@@ -90,7 +90,7 @@ impl Fbas {
         let unshrink_table = &shrink_manager.unshrink_table;
         let shrink_map = &shrink_manager.shrink_map;
 
-        let mut nodes = vec![Node::new_unconfigured(); unshrink_table.len()];
+        let mut nodes = vec![Node::new_unconfigured(PublicKey::default()); unshrink_table.len()];
         for old_id in 0..self.nodes.len() {
             if let Some(&new_id) = shrink_map.get(&old_id) {
                 nodes[new_id] = Node::shrunken(&self.nodes[old_id], shrink_map);
@@ -98,7 +98,7 @@ impl Fbas {
         }
         let mut fbas_shrunken = Fbas::new();
         for node in nodes.into_iter() {
-            assert_ne!(node, Node::new_unconfigured());
+            assert_ne!(node, Node::new_unconfigured(PublicKey::default()));
             fbas_shrunken.add_node(node);
         }
         (fbas_shrunken, shrink_manager)

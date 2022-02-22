@@ -22,7 +22,8 @@ impl QuorumSet {
             inner_quorum_sets,
         }
     }
-    /// A quorum set tho basically mark a node as broken.
+    /// A quorum set that basically marks a node as broken. It is never satisfied and can therefore
+    /// never be part of a quorum.
     pub fn new_unsatisfiable() -> Self {
         Self::new(vec![], vec![], 1)
     }

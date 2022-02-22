@@ -8,7 +8,7 @@ pub(crate) struct RawFbas(pub(crate) Vec<RawNode>);
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RawNode {
     pub(crate) public_key: PublicKey,
-    // If a quorum set is missing, we assume that the node should be unsatisfiable.
+    // If no quorum set is given, we assume that the node is unsatisfiable, i.e., broken.
     #[serde(default = "RawQuorumSet::new_unsatisfiable")]
     pub(crate) quorum_set: RawQuorumSet,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -222,11 +222,7 @@ mod tests {
                 validators: vec![0, 1, 2].into_iter().collect(),
                 inner_quorum_sets: vec![],
             },
-            QuorumSet {
-                threshold: 1,
-                validators: vec![],
-                inner_quorum_sets: vec![],
-            },
+            QuorumSet::new_unsatisfiable(),
         ];
 
         let actual = Fbas::from_json_str(&input);
