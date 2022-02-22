@@ -3,7 +3,7 @@ use super::*;
 extern crate pathfinding;
 use pathfinding::directed::strongly_connected_components::strongly_connected_components;
 
-type RankScore = f64;
+pub type RankScore = f64;
 
 impl Fbas {
     pub fn satisfiable_nodes(&self) -> NodeIdSet {
@@ -15,13 +15,13 @@ impl Fbas {
     pub fn strongly_connected_components(&self) -> Vec<NodeIdSet> {
         partition_into_strongly_connected_components(&self.all_nodes(), self)
     }
+    /// Rank all nodes in the FBAS using an algorithm vaguely resembling PageRank.
     pub fn rank_nodes(&self) -> Vec<RankScore> {
         let all_nodes: Vec<NodeId> = (0..self.nodes.len()).collect();
         rank_nodes(&all_nodes, self)
     }
-    /// Returns all nodes part of a quorum-containing strongly connected component (the only
-    /// nodes relevant for analysis).
-    pub fn relevant_nodes(&self) -> NodeIdSet {
+    /// Returns all nodes part of a quorum-containing strongly connected component.
+    pub fn core_nodes(&self) -> NodeIdSet {
         let sccs = partition_into_strongly_connected_components(&self.satisfiable_nodes(), self);
         let mut relevant_nodes = bitset![];
         for scc in sccs {
@@ -36,26 +36,32 @@ impl Fbas {
     pub fn one_node_quorums(&self) -> Vec<NodeId> {
         let mut nodes = vec![];
         for (node_id, node) in self.nodes.iter().enumerate() {
-            if node.is_quorum_slice(&bitset![node_id]) {
+            if node.quorum_set.is_quorum_slice(&bitset![node_id]) {
                 nodes.push(node_id);
             }
         }
         nodes
     }
-    /// Reduces the FBAS to nodes relevant to analysis (nodes part of a quorum-containing strongly
-    /// connected component) and reorders node IDs so that nodes are sorted by public key.
+    /// Removes all unsatisfiable nodes and reorders node IDs so that nodes are sorted by public
+    /// key.
     pub fn to_standard_form(&self) -> Self {
-        let shrunken_self = self.shrunken(self.relevant_nodes()).0;
+        let shrunken_self = self.shrunken(self.satisfiable_nodes()).0;
         let mut raw_shrunken_self = shrunken_self.to_raw();
         raw_shrunken_self
             .0
             .sort_by_cached_key(|n| n.public_key.clone());
         Fbas::from_raw(raw_shrunken_self)
     }
+    /// Remove `nodes` (referred to by their public keys) from the FBAS and all quorum sets,
+    /// basically assuming they have irrevocably crashed. Changes the node IDs of remaining nodes!
+    /// For a similar method hat keeps node IDs unchanged see [`Fbas::assume_crash_faulty`].
     pub fn without_nodes_pretty(&self, nodes: &[PublicKey]) -> Self {
         let nodes: Vec<usize> = nodes.iter().filter_map(|p| self.get_node_id(p)).collect();
         self.without_nodes(&nodes)
     }
+    /// Remove `nodes` (referred to by their node IDs) from the FBAS and all quorum sets, basically
+    /// assuming they have irrevocably crashed. Changes the node IDs of remaining nodes! For a
+    /// similar method hat keeps node IDs unchanged see [`Fbas::assume_crash_faulty`].
     pub fn without_nodes(&self, nodes: &[NodeId]) -> Self {
         let mut remaining_nodes = self.all_nodes();
         for &node in nodes.iter() {
@@ -69,11 +75,11 @@ impl Fbas {
 pub fn find_satisfiable_nodes(node_set: &NodeIdSet, fbas: &Fbas) -> (NodeIdSet, NodeIdSet) {
     let (mut satisfiable, mut unsatisfiable): (NodeIdSet, NodeIdSet) = node_set
         .iter()
-        .partition(|&x| fbas.nodes[x].is_quorum_slice(node_set));
+        .partition(|&x| fbas.nodes[x].quorum_set.is_quorum_slice(node_set));
 
     while let Some(unsatisfiable_node) = satisfiable
         .iter()
-        .find(|&x| !fbas.nodes[x].is_quorum_slice(&satisfiable))
+        .find(|&x| !fbas.nodes[x].quorum_set.is_quorum_slice(&satisfiable))
     {
         satisfiable.remove(unsatisfiable_node);
         unsatisfiable.insert(unsatisfiable_node);
@@ -145,11 +151,47 @@ pub fn rank_nodes(nodes: &[NodeId], fbas: &Fbas) -> Vec<RankScore> {
 }
 
 /// Rank nodes and sort them by "highest rank score first"
-pub fn sort_by_rank(mut nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
+pub fn sort_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
     let scores = rank_nodes(&nodes, fbas);
 
+    sort_by_score(nodes, &scores)
+}
+
+/// Sort highest scores first
+pub fn sort_by_score(mut nodes: Vec<NodeId>, scores: &[RankScore]) -> Vec<NodeId> {
     nodes.sort_by(|x, y| scores[*y].partial_cmp(&scores[*x]).unwrap());
     nodes
+}
+
+/// Find nodes that are affected by each node v, i.e., that point to v after a few steps; nodes
+/// also affect themselves.
+pub fn find_affected_nodes_per_node(fbas: &Fbas) -> Vec<NodeIdSet> {
+    let mut result: Vec<NodeIdSet> = (0..fbas.number_of_nodes())
+        .map(|node_id| bitset! {node_id})
+        .collect();
+    let mut this_visit = NodeIdSet::new();
+    let mut next_visit = fbas.all_nodes();
+    let mut tmp = NodeIdSet::new(); // for fewer memory allocations
+    while !next_visit.is_empty() {
+        this_visit.clear();
+        this_visit.union_with(&next_visit);
+        next_visit.clear();
+        for affected_node in this_visit.iter() {
+            for affecting_node in fbas.nodes[affected_node]
+                .quorum_set
+                .contained_nodes()
+                .iter()
+            {
+                tmp.clear();
+                tmp.union_with(&result[affected_node]);
+                if !result[affecting_node].is_superset(&tmp) {
+                    result[affecting_node].union_with(&tmp);
+                    next_visit.insert(affecting_node);
+                }
+            }
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -175,7 +217,7 @@ mod tests {
             }
         ]"#,
         );
-        let actual = fbas.relevant_nodes();
+        let actual = fbas.core_nodes();
         let expected = bitset![0, 1];
         assert_eq!(expected, actual);
     }
@@ -198,7 +240,7 @@ mod tests {
             }
         ]"#,
         );
-        let actual = fbas.relevant_nodes();
+        let actual = fbas.core_nodes();
         let expected = bitset![0, 1, 2];
         assert_eq!(expected, actual);
     }
@@ -221,12 +263,12 @@ mod tests {
             },
             {
                 "publicKey": "n3",
-                "quorumSet": { "threshold": 0, "validators": ["n3"] }
+                "quorumSet": { "threshold": 0, "validators": [] }
             }
         ]"#,
         );
         let actual = fbas.one_node_quorums();
-        let expected = vec![1];
+        let expected = vec![1, 3];
         assert_eq!(expected, actual);
     }
 
@@ -294,7 +336,8 @@ mod tests {
     }
 
     #[test]
-    fn to_standard_form_filters_edge_nodes() {
+    fn to_standard_form_keeps_satisfiable_edge_nodes() {
+        // because they can be relevant for determining splitting sets!
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -311,7 +354,7 @@ mod tests {
             }
         ]"#,
         );
-        let expected = toy_standard_form_fbas();
+        let expected = fbas.clone();
         let actual = fbas.to_standard_form();
         assert_eq!(expected, actual);
     }
@@ -339,7 +382,7 @@ mod tests {
             &standard_form_fbas.to_json_string().into_bytes(),
         ));
         let standard_form_fbas_expected_hash =
-            "6f73c7787f38fdde66470cc3b2e469e092c70f52823396ae13e52c9a561b20f5";
+            "d7ffa370c12ea97a2c51c87b752ab89914081704b824caef660896eb68adb75d";
 
         assert_eq!(
             standard_form_fbas_expected_hash,
@@ -381,5 +424,52 @@ mod tests {
             fbas.get_quorum_set(0).unwrap(),
             fbas.get_quorum_set(1).unwrap()
         );
+    }
+
+    #[test]
+    fn affected_nodes_outside_symmetric_cluster() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n1", "n2", "n3"] }
+            },
+            {
+                "publicKey": "n4",
+                "quorumSet": { "threshold": 1, "validators": ["n2"] }
+            },
+            {
+                "publicKey": "n5",
+                "quorumSet": { "threshold": 2, "validators": ["n3", "n4"] }
+            },
+            {
+                "publicKey": "n6",
+                "quorumSet": { "threshold": 1, "validators": ["n5"] }
+            }
+        ]"#,
+        );
+        let expected: Vec<NodeIdSet> = bitsetvec![
+            {0, 1, 2, 3, 4, 5, 6},
+            {0, 1, 2, 3, 4, 5, 6},
+            {0, 1, 2, 3, 4, 5, 6},
+            {0, 1, 2, 3, 4, 5, 6},
+            {4, 5, 6},
+            {5, 6},
+            {6}
+        ];
+        let actual = find_affected_nodes_per_node(&fbas);
+        assert_eq!(expected, actual);
     }
 }

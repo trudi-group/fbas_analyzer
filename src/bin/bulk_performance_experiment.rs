@@ -35,6 +35,10 @@ struct Cli {
     #[structopt(long = "stellar-like")]
     stellar_like: bool,
 
+    /// Make FBAS that looks like a donut that is always 3 nodes "thick".
+    #[structopt(long = "donut-like", conflicts_with = "stellar_like")]
+    donut_like: bool,
+
     /// Update output file with missing results (doesn't repeat analyses for existing lines).
     #[structopt(short = "u", long = "update")]
     update: bool,
@@ -55,8 +59,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::from_args();
     args.verbosity.setup_env_logger("fbas_analyzer")?;
 
-    let inputs: Vec<InputDataPoint> =
-        generate_inputs(args.max_top_tier_size, args.runs, args.stellar_like);
+    let fbas_type = if args.stellar_like {
+        StellarLike
+    } else if args.donut_like {
+        DonutLike
+    } else {
+        FullMesh
+    };
+
+    let inputs: Vec<InputDataPoint> = generate_inputs(args.max_top_tier_size, args.runs, fbas_type);
 
     let existing_outputs = if args.update {
         load_existing_outputs(&args.output_path)?
@@ -66,7 +77,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let tasks = make_sorted_tasklist(inputs, existing_outputs);
 
-    let output_iterator = bulk_do(tasks, args.jobs, args.stellar_like);
+    let output_iterator = bulk_do(tasks, args.jobs, fbas_type);
 
     write_csv(output_iterator, &args.output_path, args.update)?;
     Ok(())
@@ -117,13 +128,36 @@ impl Task {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum FbasType {
+    FullMesh,
+    StellarLike,
+    DonutLike,
+}
+use FbasType::*;
+impl FbasType {
+    fn node_increments(&self) -> usize {
+        match self {
+            FullMesh => 1,
+            _ => 3,
+        }
+    }
+    fn make_one(&self, top_tier_size: usize) -> Fbas {
+        match self {
+            FullMesh => make_almost_ideal_fbas(top_tier_size),
+            StellarLike => make_almost_ideal_stellarlike_fbas(top_tier_size),
+            DonutLike => make_donutlike_fbas(top_tier_size),
+        }
+    }
+}
+
 fn generate_inputs(
     max_top_tier_size: usize,
     runs: usize,
-    make_stellarlike_fbas: bool,
+    fbas_type: FbasType,
 ) -> Vec<InputDataPoint> {
     let mut inputs = vec![];
-    for top_tier_size in (1..max_top_tier_size + 1).filter(|m| !make_stellarlike_fbas || m % 3 == 0)
+    for top_tier_size in (1..max_top_tier_size + 1).filter(|m| m % fbas_type.node_increments() == 0)
     {
         for run in 0..runs {
             inputs.push(InputDataPoint { top_tier_size, run });
@@ -169,14 +203,14 @@ fn make_sorted_tasklist(
 fn bulk_do(
     tasks: Vec<Task>,
     jobs: usize,
-    make_stellarlike_fbas: bool,
+    fbas_type: FbasType,
 ) -> impl Iterator<Item = OutputDataPoint> {
     tasks
         .into_iter()
         .with_nb_threads(jobs)
-        .par_map(move |task| analyze_or_reuse(task, make_stellarlike_fbas))
+        .par_map(move |task| analyze_or_reuse(task, fbas_type))
 }
-fn analyze_or_reuse(task: Task, make_stellarlike_fbas: bool) -> OutputDataPoint {
+fn analyze_or_reuse(task: Task, fbas_type: FbasType) -> OutputDataPoint {
     match task {
         Task::Reuse(output) => {
             eprintln!(
@@ -185,15 +219,11 @@ fn analyze_or_reuse(task: Task, make_stellarlike_fbas: bool) -> OutputDataPoint 
             );
             output
         }
-        Task::Analyze(input) => analyze(input, make_stellarlike_fbas),
+        Task::Analyze(input) => analyze(input, fbas_type),
     }
 }
-fn analyze(input: InputDataPoint, make_stellarlike_fbas: bool) -> OutputDataPoint {
-    let fbas = if make_stellarlike_fbas {
-        make_almost_ideal_stellarlike_fbas(input.top_tier_size)
-    } else {
-        make_almost_ideal_fbas(input.top_tier_size)
-    };
+fn analyze(input: InputDataPoint, fbas_type: FbasType) -> OutputDataPoint {
+    let fbas = fbas_type.make_one(input.top_tier_size);
     assert!(fbas.number_of_nodes() == input.top_tier_size);
     let (result_without_total_duration, analysis_duration_total) = timed_secs!({
         let analysis = Analysis::new(&fbas);
@@ -290,7 +320,7 @@ fn make_almost_ideal_stellarlike_fbas(top_tier_size: usize) -> Fbas {
         top_tier_size % 3 == 0,
         "Nodes in the Stellar network top tier always come in groups of (at least) 3..."
     );
-    let mut quorum_set = QuorumSet::new();
+    let mut quorum_set = QuorumSet::new_empty();
     for org_id in 0..top_tier_size / 3 {
         let validators = vec![org_id * 3, org_id * 3 + 1, org_id * 3 + 2];
         quorum_set.inner_quorum_sets.push(QuorumSet {
@@ -311,6 +341,23 @@ fn make_almost_ideal_stellarlike_fbas(top_tier_size: usize) -> Fbas {
     quorum_set.threshold += 1;
     fbas.swap_quorum_set(0, quorum_set);
 
+    fbas
+}
+
+fn make_donutlike_fbas(top_tier_size: usize) -> Fbas {
+    assert!(
+        top_tier_size % 3 == 0,
+        "For our donut shape to work, top tier nodes must come in groups of 3..."
+    );
+    let mut fbas = Fbas::new();
+    for node_id in 0..top_tier_size {
+        let validators = (0..=6)
+            .map(|i| (top_tier_size + node_id + i - 3) % top_tier_size)
+            .collect();
+        let threshold = 5;
+        let quorum_set = QuorumSet::new(validators, vec![], threshold);
+        fbas.add_generic_node(quorum_set);
+    }
     fbas
 }
 

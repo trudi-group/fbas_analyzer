@@ -90,7 +90,7 @@ impl Fbas {
         let unshrink_table = &shrink_manager.unshrink_table;
         let shrink_map = &shrink_manager.shrink_map;
 
-        let mut nodes = vec![Node::default(); unshrink_table.len()];
+        let mut nodes = vec![Node::new_unconfigured(PublicKey::default()); unshrink_table.len()];
         for old_id in 0..self.nodes.len() {
             if let Some(&new_id) = shrink_map.get(&old_id) {
                 nodes[new_id] = Node::shrunken(&self.nodes[old_id], shrink_map);
@@ -98,7 +98,7 @@ impl Fbas {
         }
         let mut fbas_shrunken = Fbas::new();
         for node in nodes.into_iter() {
-            assert_ne!(node, Node::default());
+            assert_ne!(node, Node::new_unconfigured(PublicKey::default()));
             fbas_shrunken.add_node(node);
         }
         (fbas_shrunken, shrink_manager)
@@ -125,7 +125,7 @@ impl QuorumSet {
         let mut inner_quorum_sets = vec![];
         for inner_quorum_set in quorum_set.inner_quorum_sets.iter() {
             let shrunken_inner_quorum_set = QuorumSet::shrunken(inner_quorum_set, shrink_map);
-            if shrunken_inner_quorum_set != QuorumSet::new() {
+            if shrunken_inner_quorum_set.is_satisfiable() {
                 inner_quorum_sets.push(shrunken_inner_quorum_set);
             }
         }
@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn shrink_unshrink_find_minimal_quorums() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let (fbas_shrunken, shrink_manager) = Fbas::shrunken(&fbas, fbas.relevant_nodes());
+        let (fbas_shrunken, shrink_manager) = Fbas::shrunken(&fbas, fbas.core_nodes());
 
         let expected = find_minimal_quorums(&fbas);
         let actual = shrink_manager.unshrink_sets(&find_minimal_quorums(&fbas_shrunken));

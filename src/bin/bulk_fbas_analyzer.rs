@@ -167,6 +167,7 @@ macro_rules! extend_output_data_point {
     }};
 }
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 enum Task {
     Reuse(OutputDataPoint),
     Analyze(InputDataPoint),

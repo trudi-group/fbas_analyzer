@@ -33,7 +33,7 @@ impl Simulator {
     /// Also lets all nodes reevaluate their quorum sets after each new node is added.
     pub fn simulate_growth(&mut self, nodes_to_spawn: usize) {
         for _ in 0..nodes_to_spawn {
-            let node_id = self.fbas.add_generic_node(QuorumSet::new());
+            let node_id = self.fbas.add_generic_node(QuorumSet::new_empty());
             self.qsc.configure(node_id, &mut self.fbas);
             self.monitor.register_event(AddNode(node_id));
             self.simulate_global_reevaluation(self.fbas.number_of_nodes());

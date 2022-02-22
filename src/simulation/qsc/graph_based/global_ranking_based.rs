@@ -38,7 +38,9 @@ impl GlobalRankQsc {
 impl QuorumSetConfigurator for GlobalRankQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
         let existing_quorum_set = &mut fbas.nodes[node_id].quorum_set;
-        if *existing_quorum_set == QuorumSet::new() && !self.graph.outlinks[node_id].is_empty() {
+        if *existing_quorum_set == QuorumSet::new_empty()
+            && !self.graph.outlinks[node_id].is_empty()
+        {
             let validators = self.top_tier_nodes.clone();
 
             let threshold = calculate_threshold(validators.len(), self.relative_threshold);

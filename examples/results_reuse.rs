@@ -24,8 +24,7 @@ pub fn main() {
     let fbas = fbas.without_nodes_pretty(&inactive_nodes.into_pretty_vec());
 
     // This changes the order of nodes (sorts them by public key) and hence renumbers all IDs!
-    // This also discard all nodes that are not part of a strongly connected component, as they
-    // are irrelevant for analysis.
+    // This also discards all unsatisfiable nodes as they are irrelevant for analysis.
     let fbas = fbas.to_standard_form();
 
     // Now we can calculate a hash of the FBAS such that, if two FBASs have the same hash, their
@@ -116,6 +115,7 @@ fn do_analysis(fbas: &Fbas) -> CustomResultsStruct {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct CustomResultsStruct {
     minimal_blocking_sets: NodeIdSetVecResult,
     minimal_splitting_sets: NodeIdSetVecResult,

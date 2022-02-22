@@ -25,7 +25,8 @@ impl AllNeighborsQsc {
 impl QuorumSetConfigurator for AllNeighborsQsc {
     fn configure(&self, node_id: NodeId, fbas: &mut Fbas) -> ChangeEffect {
         let existing_quorum_set = &mut fbas.nodes[node_id].quorum_set;
-        if self.connected_nodes.contains(node_id) && *existing_quorum_set == QuorumSet::new() {
+        if self.connected_nodes.contains(node_id) && *existing_quorum_set == QuorumSet::new_empty()
+        {
             let mut validators = self
                 .graph
                 .outlinks

@@ -8,20 +8,30 @@ pub(crate) struct RawFbas(pub(crate) Vec<RawNode>);
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RawNode {
     pub(crate) public_key: PublicKey,
-    #[serde(default)]
+    // If no quorum set is given, we assume that the node is unsatisfiable, i.e., broken.
+    #[serde(default = "RawQuorumSet::new_unsatisfiable")]
     pub(crate) quorum_set: RawQuorumSet,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) isp: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) geo_data: Option<RawGeoData>,
 }
-#[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RawQuorumSet {
     pub(crate) threshold: u64,
     pub(crate) validators: Vec<PublicKey>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) inner_quorum_sets: Vec<RawQuorumSet>,
+}
+impl RawQuorumSet {
+    fn new_unsatisfiable() -> Self {
+        Self {
+            threshold: 1,
+            validators: vec![],
+            inner_quorum_sets: vec![],
+        }
+    }
 }
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -212,7 +222,7 @@ mod tests {
                 validators: vec![0, 1, 2].into_iter().collect(),
                 inner_quorum_sets: vec![],
             },
-            Default::default(),
+            QuorumSet::new_unsatisfiable(),
         ];
 
         let actual = Fbas::from_json_str(&input);
@@ -249,7 +259,7 @@ mod tests {
                 validators: vec![0, 1].into_iter().collect(),
                 inner_quorum_sets: Default::default(),
             },
-            Default::default(),
+            QuorumSet::new(vec![], vec![], 1),
         ];
 
         let actual = Fbas::from_json_str(&input);

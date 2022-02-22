@@ -12,8 +12,8 @@ pub struct Groupings<'fbas> {
 }
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Grouping {
-    pub(crate) name: String,
-    pub(crate) validators: Vec<NodeId>,
+    pub name: String,
+    pub validators: Vec<NodeId>,
 }
 impl<'fbas> Groupings<'fbas> {
     pub(crate) fn new(groupings: Vec<Grouping>, fbas: &'fbas Fbas) -> Self {

@@ -28,6 +28,7 @@ pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Option<Vec<NodeIdSet>> {
 
 fn minimal_quorums_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Vec<NodeIdSet> {
     let mut found_quorums: Vec<NodeIdSet> = vec![];
+
     for (i, nodes) in consensus_clusters.into_iter().enumerate() {
         debug!("Finding minimal quorums in cluster {}...", i);
 
@@ -36,12 +37,12 @@ fn minimal_quorums_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Ve
             found_quorums.append(&mut symmetric_cluster.to_minimal_quorums(fbas));
         } else {
             debug!("Sorting nodes by rank...");
-            let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
+            let sorted_candidate_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
             debug!("Sorted.");
 
-            let unprocessed = sorted_nodes;
+            let unprocessed = sorted_candidate_nodes;
             let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
-            let mut available = unprocessed.iter().cloned().collect();
+            let mut available = nodes.clone();
 
             debug!("Collecting quorums...");
             minimal_quorums_finder_step(
@@ -104,6 +105,20 @@ impl QuorumSet {
             quorums
         }
     }
+    /// Makes sense if the quorum set represents a symmetric quorum cluster...
+    pub(crate) fn has_nonintersecting_quorums(&self) -> Option<(NodeIdSet, NodeIdSet)> {
+        // make sure we aren't really a 1-node quorum
+        if self
+            .nonempty_slices_iter(|qset| qset.threshold)
+            .take(2)
+            .count()
+            > 1
+        {
+            self.has_nonintersecting_quorum_slices()
+        } else {
+            None
+        }
+    }
 }
 
 fn nonintersecting_quorums_finder(
@@ -119,31 +134,50 @@ fn nonintersecting_quorums_finder(
     } else {
         warn!("There is only one consensus cluster - there might be no non-intersecting quorums and the subsequent search might be slow.");
         let nodes = consensus_clusters.into_iter().next().unwrap_or_default();
+        nonintersecting_quorums_finder_using_cluster(&nodes, fbas)
+    }
+}
+fn nonintersecting_quorums_finder_using_cluster(cluster: &NodeIdSet, fbas: &Fbas) -> Vec<BitSet> {
+    if let Some(symmetric_cluster) = find_symmetric_cluster_in_consensus_cluster(cluster, fbas) {
+        debug!("Cluster contains a symmetric quorum cluster! Extracting using that...");
+        if let Some((quorum1, quorum2)) = symmetric_cluster.has_nonintersecting_quorums() {
+            vec![quorum1, quorum2]
+        } else {
+            vec![]
+        }
+    } else {
         debug!("Sorting nodes by rank...");
-        let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
+        let sorted_nodes = sort_by_rank(cluster.iter().collect(), fbas);
         debug!("Sorted.");
 
-        let unprocessed = sorted_nodes;
-        let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
-        let mut available: NodeIdSet = unprocessed.iter().cloned().collect();
-        let mut antiselection = available.clone();
-        let picks_left = unprocessed.len() / 2; // testing quorums yields no benefit
-        if let Some(intersecting_quorums) = nonintersecting_quorums_finder_step(
-            &mut unprocessed.into(),
-            &mut selection,
-            &mut available,
-            &mut antiselection,
-            fbas,
-            picks_left,
-            true,
-        ) {
-            assert!(intersecting_quorums.iter().all(|x| fbas.is_quorum(x)));
-            assert!(intersecting_quorums[0].is_disjoint(&intersecting_quorums[1]));
-            intersecting_quorums.to_vec()
-        } else {
-            assert!(fbas.is_quorum(&available));
-            vec![available.clone()]
-        }
+        nonintersecting_quorums_finder_using_sorted_nodes(sorted_nodes, fbas)
+    }
+}
+pub(crate) fn nonintersecting_quorums_finder_using_sorted_nodes(
+    sorted_nodes: Vec<usize>,
+    fbas: &Fbas,
+) -> Vec<BitSet> {
+    let unprocessed = sorted_nodes;
+    let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
+    let mut available: NodeIdSet = unprocessed.iter().cloned().collect();
+    let mut antiselection = available.clone();
+    let picks_left = unprocessed.len() / 2;
+    // testing bigger quorums yields no benefit
+    if let Some(intersecting_quorums) = nonintersecting_quorums_finder_step(
+        &mut unprocessed.into(),
+        &mut selection,
+        &mut available,
+        &mut antiselection,
+        fbas,
+        picks_left,
+        true,
+    ) {
+        assert!(intersecting_quorums.iter().all(|x| fbas.is_quorum(x)));
+        assert!(intersecting_quorums[0].is_disjoint(&intersecting_quorums[1]));
+        intersecting_quorums.to_vec()
+    } else {
+        assert!(fbas.is_quorum(&available));
+        vec![available.clone()]
     }
 }
 fn nonintersecting_quorums_finder_step(
@@ -210,7 +244,7 @@ fn nonintersecting_quorums_finder_step(
 fn selection_satisfiable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
     selection
         .iter()
-        .all(|x| fbas.nodes[x].is_quorum_slice(available))
+        .all(|x| fbas.nodes[x].quorum_set.is_quorum_slice(available))
 }
 
 pub(crate) fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
@@ -218,7 +252,7 @@ pub(crate) fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
 
     while let Some(unsatisfiable_node) = satisfiable
         .iter()
-        .find(|&x| !fbas.nodes[x].is_quorum_slice(&satisfiable))
+        .find(|&x| !fbas.nodes[x].quorum_set.is_quorum_slice(&satisfiable))
     {
         satisfiable.remove(unsatisfiable_node);
     }
@@ -308,6 +342,35 @@ mod tests {
     }
 
     #[test]
+    fn find_nonintersecting_quorums_in_half_half() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2", "n3"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 2, "validators": ["n2", "n3"] }
+            }
+        ]"#,
+        );
+
+        let expected = Some(vec![bitset![0, 1], bitset![2, 3]]);
+        let actual = find_nonintersecting_quorums(&fbas);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
     fn find_nonintersecting_quorums_in_broken() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
 
@@ -318,21 +381,14 @@ mod tests {
     }
 
     #[test]
-    fn find_satisfiable_nodes_in_unconfigured_fbas() {
-        let fbas = Fbas::new_generic_unconfigured(10);
-        let all_nodes: NodeIdSet = (0..10).collect();
-
-        let actual = find_satisfiable_nodes(&all_nodes, &fbas);
-        let expected = (bitset![], all_nodes);
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
     fn find_transitively_unsatisfiable_nodes() {
         let mut fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
 
-        let directly_unsatisfiable = fbas.add_generic_node(QuorumSet::new());
+        let directly_unsatisfiable = fbas.add_generic_node(QuorumSet {
+            threshold: 1,
+            validators: vec![],
+            inner_quorum_sets: vec![],
+        });
         let transitively_unsatisfiable = fbas.add_generic_node(QuorumSet {
             threshold: 1,
             validators: vec![directly_unsatisfiable],

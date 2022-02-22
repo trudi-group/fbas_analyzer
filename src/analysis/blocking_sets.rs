@@ -126,42 +126,10 @@ impl QuorumSet {
     /// If `self` represents a symmetric quorum cluster, this function returns all minimal blocking sets of the induced FBAS,
     /// but perhaps also a few extra...
     fn to_blocking_sets(&self) -> Vec<NodeIdSet> {
-        let mut subslice_groups: Vec<Vec<NodeIdSet>> = vec![];
-        subslice_groups.extend(
-            self.validators
-                .iter()
-                .map(|&node_id| vec![bitset![node_id]]),
-        );
-        subslice_groups.extend(
-            self.inner_quorum_sets
-                .iter()
-                .map(|qset| qset.to_blocking_sets()),
-        );
-        subslice_groups
-            .into_iter()
-            .combinations(self.blocking_threshold())
-            .map(|group_combination| {
-                group_combination
-                    .into_iter()
-                    .map(|subslice_group| subslice_group.into_iter())
-                    .multi_cartesian_product()
-                    .map(|subslice_combination| {
-                        let mut slice = bitset![];
-                        for node_set in subslice_combination.into_iter() {
-                            slice.union_with(&node_set);
-                        }
-                        slice
-                    })
-                    .collect()
-            })
-            .concat()
+        self.to_slices(|qset| qset.blocking_threshold())
     }
     fn blocking_threshold(&self) -> usize {
-        if self.validators.len() + self.inner_quorum_sets.len() >= self.threshold {
-            self.validators.len() + self.inner_quorum_sets.len() - self.threshold + 1
-        } else {
-            0
-        }
+        (self.validators.len() + self.inner_quorum_sets.len() + 1).wrapping_sub(self.threshold)
     }
 }
 
@@ -217,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn blocking_sets_of_2_of_3_quorum_set() {
+    fn flat_2_of_3_quorum_set_to_blocking_sets() {
         let qset = QuorumSet {
             threshold: 2,
             validators: vec![0, 1, 2],
@@ -226,6 +194,22 @@ mod tests {
         let expected = bitsetvec![{0, 1}, {0, 2}, {1, 2}];
         let actual = qset.to_blocking_sets();
 
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn unsatisfiable_quorum_set_to_blocking_sets() {
+        let quorum_set = QuorumSet::new_unsatisfiable();
+        let expected = bitsetvec![{}];
+        let actual = quorum_set.to_blocking_sets();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn empty_quorum_set_to_blocking_sets() {
+        let quorum_set = QuorumSet::new_empty();
+        let expected: Vec<NodeIdSet> = bitsetvec![];
+        let actual = quorum_set.to_blocking_sets();
         assert_eq!(expected, actual);
     }
 
