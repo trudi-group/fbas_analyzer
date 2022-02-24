@@ -39,10 +39,10 @@ impl Analysis {
     }
     /// Shrink the FBAS to its core nodes, i.e., to the union of all quorum-containing strongly
     /// connected components. Future splitting sets returned by this object will miss any splitting
-    /// sets that do not consist of core nodes, i.e., only splitting sets within the set of core
-    /// nodes will be returned.
+    /// sets that do not consist entirely of core nodes and don't cause at least one pair of core
+    /// nodes to end up in non-intersecting quorums.
     pub fn shrink_to_core_nodes(&mut self) {
-        debug!("Shrinking FBAS again, to core nodes...",);
+        debug!("Shrinking FBAS to core nodes...",);
         let core_nodes_original = self.fbas_original.core_nodes();
         let (new_fbas_shrunken, new_shrink_manager) =
             Fbas::shrunken(&self.fbas_original, core_nodes_original);
@@ -56,11 +56,14 @@ impl Analysis {
         self.fbas_shrunken.replace(new_fbas_shrunken);
         self.shrink_manager.replace(new_shrink_manager);
     }
-    /// Shrink the FBAS to its top tier. Future splitting sets returned by this object will miss
-    /// any splitting sets that are outside of the top tier, i.e., only splitting sets that split
-    /// the top tier will be returned.
+    /// Shrink the FBAS to its top tier, i.e., to the union of all minimal quorums. Future
+    /// splitting sets returned by this object will miss any splitting sets that do not consist
+    /// entirely of top tier nodes and don't cause at least one pair of core nodes to end up in
+    /// non-intersecting quorums.
     pub fn shrink_to_top_tier(&mut self) {
-        debug!("Shrinking FBAS again, to top tier...",);
+        // this can speed up the search for a top tier a bit
+        self.shrink_to_core_nodes();
+        debug!("Shrinking FBAS to top tier...",);
         let top_tier_original = self
             .shrink_manager
             .borrow()
@@ -160,12 +163,9 @@ impl Analysis {
         let mbs_shrunken_cache = self.mbs_shrunken_cache.borrow().clone().map(|mbs_shrunken| {
             new_shrink_manager.reshrink_sets(&mbs_shrunken, &self.shrink_manager.borrow())
         });
-        let mss_shrunken_cache = self.mss_shrunken_cache.borrow().clone().map(|mss_shrunken| {
-            new_shrink_manager.reshrink_sets(&mss_shrunken, &self.shrink_manager.borrow())
-        });
         self.mq_shrunken_cache.replace(mq_shrunken_cache);
         self.mbs_shrunken_cache.replace(mbs_shrunken_cache);
-        self.mss_shrunken_cache.replace(mss_shrunken_cache);
+        self.mss_shrunken_cache.replace(None);
     }
     fn has_quorum_intersection_from_shrunken(&self) -> bool {
         self.cached_computation(
