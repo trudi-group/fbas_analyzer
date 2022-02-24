@@ -30,6 +30,10 @@ struct Cli {
     #[structopt(short = "m", long = "max-top-tier-size")]
     max_top_tier_size: usize,
 
+    /// For larger top tier sizes, don't attempt to calculate splitting sets at all.
+    #[structopt(short = "s", long = "max-top-tier-size-for-splitting-sets")]
+    max_top_tier_size_for_splitting_sets: Option<usize>,
+
     /// Make FBAS that looks like Stellar's top tier: every 3 top-tier nodes are organized as an
     /// inner_quorum set of the top-tier quorum set.
     #[structopt(long = "stellar-like")]
@@ -67,7 +71,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         FullMesh
     };
 
-    let inputs: Vec<InputDataPoint> = generate_inputs(args.max_top_tier_size, args.runs, fbas_type);
+    let inputs: Vec<InputDataPoint> = generate_inputs(
+        args.max_top_tier_size,
+        args.max_top_tier_size_for_splitting_sets
+            .unwrap_or(args.max_top_tier_size),
+        args.runs,
+        fbas_type,
+    );
 
     let existing_outputs = if args.update {
         load_existing_outputs(&args.output_path)?
@@ -86,12 +96,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 struct InputDataPoint {
     top_tier_size: usize,
+    do_splitting_sets_analysis: bool,
     run: usize,
 }
 impl InputDataPoint {
     fn from_output_data_point(d: &OutputDataPoint) -> Self {
         Self {
             top_tier_size: d.top_tier_size,
+            do_splitting_sets_analysis: d.mss_number.is_some()
+                && d.mss_mean.is_some()
+                && d.analysis_duration_mss.is_some(),
             run: d.run,
         }
     }
@@ -102,13 +116,13 @@ struct OutputDataPoint {
     run: usize,
     mq_number: usize,
     mbs_number: usize,
-    mss_number: usize,
+    mss_number: Option<usize>,
     mq_mean: f64,
     mbs_mean: f64,
-    mss_mean: f64,
+    mss_mean: Option<f64>,
     analysis_duration_mq: f64,
     analysis_duration_mbs: f64,
-    analysis_duration_mss: f64,
+    analysis_duration_mss: Option<f64>,
     analysis_duration_hqi_after_mq: f64,
     analysis_duration_hqi_alt_check: f64,
     analysis_duration_total: f64,
@@ -153,6 +167,7 @@ impl FbasType {
 
 fn generate_inputs(
     max_top_tier_size: usize,
+    max_top_tier_size_for_splitting_sets: usize,
     runs: usize,
     fbas_type: FbasType,
 ) -> Vec<InputDataPoint> {
@@ -160,7 +175,12 @@ fn generate_inputs(
     for top_tier_size in (1..max_top_tier_size + 1).filter(|m| m % fbas_type.node_increments() == 0)
     {
         for run in 0..runs {
-            inputs.push(InputDataPoint { top_tier_size, run });
+            let do_splitting_sets_analysis = top_tier_size <= max_top_tier_size_for_splitting_sets;
+            inputs.push(InputDataPoint {
+                top_tier_size,
+                do_splitting_sets_analysis,
+                run,
+            });
         }
     }
     inputs
@@ -248,10 +268,18 @@ fn analyze(input: InputDataPoint, fbas_type: FbasType) -> OutputDataPoint {
             (mbs.len(), mbs.mean())
         });
 
-        let ((mss_number, mss_mean), analysis_duration_mss) = timed_secs!({
-            let mss = analysis.minimal_splitting_sets();
-            (mss.len(), mss.mean())
-        });
+        let ((mss_number, mss_mean), analysis_duration_mss) = if input.do_splitting_sets_analysis {
+            let ((mss_number, mss_mean), analysis_duration_mss) = timed_secs!({
+                let mss = analysis.minimal_splitting_sets();
+                (mss.len(), mss.mean())
+            });
+            (
+                (Some(mss_number), Some(mss_mean)),
+                Some(analysis_duration_mss),
+            )
+        } else {
+            ((None, None), None)
+        };
 
         OutputDataPoint {
             top_tier_size,
@@ -296,22 +324,20 @@ fn write_csv(
 }
 
 fn make_almost_ideal_fbas(top_tier_size: usize) -> Fbas {
-    let mut quorum_set = QuorumSet {
+    let quorum_set = QuorumSet {
         validators: (0..top_tier_size).collect(),
         threshold: simulation::qsc::calculate_67p_threshold(top_tier_size),
         inner_quorum_sets: vec![],
     };
     let mut fbas = Fbas::new();
-    for _ in 0..top_tier_size {
-        fbas.add_generic_node(quorum_set.clone());
+    for i in 0..top_tier_size {
+        // we change each node's quorum set slightly, with 0 implications for analysis except that
+        // symmetric top tier optimizations won't be triggered
+        let mut quorum_set = quorum_set.clone();
+        quorum_set.validators.push(i);
+        quorum_set.threshold += 1;
+        fbas.add_generic_node(quorum_set);
     }
-
-    // we change node 0's quorum set slightly, with 0 implications for analysis except that
-    // symmetric top tier optimizations won't be triggered
-    quorum_set.validators.push(0);
-    quorum_set.threshold += 1;
-    fbas.swap_quorum_set(0, quorum_set);
-
     fbas
 }
 
@@ -331,16 +357,14 @@ fn make_almost_ideal_stellarlike_fbas(top_tier_size: usize) -> Fbas {
     }
     quorum_set.threshold = simulation::qsc::calculate_67p_threshold(top_tier_size / 3);
     let mut fbas = Fbas::new();
-    for _ in 0..top_tier_size {
-        fbas.add_generic_node(quorum_set.clone());
+    for i in 0..top_tier_size {
+        // we change each node's quorum set slightly, with 0 implications for analysis except that
+        // symmetric top tier optimizations won't be triggered
+        let mut quorum_set = quorum_set.clone();
+        quorum_set.validators.push(i);
+        quorum_set.threshold += 1;
+        fbas.add_generic_node(quorum_set);
     }
-
-    // we change node 0's quorum set slightly, with 0 implications for analysis except that
-    // symmetric top tier optimizations won't be triggered
-    quorum_set.validators.push(0);
-    quorum_set.threshold += 1;
-    fbas.swap_quorum_set(0, quorum_set);
-
     fbas
 }
 
