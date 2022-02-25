@@ -132,24 +132,6 @@ mod tests {
     }
 
     #[test]
-    fn analysis_nontrivial_shrink_to_top_tier() {
-        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
-        let mut analysis = Analysis::new(&fbas);
-        analysis.shrink_to_top_tier();
-
-        assert!(analysis.has_quorum_intersection());
-        assert_eq!(
-            analysis.minimal_quorums().describe(),
-            NodeIdSetVecResult::new(vec![bitset![0, 1], bitset![0, 10], bitset![1, 10]], None)
-                .describe()
-        );
-        assert_eq!(
-            analysis.minimal_splitting_sets().describe(),
-            NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![10]], None).describe()
-        );
-    }
-
-    #[test]
     fn analysis_nontrivial_shrink_to_core_nodes() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
         let mut analysis = Analysis::new(&fbas);
@@ -163,6 +145,7 @@ mod tests {
         );
         assert_eq!(
             analysis.minimal_splitting_sets().describe(),
+            // 4 is Eno (not a top tier node), and he can split {0} and {4, 10} (top tier nodes)!
             NodeIdSetVecResult::new(vec![bitset![0], bitset![1], bitset![4], bitset![10]], None)
                 .describe()
         );

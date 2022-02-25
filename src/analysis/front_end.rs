@@ -56,30 +56,6 @@ impl Analysis {
         self.fbas_shrunken.replace(new_fbas_shrunken);
         self.shrink_manager.replace(new_shrink_manager);
     }
-    /// Shrink the FBAS to its top tier, i.e., to the union of all minimal quorums. Future
-    /// splitting sets returned by this object will miss any splitting sets that do not consist
-    /// entirely of top tier nodes and don't cause at least one pair of core nodes to end up in
-    /// non-intersecting quorums.
-    pub fn shrink_to_top_tier(&mut self) {
-        // this can speed up the search for a top tier a bit
-        self.shrink_to_core_nodes();
-        debug!("Shrinking FBAS to top tier...",);
-        let top_tier_original = self
-            .shrink_manager
-            .borrow()
-            .unshrink_set(&self.top_tier_shrunken());
-        let (new_fbas_shrunken, new_shrink_manager) =
-            Fbas::shrunken(&self.fbas_original, top_tier_original);
-        debug!(
-            "Shrank to an FBAS of size {} (from size {}).",
-            new_fbas_shrunken.number_of_nodes(),
-            self.fbas_shrunken.borrow().number_of_nodes(),
-        );
-        debug!("Fixing previously cached values...");
-        self.reshrink_cached_results(&new_shrink_manager);
-        self.fbas_shrunken.replace(new_fbas_shrunken);
-        self.shrink_manager.replace(new_shrink_manager);
-    }
     /// Nodes in the analyzed FBAS - not filtered by relevance.
     pub fn all_nodes(&self) -> NodeIdSetResult {
         self.make_unshrunken_set_result(self.fbas_original.all_nodes())

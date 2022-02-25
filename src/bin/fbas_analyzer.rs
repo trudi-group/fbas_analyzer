@@ -90,14 +90,8 @@ struct Cli {
     /// connected components. Splitting sets analyses will miss any splitting sets that do not
     /// consist entirely of core nodes and don't cause at least one pair of core nodes to end up in
     /// non-intersecting quorums.
-    #[structopt(long = "only-core-nodes", conflicts_with = "only_top_tier")]
+    #[structopt(long = "only-core-nodes")]
     only_core_nodes: bool,
-
-    /// Shrink the FBAS to its top tier prior to analysis, i.e., to the union of all minimal quorums. Splitting sets
-    /// analyses will miss any splitting sets that do not consist entirely of top tier nodes and
-    /// don't cause at least one pair of core nodes to end up in non-intersecting quorums.
-    #[structopt(long = "only-top-tier")]
-    only_top_tier: bool,
 
     #[structopt(flatten)]
     verbosity: Verbosity,
@@ -122,7 +116,7 @@ fn main() -> CliResult {
     } else {
         None
     };
-    let analysis = init_analysis(&fbas, args.only_core_nodes, args.only_top_tier);
+    let analysis = init_analysis(&fbas, args.only_core_nodes);
 
     let (q, b, s, big_s) = extract_main_todos(&args);
     let output = Output::init(&args, &fbas, &groupings);
@@ -229,12 +223,10 @@ fn maybe_load_countries<'a>(
         None
     }
 }
-fn init_analysis(fbas: &Fbas, only_core_nodes: bool, only_top_tier: bool) -> Analysis {
+fn init_analysis(fbas: &Fbas, only_core_nodes: bool) -> Analysis {
     let mut analysis = Analysis::new(fbas);
     if only_core_nodes {
         analysis.shrink_to_core_nodes();
-    } else if only_top_tier {
-        analysis.shrink_to_top_tier();
     }
     analysis
 }
