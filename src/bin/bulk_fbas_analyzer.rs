@@ -48,6 +48,13 @@ struct Cli {
     #[structopt(long = "ignore-one-node-quorums")]
     ignore_one_node_quorums: bool,
 
+    /// Shrink the FBAS to its core nodes prior to analysis, i.e., to the union of all quorum-containing strongly
+    /// connected components. Splitting sets analyses will miss any splitting sets that do not
+    /// consist entirely of core nodes and don't cause at least one pair of core nodes to end up in
+    /// non-intersecting quorums.
+    #[structopt(long = "only-core-nodes")]
+    only_core_nodes: bool,
+
     /// Number of threads to use. Defaults to 1.
     #[structopt(short = "j", long = "jobs", default_value = "1")]
     jobs: usize,
@@ -69,8 +76,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let tasks = make_sorted_tasklist(inputs, existing_outputs);
 
-    let prep_opts =
-        PreprocessingOptions::new(args.ignore_inactive_nodes, args.ignore_one_node_quorums);
+    let prep_opts = PreprocessingOptions::new(
+        args.ignore_inactive_nodes,
+        args.ignore_one_node_quorums,
+        args.only_core_nodes,
+    );
 
     let output_iterator = bulk_do(tasks, prep_opts, args.jobs);
     write_csv(output_iterator, &args.output_path, args.update)?;
@@ -137,12 +147,18 @@ struct OutputDataPoint {
 struct PreprocessingOptions {
     ignore_inactive_nodes: bool,
     ignore_one_node_quorums: bool,
+    only_core_nodes: bool,
 }
 impl PreprocessingOptions {
-    pub fn new(ignore_inactive_nodes: bool, ignore_one_node_quorums: bool) -> Self {
+    pub fn new(
+        ignore_inactive_nodes: bool,
+        ignore_one_node_quorums: bool,
+        only_core_nodes: bool,
+    ) -> Self {
         Self {
             ignore_inactive_nodes,
             ignore_one_node_quorums,
+            only_core_nodes,
         }
     }
 }
@@ -264,7 +280,7 @@ fn analyze(input: InputDataPoint, prep_opts: PreprocessingOptions) -> OutputData
         let organizations = maybe_load_organizations(input.organizations_path.as_ref(), &fbas);
         let isps = maybe_load_isps(&input.nodes_path, &fbas);
         let countries = maybe_load_countries(&input.nodes_path, &fbas);
-        let analysis = Analysis::new(&fbas);
+        let analysis = init_analysis(&fbas, prep_opts);
 
         let label = input.label.clone();
 
@@ -489,6 +505,13 @@ fn maybe_load_countries<'a>(nodes_path: &Path, fbas: &'a Fbas) -> Option<Groupin
     } else {
         None
     }
+}
+fn init_analysis(fbas: &Fbas, prep_opts: PreprocessingOptions) -> Analysis {
+    let mut analysis = Analysis::new(fbas);
+    if prep_opts.only_core_nodes {
+        analysis.shrink_to_core_nodes();
+    }
+    analysis
 }
 
 fn read_csv_from_file(path: &Path) -> Result<Vec<OutputDataPoint>, Box<dyn Error>> {
