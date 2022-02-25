@@ -18,7 +18,7 @@ pub fn find_minimal_splitting_sets(fbas: &Fbas) -> Vec<NodeIdSet> {
 /// Finds all nodes that can potentially make quorums smaller by more than one node (i.e., more
 /// than by just themselves) by changing their quorum sets or lying about them.
 pub fn find_quorum_expanders(fbas: &Fbas) -> NodeIdSet {
-    info!("Starting to look for minimal quorum reducing nodes...");
+    info!("Starting to look for quorum expanders...");
     let mut result = NodeIdSet::new();
     for quorum_set in fbas.nodes.iter().map(|node| &node.quorum_set).unique() {
         result.union_with(&quorum_set.quorum_expanders(fbas));
@@ -306,16 +306,17 @@ impl QuorumSet {
     /// Nodes that are in one of my slices but not satisfied by it, thereby potentially expanding
     /// it to a larger quorum.
     fn quorum_expanders(&self, fbas: &Fbas) -> NodeIdSet {
-        self.to_quorum_slices()
-            .into_iter()
-            .map(|slice| {
-                slice
-                    .iter()
-                    .filter(|&node| !fbas.nodes[node].quorum_set.is_quorum_slice(&slice))
-                    .collect::<Vec<NodeId>>()
-            })
-            .flatten()
-            .collect()
+        let mut result = bitset![];
+        if self.threshold > 0 {
+            for slice in self.nonempty_slices_iter(|qset| qset.threshold) {
+                for node in slice.iter() {
+                    if !fbas.nodes[node].quorum_set.is_quorum_slice(&slice) {
+                        result.insert(node);
+                    }
+                }
+            }
+        }
+        result
     }
     /// If `self` represents a symmetric quorum cluster, this function returns all minimal splitting sets of the induced FBAS.
     fn to_minimal_splitting_sets(&self) -> Vec<NodeIdSet> {
