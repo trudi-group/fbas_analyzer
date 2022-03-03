@@ -41,7 +41,7 @@ mod io;
 
 pub use analysis::*;
 pub use core_types::{Fbas, Groupings, NodeId, NodeIdSet, QuorumSet};
-pub use io::{AnalysisResult, FilteredNodes, PrettyQuorumSet};
+pub use io::{to_public_keys, AnalysisResult, FilteredNodes, PrettyQuorumSet};
 
 use core_types::*;
 

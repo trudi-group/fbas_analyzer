@@ -192,7 +192,7 @@ impl NodeIdSetVecResult {
     }
 }
 
-fn to_public_keys(nodes: impl IntoIterator<Item = NodeId>, fbas: &Fbas) -> Vec<PublicKey> {
+pub fn to_public_keys(nodes: impl IntoIterator<Item = NodeId>, fbas: &Fbas) -> Vec<PublicKey> {
     nodes
         .into_iter()
         .map(|id| &fbas.nodes[id].public_key)

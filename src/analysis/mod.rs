@@ -19,7 +19,7 @@ pub use front_end::Analysis;
 pub use results::{NodeIdSetResult, NodeIdSetVecResult};
 
 pub use blocking_sets::find_minimal_blocking_sets;
-pub use quorums::{find_minimal_quorums, find_nonintersecting_quorums};
+pub use quorums::{contains_quorum, find_minimal_quorums, find_nonintersecting_quorums};
 pub use splitting_sets::find_minimal_splitting_sets;
 pub use symmetric_clusters::{find_symmetric_clusters, find_symmetric_top_tier};
 

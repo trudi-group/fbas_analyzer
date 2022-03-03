@@ -301,7 +301,7 @@ fn selection_satisfiable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fb
         .all(|x| fbas.nodes[x].quorum_set.is_quorum_slice(available))
 }
 
-pub(crate) fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
+pub fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
     let mut satisfiable = node_set.clone();
 
     while let Some(unsatisfiable_node) = satisfiable
