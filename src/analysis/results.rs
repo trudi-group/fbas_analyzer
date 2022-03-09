@@ -66,43 +66,49 @@ impl From<NodeIdSet> for NodeIdSetResult {
 /// Wraps a vector of node ID sets. Node ID sets are stored in shrunken form to preserve memory.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub struct NodeIdSetVecResult {
-    pub(crate) node_sets: Vec<NodeIdSet>,
+    pub(crate) shrunken_node_sets: Vec<NodeIdSet>,
     pub(crate) unshrink_table: Option<Vec<NodeId>>,
 }
 impl NodeIdSetVecResult {
-    pub(crate) fn new(node_sets: Vec<NodeIdSet>, shrink_manager: Option<&ShrinkManager>) -> Self {
+    pub(crate) fn new(
+        shrunken_node_sets: Vec<NodeIdSet>,
+        shrink_manager: Option<&ShrinkManager>,
+    ) -> Self {
         NodeIdSetVecResult {
-            node_sets,
+            shrunken_node_sets,
             unshrink_table: shrink_manager.map(|m| m.unshrink_table().clone()),
         }
     }
-    pub fn unwrap(mut self) -> Vec<NodeIdSet> {
-        self.unshrink();
-        self.node_sets
+    pub fn unwrap(self) -> Vec<NodeIdSet> {
+        self.unshrunken_node_sets()
     }
-    pub fn into_vec_vec(mut self) -> Vec<Vec<NodeId>> {
-        self.unshrink();
-        self.node_sets
-            .iter()
+    pub fn into_vec_vec(self) -> Vec<Vec<NodeId>> {
+        self.unshrunken_node_sets()
+            .into_iter()
             .map(|node_set| node_set.into_iter().collect())
             .collect()
     }
     pub fn involved_nodes(&self) -> NodeIdSet {
-        involved_nodes(&self.node_sets)
+        let shrunken_involved_nodes = involved_nodes(&self.shrunken_node_sets);
+        if let Some(unshrink_table) = &self.unshrink_table {
+            unshrink_set(&shrunken_involved_nodes, unshrink_table)
+        } else {
+            shrunken_involved_nodes
+        }
     }
     pub fn len(&self) -> usize {
-        self.node_sets.len()
+        self.shrunken_node_sets.len()
     }
     pub fn is_empty(&self) -> bool {
-        self.node_sets.is_empty()
+        self.shrunken_node_sets.is_empty()
     }
     pub fn contains_empty_set(&self) -> bool {
-        self.node_sets.contains(&bitset![])
+        self.shrunken_node_sets.contains(&bitset![])
     }
     /// Returns (number_of_sets, number_of_distinct_nodes, <minmaxmean_set_size>, <histogram>)
     pub fn describe(&self) -> (usize, usize, (usize, usize, f64), Vec<usize>) {
         (
-            self.node_sets.len(),
+            self.shrunken_node_sets.len(),
             self.involved_nodes().len(),
             self.minmaxmean(),
             self.histogram(),
@@ -114,26 +120,42 @@ impl NodeIdSetVecResult {
     }
     /// Returns the cardinality of the smallest member set
     pub fn min(&self) -> usize {
-        self.node_sets.iter().map(|s| s.len()).min().unwrap_or(0)
+        self.shrunken_node_sets
+            .iter()
+            .map(|s| s.len())
+            .min()
+            .unwrap_or(0)
     }
     /// Returns the cardinality of the largest member set
     pub fn max(&self) -> usize {
-        self.node_sets.iter().map(|s| s.len()).max().unwrap_or(0)
+        self.shrunken_node_sets
+            .iter()
+            .map(|s| s.len())
+            .max()
+            .unwrap_or(0)
     }
     /// Returns the mean cardinality of all member sets
     pub fn mean(&self) -> f64 {
-        if self.node_sets.is_empty() {
+        if self.shrunken_node_sets.is_empty() {
             0.0
         } else {
-            self.node_sets.iter().map(|s| s.len()).sum::<usize>() as f64
-                / (self.node_sets.len() as f64)
+            self.shrunken_node_sets
+                .iter()
+                .map(|s| s.len())
+                .sum::<usize>() as f64
+                / (self.shrunken_node_sets.len() as f64)
         }
     }
     /// Returns [ #members with size 0, #members with size 1, ... , #members with maximum size ]
     pub fn histogram(&self) -> Vec<usize> {
-        let max = self.node_sets.iter().map(|s| s.len()).max().unwrap_or(0);
+        let max = self
+            .shrunken_node_sets
+            .iter()
+            .map(|s| s.len())
+            .max()
+            .unwrap_or(0);
         let mut histogram: Vec<usize> = vec![0; max + 1];
-        for node_set in self.node_sets.iter() {
+        for node_set in self.shrunken_node_sets.iter() {
             let size = node_set.len();
             histogram[size] = histogram[size].checked_add(1).unwrap();
         }
@@ -143,25 +165,21 @@ impl NodeIdSetVecResult {
     /// The remaining node sets might be non-minimal w.r.t. each other, or contain duplicates!
     /// You will usually want to chain this with `.minimal_sets()`.
     pub fn merged_by_group(&self, groupings: &Groupings) -> Self {
-        let mut new = self.clone();
-        new.unshrink();
-        new.node_sets = groupings.merge_node_sets(new.node_sets);
-        new
+        Self::new(groupings.merge_node_sets(self.unshrunken_node_sets()), None)
     }
     /// Removes all non-minimal sets and sorts the remaining sets.
     pub fn minimal_sets(&self) -> Self {
         let mut new = self.clone();
-        new.node_sets = remove_non_minimal_node_sets(new.node_sets);
+        new.shrunken_node_sets = remove_non_minimal_node_sets(new.shrunken_node_sets);
         new
     }
     pub fn without_nodes(&self, nodes: &[NodeId]) -> Self {
-        let mut new = self.clone();
-        new.unshrink();
+        let mut unshrunken_node_sets = self.unshrunken_node_sets();
         let nodes: NodeIdSet = nodes.iter().copied().collect();
-        for node_set in new.node_sets.iter_mut() {
+        for node_set in unshrunken_node_sets.iter_mut() {
             node_set.difference_with(&nodes);
         }
-        new
+        Self::new(unshrunken_node_sets, None)
     }
     pub fn without_nodes_pretty(
         &self,
@@ -176,11 +194,12 @@ impl NodeIdSetVecResult {
         };
         self.without_nodes(&nodes_by_id)
     }
-    fn unshrink(&mut self) {
+    fn unshrunken_node_sets(&self) -> Vec<NodeIdSet> {
         if let Some(unshrink_table) = &self.unshrink_table {
-            self.node_sets = unshrink_sets(&self.node_sets, unshrink_table);
+            unshrink_sets(&self.shrunken_node_sets, unshrink_table)
+        } else {
+            self.shrunken_node_sets.clone()
         }
-        self.unshrink_table = None;
     }
 }
 impl From<Vec<NodeIdSet>> for NodeIdSetVecResult {
@@ -243,6 +262,25 @@ mod tests {
         let actual = node_sets_result.describe();
         let expected = (4, 8, (2, 4, 2.5), vec![0, 0, 3, 0, 1]);
         assert_eq!(expected, actual)
+    }
+
+    #[test]
+    fn involved_nodes_in_shrunken_result() {
+        let shrink_manager = ShrinkManager::new(bitset![23, 42]);
+        let result = NodeIdSetResult::new(bitset![0, 1], Some(&shrink_manager));
+        let expected = bitset![23, 42];
+        let actual = result.involved_nodes();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn involved_nodes_in_shrunken_vec_result() {
+        let shrink_manager = ShrinkManager::new(bitset![23, 42, 7, 1000]);
+        let result =
+            NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], Some(&shrink_manager));
+        let expected = bitset![23, 42, 7, 1000];
+        let actual = result.involved_nodes();
+        assert_eq!(expected, actual);
     }
 
     #[test]

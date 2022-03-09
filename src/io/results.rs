@@ -174,7 +174,7 @@ impl NodeIdSetVecResult {
         fbas: &Fbas,
         groupings: Option<&Groupings>,
     ) -> Vec<Vec<PublicKey>> {
-        self.node_sets
+        self.shrunken_node_sets
             .iter()
             .map(|node_set| {
                 if let Some(unshrink_table) = self.unshrink_table.as_ref() {
