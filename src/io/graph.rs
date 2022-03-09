@@ -27,8 +27,7 @@ impl Graph {
 
         for (sink, source, peering) in as_rel_file_contents
             .lines()
-            .map(get_edge_from_as_rel_line)
-            .flatten()
+            .filter_map(get_edge_from_as_rel_line)
         {
             outlinks.resize_with(max(outlinks.len(), max(sink, source) + 1), BTreeSet::new);
             outlinks[source].insert(sink);
@@ -81,16 +80,11 @@ fn get_edge_from_as_rel_line(line: &str) -> Option<(NodeId, NodeId, bool)> {
     let mut parts = line.split('|');
     let sink = parts.next().expect(e).parse::<NodeId>().expect(e);
     let source = parts.next().expect(e).parse::<NodeId>().expect(e);
-    let peering;
-    match parts.next().expect(e).parse::<i32>().expect(e) {
-        -1 => {
-            peering = false;
-        }
-        0 => {
-            peering = true;
-        }
+    let peering = match parts.next().expect(e).parse::<i32>().expect(e) {
+        -1 => false,
+        0 => true,
         _ => {
-            panic!("{}", e);
+            panic!("{}", e)
         }
     };
     Some((sink, source, peering))
@@ -118,7 +112,7 @@ mod tests {
 
     #[test]
     fn bunzip2s() {
-        let contents = read_bz2_file_to_string(&Path::new(AS_REL_TESTFILE)).unwrap();
+        let contents = read_bz2_file_to_string(Path::new(AS_REL_TESTFILE)).unwrap();
         let actual = contents.lines().last().unwrap();
         let expected = "112|35053|0|mlp";
         assert_eq!(expected, actual);
@@ -157,7 +151,7 @@ mod tests {
         let contents = "1|2|0|bgp\n\
                         2|1|0|bgp";
         let expected = Graph::new(vec![vec![], vec![2], vec![1]]);
-        let actual = Graph::from_as_rel_string(&contents);
+        let actual = Graph::from_as_rel_string(contents);
         assert_eq!(expected, actual);
     }
 
@@ -167,7 +161,7 @@ mod tests {
         let message = "blup";
         let expected = "# blup\n\
                         0|1|0\n";
-        let actual = Graph::to_as_rel_string(&graph, Some(&message)).unwrap();
+        let actual = Graph::to_as_rel_string(&graph, Some(message)).unwrap();
         assert_eq!(expected, actual);
     }
 
@@ -185,9 +179,9 @@ mod tests {
     fn to_as_rel_file_writes_graph_correctly() {
         let path = Path::new("test_data/test_graph.txt.bz2");
         let expected = Graph::new_random_small_world(4, 2, 0.05);
-        Some(Graph::to_as_rel_file(&expected, &path, None));
+        Graph::to_as_rel_file(&expected, path, None).unwrap();
         let actual = Graph::from_as_rel_file(path);
         assert_eq!(expected, actual);
-        Some(fs::remove_file(path));
+        fs::remove_file(path).unwrap();
     }
 }

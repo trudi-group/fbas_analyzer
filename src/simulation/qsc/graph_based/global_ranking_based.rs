@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn global_rank_qsc() {
-        let graph = Graph::new_tiered_full_mesh(&vec![2, 3, 1]);
+        let graph = Graph::new_tiered_full_mesh(&[2, 3, 1]);
         let n = graph.number_of_nodes();
         let qsc = GlobalRankQsc::new_67p(graph);
 

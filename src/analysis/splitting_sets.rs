@@ -267,7 +267,7 @@ impl FbasValues {
             .sccs
             .iter()
             .cloned()
-            .map(|mut scc| {
+            .flat_map(|mut scc| {
                 if scc.is_disjoint(&new_faulty_nodes) {
                     vec![scc]
                 } else {
@@ -275,7 +275,6 @@ impl FbasValues {
                     partition_into_strongly_connected_components(&scc, &fbas)
                 }
             })
-            .flatten()
             .collect_vec();
 
         let consensus_clusters = sccs

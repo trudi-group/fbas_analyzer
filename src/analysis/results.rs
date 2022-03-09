@@ -214,7 +214,7 @@ fn from_public_keys(nodes: &[PublicKey], fbas: &Fbas) -> Vec<NodeId> {
 fn from_grouping_names(nodes: &[PublicKey], fbas: &Fbas, groupings: &Groupings) -> Vec<NodeId> {
     nodes
         .iter()
-        .map(|name| match groupings.get_by_name(name) {
+        .flat_map(|name| match groupings.get_by_name(name) {
             Some(org) => org.validators.clone(),
             None => {
                 if let Some(node_id) = fbas.get_node_id(name) {
@@ -224,7 +224,6 @@ fn from_grouping_names(nodes: &[PublicKey], fbas: &Fbas, groupings: &Groupings) 
                 }
             }
         })
-        .flatten()
         .collect()
 }
 
@@ -455,8 +454,8 @@ mod tests {
                 "publicKey": "Bob"
             }
             ]"#;
-        let fbas = Fbas::from_json_str(&fbas_input);
-        let countries = Groupings::countries_from_json_str(&fbas_input, &fbas);
+        let fbas = Fbas::from_json_str(fbas_input);
+        let countries = Groupings::countries_from_json_str(fbas_input, &fbas);
         let result = NodeIdSetVecResult::new(bitsetvec![{0, 1}, {0, 2}, {3}], None);
         let actual = result.merged_by_group(&countries).unwrap();
         let expected = bitsetvec![{0}, {0, 2}, {3}];

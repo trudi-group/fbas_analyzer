@@ -261,7 +261,7 @@ mod tests {
                 vec![2, 3, 4],
             ],
         };
-        let actual = Graph::new_tiered_full_mesh(&vec![2, 3, 1]);
+        let actual = Graph::new_tiered_full_mesh(&[2, 3, 1]);
         assert_eq!(expected, actual);
     }
 
@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn node_out_degrees_directed() {
-        let graph = Graph::new_tiered_full_mesh(&vec![2, 3, 1]);
+        let graph = Graph::new_tiered_full_mesh(&[2, 3, 1]);
         let actual = graph.get_out_degrees();
         let expected = vec![1, 1, 4, 4, 4, 3];
         assert_eq!(expected, actual);
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn node_in_degrees_directed() {
-        let graph = Graph::new_tiered_full_mesh(&vec![2, 3, 1]);
+        let graph = Graph::new_tiered_full_mesh(&[2, 3, 1]);
         let actual = graph.get_in_degrees();
         let expected = vec![4, 4, 3, 3, 3, 0];
         assert_eq!(expected, actual);
@@ -389,7 +389,7 @@ mod tests {
 
     #[test]
     fn node_rank_scores() {
-        let graph = Graph::new_tiered_full_mesh(&vec![2, 3, 1]);
+        let graph = Graph::new_tiered_full_mesh(&[2, 3, 1]);
         let actual: Vec<RankScore> = graph
             .get_rank_scores()
             .into_iter()

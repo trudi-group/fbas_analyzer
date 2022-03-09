@@ -9,7 +9,6 @@ use fbas_analyzer::*;
 use std::collections::HashMap;
 use std::path::Path;
 
-use hex;
 use sha3::{Digest, Sha3_256};
 
 pub fn main() {

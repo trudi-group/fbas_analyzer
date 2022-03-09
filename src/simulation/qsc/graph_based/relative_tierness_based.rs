@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn get_neighbors_by_tierness_middle_tier_directed_links() {
-        let graph = Graph::new_tiered_full_mesh(&vec![3, 3, 3]);
+        let graph = Graph::new_tiered_full_mesh(&[3, 3, 3]);
         let higher_tier_qsc = HigherTierNeighborsQsc::new_67p(graph, false);
         let actual = higher_tier_qsc.get_neighbors_by_tierness(3);
         let expected = (vec![0, 1, 2], vec![4, 5], vec![]);
@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn get_neighbors_by_tierness_top_tier_directed_links() {
-        let graph = Graph::new_tiered_full_mesh(&vec![3, 3, 3]);
+        let graph = Graph::new_tiered_full_mesh(&[3, 3, 3]);
         let higher_tier_qsc = HigherTierNeighborsQsc::new_67p(graph, false);
         let actual = higher_tier_qsc.get_neighbors_by_tierness(1);
         let expected = (vec![], vec![0, 2], vec![]);
@@ -169,7 +169,7 @@ mod tests {
     fn higher_tier_qsc_can_be_like_ideal_safe() {
         let n = 10;
         let higher_tier_qsc =
-            HigherTierNeighborsQsc::new_67p(Graph::new_tiered_full_mesh(&vec![n]), false);
+            HigherTierNeighborsQsc::new_67p(Graph::new_tiered_full_mesh(&[n]), false);
         let ideal_qsc = IdealQsc::new();
 
         let actual = simulate!(higher_tier_qsc, n);

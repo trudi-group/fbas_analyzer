@@ -88,8 +88,8 @@ mod tests {
                     "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ"
                 ]
             }]"#;
-        let fbas = Fbas::from_json_str(&fbas_input);
-        let organizations = Groupings::organizations_from_json_str(&organizations_input, &fbas);
+        let fbas = Fbas::from_json_str(fbas_input);
+        let organizations = Groupings::organizations_from_json_str(organizations_input, &fbas);
 
         let node_sets = vec![bitset![0], bitset![1, 2]];
 
@@ -114,8 +114,8 @@ mod tests {
                 "publicKey": "GCWJKM4EGTGJUVSWUJDPCQEOEP5LHSOFKSA4HALBTOO4T4H3HCHOM6UX",
                 "isp": "Microsoft"
             }]"#;
-        let fbas = Fbas::from_json_str(&fbas_input);
-        let isps = Groupings::isps_from_json_str(&fbas_input, &fbas);
+        let fbas = Fbas::from_json_str(fbas_input);
+        let isps = Groupings::isps_from_json_str(fbas_input, &fbas);
 
         let node_sets = vec![bitset![0], bitset![1, 2]];
 

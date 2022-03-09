@@ -102,7 +102,7 @@ impl QuorumSet {
     ) -> impl Iterator<Item = NodeIdSet> + '_ {
         self.to_subslice_groups(relevant_threshold)
             .combinations(relevant_threshold(self))
-            .map(|group_combination| {
+            .flat_map(|group_combination| {
                 group_combination
                     .into_iter()
                     .map(|subslice_group| subslice_group.into_iter())
@@ -115,7 +115,6 @@ impl QuorumSet {
                         slice
                     })
             })
-            .flatten()
     }
     fn to_subslice_groups<'a>(
         &'a self,
@@ -200,7 +199,7 @@ mod tests {
     use super::*;
 
     fn flat_qset(validators: &[NodeId], threshold: usize) -> QuorumSet {
-        QuorumSet::new(validators.iter().copied().collect(), vec![], threshold)
+        QuorumSet::new(validators.to_vec(), vec![], threshold)
     }
 
     #[test]
@@ -369,8 +368,7 @@ mod tests {
         assert!(quorum_set
             .to_quorum_slices()
             .iter()
-            .find(|&x| x.is_subset(&miss_problem))
-            .is_some());
+            .any(|x| x.is_subset(&miss_problem)));
     }
 
     #[test]

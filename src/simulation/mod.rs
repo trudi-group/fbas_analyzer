@@ -197,7 +197,7 @@ mod tests {
         let orderings: Vec<Vec<NodeId>> = rounds
             .map(|round| {
                 round
-                    .into_iter()
+                    .iter()
                     .filter_map(|&event| match event {
                         QuorumSetChange(id, _) => Some(id),
                         _ => None,

@@ -199,8 +199,8 @@ mod tests {
                 "active": true,
                 "isp": "Google.com"
             }]"#;
-        let fbas = Fbas::from_json_str(&json);
-        let isps = Groupings::isps_from_json_str(&json, &fbas);
+        let fbas = Fbas::from_json_str(json);
+        let isps = Groupings::isps_from_json_str(json, &fbas);
         let expected_names = vec!["Google.com", "Hetzner", "StackOverflow"];
         let actual_names: Vec<String> = isps.groupings.iter().map(|x| x.name.clone()).collect();
         let expected_validators: Vec<Vec<NodeId>> = vec![vec![0, 3], vec![2], vec![1]];
@@ -247,8 +247,8 @@ mod tests {
                     "countryName": "Timbuktu"
                 }
             }]"#;
-        let fbas = Fbas::from_json_str(&json);
-        let countries = Groupings::countries_from_json_str(&json, &fbas);
+        let fbas = Fbas::from_json_str(json);
+        let countries = Groupings::countries_from_json_str(json, &fbas);
         let expected_names = vec!["Absurdistan", "Timbuktu", "Wakanda"];
         let actual_names: Vec<String> =
             countries.groupings.iter().map(|x| x.name.clone()).collect();
@@ -291,8 +291,8 @@ mod tests {
                     "planet": "Earth"
                 }
             }]"#;
-        let fbas = Fbas::from_json_str(&json);
-        let countries = Groupings::countries_from_json_str(&json, &fbas);
+        let fbas = Fbas::from_json_str(json);
+        let countries = Groupings::countries_from_json_str(json, &fbas);
         let expected_names = vec!["Absurdistan", "Wakanda"];
         let actual_names: Vec<String> =
             countries.groupings.iter().map(|x| x.name.clone()).collect();
@@ -328,8 +328,8 @@ mod tests {
                 "publicKey": "GABMK",
                 "isp": "Amazon.com, Inc."
             }]"#;
-        let fbas = Fbas::from_json_str(&json);
-        let isps = Groupings::isps_from_json_str(&json, &fbas);
+        let fbas = Fbas::from_json_str(json);
+        let isps = Groupings::isps_from_json_str(json, &fbas);
         let expected_names = vec!["Amazon.com Inc", "Google.com"];
         let actual_names: Vec<String> = isps.groupings.iter().map(|x| x.name.clone()).collect();
         let expected_validators: Vec<Vec<NodeId>> = vec![vec![2, 4], vec![0, 1, 3]];
@@ -369,8 +369,8 @@ mod tests {
                 "validators": [ "Bob" ]
             }
             ]"#;
-        let groupings = Groupings::from_json_str(&json_str, &fbas);
-        let organizations = Groupings::organizations_from_json_str(&json_str, &fbas);
+        let groupings = Groupings::from_json_str(json_str, &fbas);
+        let organizations = Groupings::organizations_from_json_str(json_str, &fbas);
         assert_eq!(groupings, organizations);
     }
     #[test]

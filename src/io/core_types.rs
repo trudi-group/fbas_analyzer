@@ -225,7 +225,7 @@ mod tests {
             QuorumSet::new_unsatisfiable(),
         ];
 
-        let actual = Fbas::from_json_str(&input);
+        let actual = Fbas::from_json_str(input);
         let actual_public_keys: Vec<PublicKey> =
             actual.nodes.iter().map(|x| x.public_key.clone()).collect();
         let actual_quorum_sets: Vec<QuorumSet> =
@@ -262,7 +262,7 @@ mod tests {
             QuorumSet::new(vec![], vec![], 1),
         ];
 
-        let actual = Fbas::from_json_str(&input);
+        let actual = Fbas::from_json_str(input);
         let actual_quorum_sets: Vec<QuorumSet> =
             actual.nodes.into_iter().map(|x| x.quorum_set).collect();
 
@@ -285,7 +285,7 @@ mod tests {
                 "publicKey": "GABMK"
             }]"#;
 
-        let fbas = Fbas::from_json_str(&input);
+        let fbas = Fbas::from_json_str(input);
 
         let expected = vec!["GCGB2", "GCM6Q", "GABMK"];
         let actual: Vec<PublicKey> = fbas.nodes.into_iter().map(|x| x.public_key).collect();

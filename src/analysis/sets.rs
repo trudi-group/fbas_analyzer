@@ -162,12 +162,12 @@ mod tests {
 
     #[test]
     fn node_set_intersections() {
-        assert!(all_intersect(&vec![
+        assert!(all_intersect(&[
             bitset![0, 1],
             bitset![0, 2],
             bitset![1, 2]
         ]));
-        assert!(!all_intersect(&vec![bitset![0], bitset![1, 2]]));
+        assert!(!all_intersect(&[bitset![0], bitset![1, 2]]));
     }
 
     #[test]
