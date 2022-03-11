@@ -12,7 +12,7 @@ def main():
 
     cargo_build()
     test_fbas_analyzer()
-    test_bulk_fbas_analyzer()
+    # test_bulk_fbas_analyzer() # this has gotten too slow unfortunately
     test_qsc_simulator()
 
     print("All tests completed successfully!")
@@ -42,10 +42,10 @@ def test_example():
 
 
 def test_fbas_analyzer():
-    test_fbas_analyzer_with_organizations()
     test_fbas_analyzer_with_ids()
     test_fbas_analyzer_on_broken()
     test_fbas_analyzer_on_mobilecoin()
+    test_fbas_analyzer_with_organizations()
 
 
 def test_fbas_analyzer_with_organizations():
@@ -54,7 +54,6 @@ def test_fbas_analyzer_with_organizations():
         'has_quorum_intersection: true',
         'minimal_quorums: [["Stellar Development Foundation","LOBSTR","SatoshiPay","COINQVEST Limited"],["Stellar Development Foundation","LOBSTR","SatoshiPay","Keybase"],["Stellar Development Foundation","LOBSTR","COINQVEST Limited","Keybase"],["Stellar Development Foundation","SatoshiPay","COINQVEST Limited","Keybase"],["LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]]',
         'minimal_blocking_sets: [["Stellar Development Foundation","LOBSTR"],["Stellar Development Foundation","SatoshiPay"],["Stellar Development Foundation","COINQVEST Limited"],["Stellar Development Foundation","Keybase"],["LOBSTR","SatoshiPay"],["LOBSTR","COINQVEST Limited"],["LOBSTR","Keybase"],["SatoshiPay","COINQVEST Limited"],["SatoshiPay","Keybase"],["COINQVEST Limited","Keybase"]]',
-        'minimal_splitting_sets: [["Stellar Development Foundation"],["LOBSTR","SatoshiPay"],["LOBSTR","COINQVEST Limited"],["SatoshiPay","COINQVEST Limited"],["LOBSTR","Muyu Network","Keybase"],["Muyu Network","SatoshiPay","Keybase"],["Muyu Network","COINQVEST Limited","Keybase"],["SatoshiPay","IBM worldwire","Keybase"]]',
         'minimal_splitting_sets_with_affected_quorums:',
         '- ["SatoshiPay","IBM worldwire","Keybase"]: [["paywith.glass"],["Stellar Development Foundation","LOBSTR","COINQVEST Limited"]]',
         'top_tier: ["Stellar Development Foundation","LOBSTR","SatoshiPay","COINQVEST Limited","Keybase"]',
@@ -63,7 +62,7 @@ def test_fbas_analyzer_with_organizations():
 
 
 def test_fbas_analyzer_with_ids():
-    command = "target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -a"
+    command = "target/release/fbas_analyzer test_data/stellarbeat_nodes_2019-09-17.json -q"
     expected_strings = [
         'top_tier: [1,4,8,23,29,36,37,43,44,52,56,69,86,105,167,168,171]',
     ]

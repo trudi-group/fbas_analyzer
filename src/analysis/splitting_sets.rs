@@ -45,10 +45,10 @@ fn minimal_splitting_sets_finder(
         let quorum_expanders = find_quorum_expanders(fbas);
         debug!("Done.");
 
-        // If a symmetric cluster contains quorum expanders there might be smaller splitting sets
+        // If there are quorum expanders then there might be smaller (and different) splitting sets
         // than what is suggested by the cluster's defining quorum set.
         let usable_symmetric_cluster = quorum_expanders
-            .is_disjoint(&cluster_nodes)
+            .is_empty()
             .then(|| find_symmetric_cluster_in_consensus_cluster(&cluster_nodes, fbas))
             .flatten();
 
@@ -81,21 +81,16 @@ fn minimal_splitting_sets_finder(
 
             let mut selection = bitset![];
             let mut found_splitting_sets = vec![];
-
-            let unprocessed = sorted_nodes.into_iter().collect();
-
-            let nodes_affected_by_selection = fbas.all_nodes();
+            let mut unprocessed = sorted_nodes.into_iter().collect();
 
             debug!("Collecting splitting sets...");
             splitting_sets_finder_step(
                 &mut selection,
                 &mut found_splitting_sets,
-                unprocessed,
-                nodes_affected_by_selection,
+                &mut unprocessed,
                 FbasValues::new(fbas),
                 &PrecomputedValues {
                     quorum_expanders,
-                    affected_nodes_per_node,
                     ranking_scores: combined_scores,
                 },
             );
@@ -110,8 +105,7 @@ fn minimal_splitting_sets_finder(
 fn splitting_sets_finder_step(
     selection: &mut NodeIdSet,
     found_splitting_sets: &mut Vec<NodeIdSet>,
-    mut unprocessed: NodeIdDequeSet,
-    nodes_affected_by_selection: NodeIdSet,
+    unprocessed: &mut NodeIdDequeSet,
     fbas: FbasValues,
     precomputed: &PrecomputedValues,
 ) {
@@ -125,50 +119,29 @@ fn splitting_sets_finder_step(
             debug!("...{} splitting sets found", found_splitting_sets.len());
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
-        debug_assert!(precomputed.affected_nodes_per_node[current_candidate]
-            .is_subset(&nodes_affected_by_selection));
-
         selection.insert(current_candidate);
-
-        let mut nodes_affected_by_changed_selection = nodes_affected_by_selection.clone();
-        nodes_affected_by_changed_selection
-            .intersect_with(&precomputed.affected_nodes_per_node[current_candidate]);
-
-        // We filter out all unprocessed nodes that aren't affecting a subset (⊆) of the currently
-        // affected nodes. Not doing so will just result in non-minimal finds. We don't lose any
-        // minimal finds because we expect that the nodes are sorted in a topology-preserving way.
-        let relevant_unprocessed = unprocessed
-            .deque
-            .iter()
-            .copied()
-            .filter(|&node| {
-                precomputed.affected_nodes_per_node[node]
-                    .is_subset(&nodes_affected_by_changed_selection)
-            })
-            .collect();
 
         let modified_fbas = fbas.clone_assuming_faulty(&bitset![current_candidate]);
 
         splitting_sets_finder_step(
             selection,
             found_splitting_sets,
-            relevant_unprocessed,
-            nodes_affected_by_changed_selection,
+            unprocessed,
             modified_fbas,
             precomputed,
         );
         selection.remove(current_candidate);
 
-        if has_potential(&unprocessed, &fbas) {
+        if has_potential(unprocessed, &fbas) {
             splitting_sets_finder_step(
                 selection,
                 found_splitting_sets,
                 unprocessed,
-                nodes_affected_by_selection,
                 fbas,
                 precomputed,
             );
         }
+        unprocessed.push_front(current_candidate);
     }
 }
 
@@ -189,6 +162,12 @@ impl NodeIdDequeSet {
         } else {
             None
         }
+    }
+    /// Notably, we don't avoid adding the same item twice here!
+    fn push_front(&mut self, node_id: NodeId) {
+        let is_new = self.set.insert(node_id);
+        debug_assert!(is_new);
+        self.deque.push_front(node_id);
     }
     /// Notably, we don't avoid adding the same item twice here!
     fn push_back(&mut self, node_id: NodeId) {
@@ -296,7 +275,6 @@ impl FbasValues {
 }
 
 struct PrecomputedValues {
-    affected_nodes_per_node: Vec<NodeIdSet>,
     quorum_expanders: NodeIdSet,
     ranking_scores: Vec<RankScore>,
 }
@@ -518,6 +496,41 @@ mod tests {
         let expected: Vec<NodeIdSet> = vec![];
         let actual = find_minimal_splitting_sets(&fbas);
 
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_splitting_sets_of_pyramid() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 1, "validators": ["n0"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 1, "validators": ["n0"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 1, "validators": ["n0"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            },
+            {
+                "publicKey": "n4",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n5",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n2"] }
+            }
+        ]"#,
+        );
+        let expected: Vec<NodeIdSet> = bitsetvec![{0}, {1, 2}];
+        let actual = find_minimal_splitting_sets(&fbas);
         assert_eq!(expected, actual);
     }
 

@@ -104,7 +104,8 @@ pub fn main() {
 }
 
 fn do_analysis(fbas: &Fbas) -> CustomResultsStruct {
-    let analysis = Analysis::new(fbas);
+    let mut analysis = Analysis::new(fbas);
+    analysis.shrink_to_core_nodes();
     CustomResultsStruct {
         minimal_blocking_sets: analysis.minimal_blocking_sets(),
         minimal_splitting_sets: analysis.minimal_splitting_sets(),
