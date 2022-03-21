@@ -28,13 +28,14 @@ required-features = ["binaries", "qsc-simulation"]
 
 [[bin]]
 name = "bulk_performance_experiment"
-required-features = ["binaries", "bulk-analyzer", "qsc-simulation"]
+required-features = ["binaries", "performance-experiment"]
 
 [features]
-default = ["binaries", "bulk-analyzer", "qsc-simulation"]
+default = ["binaries", "bulk-analyzer"]
 binaries = ["quicli", "structopt"]
 bulk-analyzer = ["csv", "par-map", "sha3", "hex"]
 qsc-simulation = ["rand", "bzip2"]
+performance-experiment = ["bulk-analyzer", "qsc-simulation"]
 
 [dev-dependencies]
 criterion = "0.3"

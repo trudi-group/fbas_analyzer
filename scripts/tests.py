@@ -20,12 +20,12 @@ def main():
 
 def cargo_test():
     run_and_check_return('cargo test --no-default-features', 'Running unit tests with minimal feature set')
-    run_and_check_return('cargo test', 'Running unit tests with regular feature set')
+    run_and_check_return('cargo test --all-features', 'Running unit tests with full feature set')
     run_and_check_return('cargo test -- --ignored', 'Running slow unit tests')
 
 
 def cargo_build():
-    run_and_check_return('cargo build --release', 'Building project to make sure we have up-to-date binaries')
+    run_and_check_return('cargo build --release --all-features', 'Building project to make sure we have up-to-date binaries')
 
 
 def cargo_debug_build():
