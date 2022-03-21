@@ -1,6 +1,6 @@
 [package]
 name = "fbas_analyzer"
-version = "0.6.0" # remember to also update: readme, html_root_url
+version = "0.7.0" # remember to also update: readme, html_root_url
 authors = ["Martin Florian <martin.florian@hu-berlin.de>", "Charmaine Ndolo <charmaine.ndolo@hu-berlin.de>"]
 description = "Library and tools for analyzing FBASs like the Stellar network"
 license = "MIT"
