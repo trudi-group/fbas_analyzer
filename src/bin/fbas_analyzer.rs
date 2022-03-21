@@ -27,8 +27,9 @@ struct Cli {
     #[structopt(short = "s", long = "minimal-splitting-sets")]
     minimal_splitting_sets: bool,
 
-    /// For each found minimal splitting set, output two or more quorums that it's splitting, i.e.,
-    /// quorums that lack quorum intersection after the splitting sets are deleted from the FBAS.
+    /// For each found minimal splitting set, output two or more quorums that it splits, i.e., two
+    /// or more quorums that don't intersect after the nodes in the splitting set are deleted from
+    /// the FBAS.
     #[structopt(short = "S", long = "minimal-splitting-sets-with-affected-quorums")]
     minimal_splitting_sets_with_affected_quorums: bool,
 
