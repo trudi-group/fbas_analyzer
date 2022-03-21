@@ -42,8 +42,6 @@ scripts/get_latest_stellarbeat_data.sh
 ```
 target/release/fbas_analyzer -h
 target/release/bulk_fbas_analyzer -h
-target/release/qsc_simulator -h
-target/release/graph_generator -h
 ```
 
 You can also just `cargo install fbas_analyzer`, of course.
