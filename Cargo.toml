@@ -8,7 +8,7 @@ repository = "https://github.com/wiberlin/fbas_analyzer"
 readme = "README.md"
 keywords = ["stellar", "fbas", "quorum", "analysis", "simulation"]
 categories = ["command-line-utilities", "science", "simulation"]
-edition = "2018"
+edition = "2021"
 
 [[bin]]
 name = "fbas_analyzer"
