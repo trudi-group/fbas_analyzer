@@ -215,6 +215,7 @@ fn to_grouping_names(
 }
 
 #[cfg(test)]
+#[allow(clippy::redundant_clone)]
 mod tests {
     use super::*;
 
