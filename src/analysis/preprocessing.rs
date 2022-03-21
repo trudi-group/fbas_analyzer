@@ -42,6 +42,12 @@ impl Fbas {
         }
         nodes
     }
+    /// Removes all nodes that are not part of a quorum-containing strongly connected component
+    /// (the FBAS "core"). Changes node IDs and causes splitting sets analyses to return only such
+    /// splitting sets that can cause core nodes to diverge from each other!
+    pub fn to_core(&self) -> Self {
+        self.shrunken(self.core_nodes()).0
+    }
     /// Removes all unsatisfiable nodes and reorders node IDs so that nodes are sorted by public
     /// key.
     pub fn to_standard_form(&self) -> Self {
@@ -269,6 +275,40 @@ mod tests {
         );
         let actual = fbas.one_node_quorums();
         let expected = vec![1, 3];
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn to_core_removes_non_core_nodes() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n2"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n2"] }
+            }
+        ]"#,
+        );
+        let actual = fbas.to_core();
+        let expected = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n2"] }
+            }
+        ]"#,
+        );
         assert_eq!(expected, actual);
     }
 

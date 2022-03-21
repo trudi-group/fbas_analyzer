@@ -22,6 +22,12 @@ pub fn main() {
     let inactive_nodes = FilteredNodes::from_json_file(nodes_json, |v| v["active"] == false);
     let fbas = fbas.without_nodes_pretty(&inactive_nodes.into_pretty_vec());
 
+    // This reduces the FBAS to its "core" - the union of all quorum-containing strongly connected
+    // components (usually there is just one). Splitting sets analyses performend on this object
+    // will return only such splitting sets that can cause two or more core nodes to diverge from
+    // each other.
+    let fbas = fbas.to_core();
+
     // This changes the order of nodes (sorts them by public key) and hence renumbers all IDs!
     // This also discards all unsatisfiable nodes as they are irrelevant for analysis.
     let fbas = fbas.to_standard_form();
@@ -104,8 +110,7 @@ pub fn main() {
 }
 
 fn do_analysis(fbas: &Fbas) -> CustomResultsStruct {
-    let mut analysis = Analysis::new(fbas);
-    analysis.shrink_to_core_nodes();
+    let analysis = Analysis::new(fbas);
     CustomResultsStruct {
         minimal_blocking_sets: analysis.minimal_blocking_sets(),
         minimal_splitting_sets: analysis.minimal_splitting_sets(),

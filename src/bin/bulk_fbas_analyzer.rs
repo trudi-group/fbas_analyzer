@@ -280,7 +280,7 @@ fn analyze(input: InputDataPoint, prep_opts: PreprocessingOptions) -> OutputData
         let organizations = maybe_load_organizations(input.organizations_path.as_ref(), &fbas);
         let isps = maybe_load_isps(&input.nodes_path, &fbas);
         let countries = maybe_load_countries(&input.nodes_path, &fbas);
-        let analysis = init_analysis(&fbas, prep_opts);
+        let analysis = Analysis::new(&fbas);
 
         let label = input.label.clone();
 
@@ -482,6 +482,10 @@ fn load_fbas(nodes_path: &Path, prep_opts: PreprocessingOptions) -> Fbas {
     if prep_opts.ignore_one_node_quorums {
         fbas = fbas.without_nodes(&fbas.one_node_quorums());
     }
+    if prep_opts.only_core_nodes {
+        // We don't care if node IDs are reordered.
+        fbas = fbas.to_core();
+    }
     fbas
 }
 fn maybe_load_organizations<'a>(
@@ -505,13 +509,6 @@ fn maybe_load_countries<'a>(nodes_path: &Path, fbas: &'a Fbas) -> Option<Groupin
     } else {
         None
     }
-}
-fn init_analysis(fbas: &Fbas, prep_opts: PreprocessingOptions) -> Analysis {
-    let mut analysis = Analysis::new(fbas);
-    if prep_opts.only_core_nodes {
-        analysis.shrink_to_core_nodes();
-    }
-    analysis
 }
 
 fn read_csv_from_file(path: &Path) -> Result<Vec<OutputDataPoint>, Box<dyn Error>> {
