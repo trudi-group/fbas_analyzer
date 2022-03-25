@@ -116,6 +116,17 @@ impl QuorumSet {
                     })
             })
     }
+    pub(crate) fn contained_nodes_with_duplicates(&self) -> Vec<NodeId> {
+        self.validators
+            .iter()
+            .copied()
+            .chain(
+                self.inner_quorum_sets
+                    .iter()
+                    .flat_map(|inner_qset| inner_qset.contained_nodes_with_duplicates()),
+            )
+            .collect()
+    }
     fn to_subslice_groups<'a>(
         &'a self,
         relevant_threshold: impl Copy + Fn(&QuorumSet) -> usize + 'a,
@@ -128,17 +139,6 @@ impl QuorumSet {
                     .iter()
                     .map(move |qset| qset.to_slices(relevant_threshold)),
             )
-    }
-    fn contained_nodes_with_duplicates(&self) -> Vec<NodeId> {
-        self.validators
-            .iter()
-            .copied()
-            .chain(
-                self.inner_quorum_sets
-                    .iter()
-                    .flat_map(|inner_qset| inner_qset.contained_nodes_with_duplicates()),
-            )
-            .collect()
     }
     fn has_nonintersecting_quorum_slices_if_duplicates(&self) -> Option<(NodeIdSet, NodeIdSet)> {
         let mut tester = NodeIdSet::new();

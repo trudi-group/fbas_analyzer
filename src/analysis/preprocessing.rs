@@ -512,4 +512,35 @@ mod tests {
         let actual = find_affected_nodes_per_node(&fbas);
         assert_eq!(expected, actual);
     }
+
+    #[test]
+    fn find_transitively_unsatisfiable_nodes() {
+        let mut fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
+
+        let directly_unsatisfiable = fbas.add_generic_node(QuorumSet {
+            threshold: 1,
+            validators: vec![],
+            inner_quorum_sets: vec![],
+        });
+        let transitively_unsatisfiable = fbas.add_generic_node(QuorumSet {
+            threshold: 1,
+            validators: vec![directly_unsatisfiable],
+            inner_quorum_sets: vec![],
+        });
+
+        fbas.nodes[0]
+            .quorum_set
+            .validators
+            .push(directly_unsatisfiable);
+        fbas.nodes[1]
+            .quorum_set
+            .validators
+            .push(transitively_unsatisfiable);
+
+        let all_nodes: NodeIdSet = (0..fbas.nodes.len()).collect();
+        let (_, unsatisfiable) = find_satisfiable_nodes(&all_nodes, &fbas);
+
+        assert!(unsatisfiable.contains(directly_unsatisfiable));
+        assert!(unsatisfiable.contains(transitively_unsatisfiable));
+    }
 }

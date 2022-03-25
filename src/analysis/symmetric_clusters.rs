@@ -40,15 +40,23 @@ fn symmetric_clusters_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) ->
     found_clusters_in_all_clusters
 }
 
-pub(crate) fn find_symmetric_cluster_in_consensus_cluster(
+/// Can fail if quorum sets are not in "standard form"! You can get there via `Fbas::with_standard_form_quorum_sets`.
+pub(crate) fn is_symmetric_cluster<'a>(
     cluster: &NodeIdSet,
-    fbas: &Fbas,
-) -> Option<QuorumSet> {
-    let symmetric_clusters = find_symmetric_clusters_in_node_set(cluster, fbas);
-    if !symmetric_clusters.is_empty() {
-        assert!(symmetric_clusters.len() == 1, "More than one symmetric clusters found - perhaps input wasn't a consensus cluster, i.e., not a strongly-connected component?");
-        assert!(symmetric_clusters[0].contained_nodes() == *cluster);
-        Some(symmetric_clusters.into_iter().next().unwrap())
+    fbas: &'a Fbas,
+) -> Option<&'a QuorumSet> {
+    if let Some(first_node_id) = cluster.iter().next() {
+        let cluster_quorum_set = &fbas.nodes[first_node_id].quorum_set;
+        if cluster_quorum_set.contained_nodes().eq(cluster)
+            && cluster
+                .iter()
+                .skip(1)
+                .all(|node_id| fbas.nodes[node_id].quorum_set.eq(cluster_quorum_set))
+        {
+            Some(cluster_quorum_set)
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -83,7 +91,7 @@ pub(crate) fn find_symmetric_clusters_in_node_set(
 
 impl QuorumSet {
     /// Make sure that node is included and all validator lists are sorted.
-    fn to_standard_form(&self, node_id: NodeId) -> Self {
+    pub(crate) fn to_standard_form(&self, node_id: NodeId) -> Self {
         let mut qset = self.clone();
         qset.ensure_node_included(node_id);
         qset.ensure_sorted();
@@ -101,6 +109,16 @@ impl QuorumSet {
             qset.ensure_sorted();
         }
         self.inner_quorum_sets.sort_unstable();
+    }
+}
+
+impl Fbas {
+    pub(crate) fn with_standard_form_quorum_sets(&self) -> Self {
+        let mut fbas = self.clone();
+        for (node_id, node) in fbas.nodes.iter_mut().enumerate() {
+            node.quorum_set = node.quorum_set.to_standard_form(node_id);
+        }
+        fbas
     }
 }
 
@@ -183,7 +201,7 @@ mod tests {
             threshold: 2,
             inner_quorum_sets: vec![],
         });
-        let actual = find_symmetric_cluster_in_consensus_cluster(&bitset![0, 1], &fbas);
+        let actual = is_symmetric_cluster(&bitset![0, 1], &fbas).cloned();
 
         assert_eq!(expected, actual);
     }
@@ -202,16 +220,36 @@ mod tests {
             }
         ]"#,
         );
+        let expected = None; // because we need quorum sets to be in standard form!
+        let actual = is_symmetric_cluster(&bitset![0, 1], &fbas).cloned();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_symmetric_cluster_in_weird_cluster_made_standard() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 1, "validators": ["n1"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            }
+        ]"#,
+        );
+        let fbas = fbas.with_standard_form_quorum_sets();
         let expected = Some(QuorumSet {
             validators: vec![0, 1],
             threshold: 2,
             inner_quorum_sets: vec![],
         });
-        let actual = find_symmetric_cluster_in_consensus_cluster(&bitset![0, 1], &fbas);
+        let actual = is_symmetric_cluster(&bitset![0, 1], &fbas).cloned();
 
         assert_eq!(expected, actual);
     }
-
     #[test]
     fn find_symmetric_top_tier_in_symmetric_fbas() {
         let fbas = Fbas::from_json_str(

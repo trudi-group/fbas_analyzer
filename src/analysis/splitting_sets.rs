@@ -31,6 +31,10 @@ fn minimal_splitting_sets_finder(
     consensus_clusters: Vec<NodeIdSet>,
     fbas: &Fbas,
 ) -> Vec<NodeIdSet> {
+    // We'll be using `is_symmetric_cluster` multiple times, and it needs quorum sets to be in
+    // "standard form".
+    let fbas = fbas.with_standard_form_quorum_sets();
+
     if consensus_clusters.len() > 1 {
         debug!("It's clear that we lack quorum intersection; the empty set is a splitting set.");
         bitsetvec![{}]
@@ -42,14 +46,14 @@ fn minimal_splitting_sets_finder(
         let cluster_nodes = consensus_clusters.into_iter().next().unwrap();
 
         debug!("Finding nodes that can cause quorums to shrink significantly by changing their quorum set.");
-        let quorum_expanders = find_quorum_expanders(fbas);
+        let quorum_expanders = find_quorum_expanders(&fbas);
         debug!("Done.");
 
         // If there are quorum expanders then there might be smaller (and different) splitting sets
         // than what is suggested by the cluster's defining quorum set.
         let usable_symmetric_cluster = quorum_expanders
             .is_empty()
-            .then(|| find_symmetric_cluster_in_consensus_cluster(&cluster_nodes, fbas))
+            .then(|| is_symmetric_cluster(&cluster_nodes, &fbas))
             .flatten();
 
         if let Some(symmetric_cluster) = usable_symmetric_cluster {
@@ -59,12 +63,12 @@ fn minimal_splitting_sets_finder(
             let relevant_nodes: Vec<NodeId> = cluster_nodes.union(&quorum_expanders).collect();
 
             debug!("Determining the set of affected nodes by each node...");
-            let affected_nodes_per_node = find_affected_nodes_per_node(fbas);
+            let affected_nodes_per_node = find_affected_nodes_per_node(&fbas);
             debug!("Done.");
 
             debug!("Determining (page) rank scores");
             // non-cluster nodes will have 0 scores anyway
-            let rank_scores = rank_nodes(&cluster_nodes.iter().collect::<Vec<NodeId>>(), fbas);
+            let rank_scores = rank_nodes(&cluster_nodes.iter().collect::<Vec<NodeId>>(), &fbas);
             debug!("Done.");
 
             let combined_scores: Vec<RankScore> = rank_scores
@@ -195,8 +199,7 @@ struct FbasValues {
     faulty_nodes: NodeIdSet,
 }
 impl FbasValues {
-    fn new(fbas: &Fbas) -> Self {
-        let fbas = fbas.clone();
+    fn new(fbas: Fbas) -> Self {
         let sccs = partition_into_strongly_connected_components(&fbas.satisfiable_nodes(), &fbas);
         let consensus_clusters = sccs
             .iter()
@@ -218,9 +221,7 @@ impl FbasValues {
             false
         } else {
             let cluster = &self.consensus_clusters[0];
-            if let Some(symmetric_cluster) =
-                find_symmetric_cluster_in_consensus_cluster(cluster, &self.fbas)
-            {
+            if let Some(symmetric_cluster) = is_symmetric_cluster(cluster, &self.fbas) {
                 symmetric_cluster.has_nonintersecting_quorums().is_none()
             } else {
                 let sorted_nodes =

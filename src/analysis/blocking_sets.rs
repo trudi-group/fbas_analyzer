@@ -18,7 +18,9 @@ fn minimal_blocking_sets_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas)
     for (i, nodes) in consensus_clusters.into_iter().enumerate() {
         debug!("Finding minimal blocking sets in cluster {}...", i);
 
-        if let Some(symmetric_cluster) = find_symmetric_cluster_in_consensus_cluster(&nodes, fbas) {
+        if let Some(symmetric_cluster) =
+            is_symmetric_cluster(&nodes, &fbas.with_standard_form_quorum_sets())
+        {
             debug!("Cluster contains a symmetric quorum cluster! Extracting blocking sets...");
             found_blocking_sets_per_cluster.push(symmetric_cluster.to_minimal_blocking_sets(fbas));
         } else {
