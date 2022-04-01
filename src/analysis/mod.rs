@@ -7,6 +7,7 @@ mod blocking_sets;
 mod quorums;
 mod splitting_sets;
 mod symmetric_clusters;
+mod symmetric_nodes;
 
 pub mod assume_faulty;
 mod merge_by_group;
@@ -32,6 +33,7 @@ pub(crate) use preprocessing::*;
 pub(crate) use quorums::*;
 pub(crate) use sets::*;
 pub(crate) use symmetric_clusters::*;
+pub(crate) use symmetric_nodes::*;
 
 #[cfg(test)]
 mod tests {

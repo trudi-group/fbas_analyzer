@@ -28,7 +28,7 @@ fn minimal_blocking_sets_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas)
             let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
             debug!("Sorted.");
 
-            let mut found_blocking_sets: Vec<NodeIdSet> = vec![];
+            let mut found_unexpanded_blocking_sets_in_this_cluster: Vec<NodeIdSet> = vec![];
 
             let unprocessed = sorted_nodes;
             let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
@@ -39,16 +39,23 @@ fn minimal_blocking_sets_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas)
             // what remains after we take out `selection` + all `unprocessed`
             let mut max_remaining = NodeIdSet::with_capacity(fbas.nodes.len());
 
+            let symmetric_nodes = find_symmetric_nodes_in_node_set(&remaining, fbas);
+
             debug!("Collecting blocking_sets...");
             minimal_blocking_sets_finder_step(
                 &mut unprocessed.into(),
                 &mut selection,
                 &mut remaining,
                 &mut max_remaining,
-                &mut found_blocking_sets,
-                fbas,
+                &mut found_unexpanded_blocking_sets_in_this_cluster,
+                &FbasValues {
+                    fbas,
+                    symmetric_nodes: &symmetric_nodes,
+                },
                 true,
             );
+            let found_blocking_sets =
+                symmetric_nodes.expand_sets(found_unexpanded_blocking_sets_in_this_cluster);
             found_blocking_sets_per_cluster.push(found_blocking_sets);
         }
     }
@@ -71,48 +78,67 @@ fn minimal_blocking_sets_finder_step(
     remaining: &mut NodeIdSet,
     max_remaining: &mut NodeIdSet,
     found_blocking_sets: &mut Vec<NodeIdSet>,
-    fbas: &Fbas,
+    fbas_values: &FbasValues,
     selection_changed: bool,
 ) {
-    if selection_changed && is_blocked_set(remaining, fbas) {
-        if is_minimal_for_blocking_set_with_precomputed_blocked_set(selection, remaining, fbas) {
+    if selection_changed && is_blocked_set(remaining, fbas_values.fbas) {
+        if is_minimal_for_blocking_set_with_precomputed_blocked_set(
+            selection,
+            remaining,
+            fbas_values.fbas,
+        ) {
             found_blocking_sets.push(selection.clone());
             if found_blocking_sets.len() % 100_000 == 0 {
                 debug!("...{} blocking_sets found", found_blocking_sets.len());
             }
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
-        selection.insert(current_candidate);
-        remaining.remove(current_candidate);
+        // We require that symmetric nodes are used in a fixed order; this way we can omit
+        // redundant branches (we expand all combinations of symmetric nodes in the final result
+        // sets).
+        if fbas_values
+            .symmetric_nodes
+            .is_non_redundant_next(current_candidate, selection)
+        {
+            selection.insert(current_candidate);
+            remaining.remove(current_candidate);
 
-        minimal_blocking_sets_finder_step(
-            unprocessed,
-            selection,
-            remaining,
-            max_remaining,
-            found_blocking_sets,
-            fbas,
-            true,
-        );
-
-        selection.remove(current_candidate);
-        remaining.insert(current_candidate);
-        max_remaining.insert(current_candidate);
-
-        if is_blocked_set(max_remaining, fbas) {
             minimal_blocking_sets_finder_step(
                 unprocessed,
                 selection,
                 remaining,
                 max_remaining,
                 found_blocking_sets,
-                fbas,
+                fbas_values,
+                true,
+            );
+
+            selection.remove(current_candidate);
+            remaining.insert(current_candidate);
+        }
+        max_remaining.insert(current_candidate);
+
+        if is_blocked_set(max_remaining, fbas_values.fbas) {
+            minimal_blocking_sets_finder_step(
+                unprocessed,
+                selection,
+                remaining,
+                max_remaining,
+                found_blocking_sets,
+                fbas_values,
                 false,
             );
         }
         unprocessed.push_front(current_candidate);
         max_remaining.remove(current_candidate);
     }
+}
+
+// This exists because clippy complained that we have too many arguments.
+#[derive(Debug, Clone)]
+struct FbasValues<'a> {
+    fbas: &'a Fbas,
+    symmetric_nodes: &'a SymmetricNodesMap,
 }
 
 impl QuorumSet {

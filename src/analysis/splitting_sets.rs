@@ -87,6 +87,8 @@ fn minimal_splitting_sets_finder(
             let mut found_splitting_sets = vec![];
             let mut unprocessed = sorted_nodes.into_iter().collect();
 
+            let symmetric_nodes = find_symmetric_nodes_in_node_set(&fbas.all_nodes(), &fbas);
+
             debug!("Collecting splitting sets...");
             splitting_sets_finder_step(
                 &mut selection,
@@ -96,13 +98,15 @@ fn minimal_splitting_sets_finder(
                 &PrecomputedValues {
                     quorum_expanders,
                     ranking_scores: combined_scores,
+                    symmetric_nodes: symmetric_nodes.clone(),
                 },
             );
             debug!(
                 "Found {} splitting sets. Reducing to minimal splitting sets...",
                 found_splitting_sets.len()
             );
-            remove_non_minimal_node_sets(found_splitting_sets)
+            let minimal_unexpanded_node_sets = remove_non_minimal_node_sets(found_splitting_sets);
+            symmetric_nodes.expand_sets(minimal_unexpanded_node_sets)
         }
     }
 }
@@ -123,24 +127,30 @@ fn splitting_sets_finder_step(
             debug!("...{} splitting sets found", found_splitting_sets.len());
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
-
         // Resetting this as we just checked for quorum intersection and the clusters didn't change
         // since then.
         fbas.consensus_clusters_changed = false;
 
-        selection.insert(current_candidate);
+        // We require that symmetric nodes are used in a fixed order; this way we can omit
+        // redundant branches (we expand all combinations of symmetric nodes in the final result
+        // sets).
+        if precomputed
+            .symmetric_nodes
+            .is_non_redundant_next(current_candidate, selection)
+        {
+            selection.insert(current_candidate);
 
-        let modified_fbas = fbas.clone_assuming_faulty(&bitset![current_candidate]);
+            let modified_fbas = fbas.clone_assuming_faulty(&bitset![current_candidate]);
 
-        splitting_sets_finder_step(
-            selection,
-            found_splitting_sets,
-            unprocessed,
-            modified_fbas,
-            precomputed,
-        );
-        selection.remove(current_candidate);
-
+            splitting_sets_finder_step(
+                selection,
+                found_splitting_sets,
+                unprocessed,
+                modified_fbas,
+                precomputed,
+            );
+            selection.remove(current_candidate);
+        }
         if has_potential(unprocessed, &fbas) {
             splitting_sets_finder_step(
                 selection,
@@ -270,6 +280,7 @@ impl FbasValues {
             .collect_vec();
 
         let consensus_clusters_changed = !consensus_clusters.eq(&self.consensus_clusters);
+
         Self {
             fbas,
             consensus_clusters_changed,
@@ -283,6 +294,7 @@ impl FbasValues {
 struct PrecomputedValues {
     quorum_expanders: NodeIdSet,
     ranking_scores: Vec<RankScore>,
+    symmetric_nodes: SymmetricNodesMap, // maintained for relevance to splitting sets
 }
 
 impl QuorumSet {

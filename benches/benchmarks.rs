@@ -19,6 +19,12 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     quorum_set.inner_quorum_sets.pop();
     fbas.swap_quorum_set(1, quorum_set);
 
+    // fbas with a asymmetric top tier and all non-core nodes removed
+    let fbas_stt_core = fbas_stt.to_core();
+
+    // fbas with a slightly asymmetric top tier and all non-core nodes removed
+    let fbas_core = fbas.to_core();
+
     c.bench_function("has_quorum_intersection_via_front_end", |b| {
         b.iter(|| Analysis::new(black_box(&fbas)).has_quorum_intersection())
     });
@@ -47,12 +53,21 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| find_minimal_blocking_sets(black_box(&fbas_stt)))
     });
 
-    c.bench_function("find_minimal_splitting_sets", |b| {
-        b.iter(|| find_minimal_splitting_sets(black_box(&fbas)))
+    c.bench_function("find_minimal_splitting_sets_core_only", |b| {
+        b.iter(|| find_minimal_splitting_sets(black_box(&fbas_core)))
     });
-    c.bench_function("find_minimal_splitting_sets_symmetric_top_tier", |b| {
-        b.iter(|| find_minimal_splitting_sets(black_box(&fbas_stt)))
-    });
+    c.bench_function(
+        "find_minimal_splitting_sets_symmetric_top_tier_core_only",
+        |b| b.iter(|| find_minimal_splitting_sets(black_box(&fbas_stt_core))),
+    );
+
+    // Too slow to benchhmark...
+    // c.bench_function("find_minimal_splitting_sets", |b| {
+    //     b.iter(|| find_minimal_splitting_sets(black_box(&fbas)))
+    // });
+    // c.bench_function("find_minimal_splitting_sets_symmetric_top_tier", |b| {
+    //     b.iter(|| find_minimal_splitting_sets(black_box(&fbas_stt)))
+    // });
 }
 
 criterion_group! {
