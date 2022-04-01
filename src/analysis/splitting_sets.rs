@@ -110,7 +110,7 @@ fn splitting_sets_finder_step(
     selection: &mut NodeIdSet,
     found_splitting_sets: &mut Vec<NodeIdSet>,
     unprocessed: &mut NodeIdDequeSet,
-    fbas: FbasValues,
+    mut fbas: FbasValues,
     precomputed: &PrecomputedValues,
 ) {
     if fbas.consensus_clusters.is_empty()
@@ -123,6 +123,11 @@ fn splitting_sets_finder_step(
             debug!("...{} splitting sets found", found_splitting_sets.len());
         }
     } else if let Some(current_candidate) = unprocessed.pop_front() {
+
+        // Resetting this as we just checked for quorum intersection and the clusters didn't change
+        // since then.
+        fbas.consensus_clusters_changed = false;
+
         selection.insert(current_candidate);
 
         let modified_fbas = fbas.clone_assuming_faulty(&bitset![current_candidate]);
