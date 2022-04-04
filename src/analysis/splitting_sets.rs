@@ -63,7 +63,7 @@ fn minimal_splitting_sets_finder(
             let relevant_nodes: Vec<NodeId> = cluster_nodes.union(&quorum_expanders).collect();
 
             debug!("Determining the set of affected nodes by each node...");
-            let affected_nodes_per_node = find_affected_nodes_per_node(&fbas);
+            let affected_per_node = find_affected_nodes_per_node(&fbas);
             debug!("Done.");
 
             debug!("Determining (page) rank scores");
@@ -75,7 +75,7 @@ fn minimal_splitting_sets_finder(
                 .into_iter()
                 .enumerate()
                 .map(|(i, score)| {
-                    score + affected_nodes_per_node[i].len() as f64 / fbas.number_of_nodes() as f64
+                    score + affected_per_node[i].len() as f64 / fbas.number_of_nodes() as f64
                 })
                 .collect();
 
@@ -343,19 +343,17 @@ impl QuorumSet {
     }
 }
 
-// For pruning
+// A heuristic for pruning
 fn has_potential(unprocessed: &NodeIdDequeSet, fbas: &FbasValues) -> bool {
-    // each node in available has either been a quorum expander or a core node;
-    // so, `remaining` either can never be "all nodes", or all nodes have been in SCCs,
-    // i.e., all nodes are core nodes
     let remaining = &unprocessed.set;
-    debug_assert!(fbas.consensus_clusters.len() <= 1);
-    if fbas.consensus_clusters.is_empty() || remaining.is_disjoint(&fbas.consensus_clusters[0]) {
-        fbas.clone_assuming_faulty(remaining)
-            .consensus_clusters_changed
-    } else {
-        true
-    }
+    debug_assert!(fbas.consensus_clusters.len() == 1);
+
+    // the remaining nodes can split off some of themselves
+    remaining.iter().any(|node_id| fbas.fbas.nodes[node_id].is_quorum_slice(node_id, remaining))
+        ||
+    // the remaining nodes could split off some other nodes
+    fbas.clone_assuming_faulty(remaining)
+        .consensus_clusters_changed
 }
 
 #[cfg(test)]
@@ -389,9 +387,9 @@ mod tests {
 
     #[test]
     fn find_minimal_splitting_sets_in_correct() {
-        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json")).to_core();
 
-        let expected = vec![bitset![0], bitset![1], bitset![4], bitset![10]]; // 4 is Eno!
+        let expected = vec![bitset![0], bitset![1], bitset![2], bitset![3]]; // One of these is Eno!
         let actual = find_minimal_splitting_sets(&fbas);
 
         assert_eq!(expected, actual);
@@ -712,6 +710,37 @@ mod tests {
         ]"#,
         );
         let expected: Vec<NodeIdSet> = bitsetvec![{2, 3}];
+        let actual = find_minimal_splitting_sets(&fbas);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn find_minimal_splitting_sets_in_almost_line() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 1, "validators": ["n0"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 2, "validators": ["n1", "n2"] }
+            },
+            {
+                "publicKey": "n3",
+                "quorumSet": { "threshold": 2, "validators": ["n2", "n3"] }
+            },
+            {
+                "publicKey": "n4",
+                "quorumSet": { "threshold": 3, "validators": ["n0", "n3", "n4"] }
+            }
+        ]"#,
+        );
+        let expected: Vec<NodeIdSet> = bitsetvec![{1}, {2}, {0, 3}];
         let actual = find_minimal_splitting_sets(&fbas);
         assert_eq!(expected, actual);
     }

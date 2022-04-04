@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn analysis_nontrivial() {
-        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json")).to_core();
         let analysis = Analysis::new(&fbas);
 
         assert!(analysis.has_quorum_intersection());
@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn analysis_nontrivial_blocking_sets_first() {
-        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json")).to_core();
         let analysis = Analysis::new(&fbas);
 
         assert_eq!(
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn splitting_sets_with_affected_quorums() {
-        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json")).to_core();
         let analysis = Analysis::new(&fbas);
 
         let actual: Vec<(NodeIdSet, Vec<NodeIdSet>)> = analysis
@@ -166,10 +166,10 @@ mod tests {
             .map(|(key, value)| (key.unwrap(), value.unwrap()))
             .collect();
         let expected = vec![
-            (bitset![0], bitsetvec![{ 1 }, { 10 }]),
-            (bitset![1], bitsetvec![{0}, {4,10}]),
-            (bitset![4], bitsetvec![{0}, {1,10}]),
-            (bitset![10], bitsetvec![{0}, {1,4}]),
+            (bitset![0], bitsetvec![{ 1 }, { 3 }]),
+            (bitset![1], bitsetvec![{0}, {2,3}]),
+            (bitset![2], bitsetvec![{0}, {1,3}]),
+            (bitset![3], bitsetvec![{0}, {1,2}]),
         ];
         assert_eq!(expected, actual);
     }
@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn analysis_with_merging_by_organization_nontrivial() {
-        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
+        let fbas = Fbas::from_json_file(Path::new("test_data/correct.json")).to_core();
         let organizations = Groupings::organizations_from_json_str(
             r#"[
             {
