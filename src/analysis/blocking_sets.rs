@@ -25,33 +25,20 @@ fn minimal_blocking_sets_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas)
             found_blocking_sets_per_cluster.push(symmetric_cluster.to_minimal_blocking_sets(fbas));
         } else {
             debug!("Sorting nodes by rank...");
-            let sorted_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
+            let sorted_nodes = sort_by_rank(nodes.iter().collect(), fbas);
             debug!("Sorted.");
+
+            debug!("Looking for symmetric nodes...");
+            let symmetric_nodes = find_symmetric_nodes_in_node_set(&nodes, fbas);
+            debug!("Done.");
 
             let mut found_unexpanded_blocking_sets_in_this_cluster: Vec<NodeIdSet> = vec![];
 
-            let unprocessed = sorted_nodes;
-            let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
-
-            // what remains after we take out `selection`
-            let mut remaining: NodeIdSet = unprocessed.iter().copied().collect();
-
-            // what remains after we take out `selection` + all `unprocessed`
-            let mut max_remaining = NodeIdSet::with_capacity(fbas.nodes.len());
-
-            let symmetric_nodes = find_symmetric_nodes_in_node_set(&remaining, fbas);
-
             debug!("Collecting blocking_sets...");
             minimal_blocking_sets_finder_step(
-                &mut unprocessed.into(),
-                &mut selection,
-                &mut remaining,
-                &mut max_remaining,
+                &mut CandidateValues::new(sorted_nodes),
                 &mut found_unexpanded_blocking_sets_in_this_cluster,
-                &FbasValues {
-                    fbas,
-                    symmetric_nodes: &symmetric_nodes,
-                },
+                &FbasValues::new(fbas, &symmetric_nodes),
                 true,
             );
             let found_blocking_sets =
@@ -73,72 +60,84 @@ fn minimal_blocking_sets_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas)
         .collect()
 }
 fn minimal_blocking_sets_finder_step(
-    unprocessed: &mut NodeIdDeque,
-    selection: &mut NodeIdSet,
-    remaining: &mut NodeIdSet,
-    max_remaining: &mut NodeIdSet,
+    candidates: &mut CandidateValues,
     found_blocking_sets: &mut Vec<NodeIdSet>,
     fbas_values: &FbasValues,
     selection_changed: bool,
 ) {
-    if selection_changed && is_blocked_set(remaining, fbas_values.fbas) {
+    if selection_changed && is_blocked_set(&candidates.remaining, fbas_values.fbas) {
         if is_minimal_for_blocking_set_with_precomputed_blocked_set(
-            selection,
-            remaining,
+            &candidates.selection,
+            &candidates.remaining,
             fbas_values.fbas,
         ) {
-            found_blocking_sets.push(selection.clone());
+            found_blocking_sets.push(candidates.selection.clone());
             if found_blocking_sets.len() % 100_000 == 0 {
                 debug!("...{} blocking_sets found", found_blocking_sets.len());
             }
         }
-    } else if let Some(current_candidate) = unprocessed.pop_front() {
+    } else if let Some(current_candidate) = candidates.unprocessed.pop_front() {
         // We require that symmetric nodes are used in a fixed order; this way we can omit
         // redundant branches (we expand all combinations of symmetric nodes in the final result
         // sets).
         if fbas_values
             .symmetric_nodes
-            .is_non_redundant_next(current_candidate, selection)
+            .is_non_redundant_next(current_candidate, &candidates.selection)
         {
-            selection.insert(current_candidate);
-            remaining.remove(current_candidate);
+            candidates.selection.insert(current_candidate);
+            candidates.remaining.remove(current_candidate);
 
-            minimal_blocking_sets_finder_step(
-                unprocessed,
-                selection,
-                remaining,
-                max_remaining,
-                found_blocking_sets,
-                fbas_values,
-                true,
-            );
+            minimal_blocking_sets_finder_step(candidates, found_blocking_sets, fbas_values, true);
 
-            selection.remove(current_candidate);
-            remaining.insert(current_candidate);
+            candidates.selection.remove(current_candidate);
+            candidates.remaining.insert(current_candidate);
         }
-        max_remaining.insert(current_candidate);
+        candidates.max_remaining.insert(current_candidate);
 
-        if is_blocked_set(max_remaining, fbas_values.fbas) {
-            minimal_blocking_sets_finder_step(
-                unprocessed,
-                selection,
-                remaining,
-                max_remaining,
-                found_blocking_sets,
-                fbas_values,
-                false,
-            );
+        if is_blocked_set(&candidates.max_remaining, fbas_values.fbas) {
+            minimal_blocking_sets_finder_step(candidates, found_blocking_sets, fbas_values, false);
         }
-        unprocessed.push_front(current_candidate);
-        max_remaining.remove(current_candidate);
+        candidates.unprocessed.push_front(current_candidate);
+        candidates.max_remaining.remove(current_candidate);
     }
 }
 
-// This exists because clippy complained that we have too many arguments.
+#[derive(Debug, Clone)]
+struct CandidateValues {
+    selection: NodeIdSet,
+    unprocessed: NodeIdDeque,
+    // what remains after we take out `selection`
+    remaining: NodeIdSet,
+    // what remains after we take out `selection` + all `unprocessed`
+    max_remaining: NodeIdSet,
+}
+impl CandidateValues {
+    fn new(sorted_nodes_to_process: Vec<NodeId>) -> Self {
+        let selection = bitset![];
+        let unprocessed: NodeIdDeque = sorted_nodes_to_process.into();
+        let remaining: NodeIdSet = unprocessed.iter().copied().collect();
+        let max_remaining = bitset![];
+        Self {
+            selection,
+            unprocessed,
+            remaining,
+            max_remaining,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct FbasValues<'a> {
     fbas: &'a Fbas,
     symmetric_nodes: &'a SymmetricNodesMap,
+}
+impl<'a> FbasValues<'a> {
+    fn new(fbas: &'a Fbas, symmetric_nodes: &'a SymmetricNodesMap) -> Self {
+        Self {
+            fbas,
+            symmetric_nodes,
+        }
+    }
 }
 
 impl QuorumSet {
@@ -182,7 +181,6 @@ fn is_minimal_for_blocking_set_with_precomputed_blocked_set(
     }
     true
 }
-
 fn is_blocked_set(nodes: &NodeIdSet, fbas: &Fbas) -> bool {
     !contains_quorum(nodes, fbas)
 }
@@ -193,7 +191,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn find_minimal_blocking_sets_in_correct() {
+    fn minimal_blocking_sets_in_correct() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json"));
 
         let expected = vec![bitset![0, 1], bitset![0, 10], bitset![1, 10]];
@@ -203,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_blocking_sets_in_broken_trivial() {
+    fn minimal_blocking_sets_in_broken_trivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
 
         let expected = vec![bitset![0, 1], bitset![0, 2]];
@@ -242,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_blocking_sets_in_symmetric_consensus_cluster() {
+    fn minimal_blocking_sets_in_symmetric_consensus_cluster() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -262,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_blocking_sets_in_different_consensus_clusters() {
+    fn minimal_blocking_sets_in_different_consensus_clusters() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -290,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_blocking_sets_in_different_symmetric_consensus_clusters() {
+    fn minimal_blocking_sets_in_different_symmetric_consensus_clusters() {
         let fbas = Fbas::from_json_str(
             r#"[
             {

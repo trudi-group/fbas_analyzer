@@ -74,22 +74,17 @@ fn minimal_quorums_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Ve
             let sorted_candidate_nodes = sort_by_rank(nodes.into_iter().collect(), fbas);
             debug!("Sorted.");
 
-            let unprocessed = sorted_candidate_nodes;
-            let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
-            let mut available = nodes.clone();
-
-            let symmetric_nodes = find_symmetric_nodes_in_node_set(&available, fbas);
+            debug!("Looking for symmetric nodes...");
+            let symmetric_nodes = find_symmetric_nodes_in_node_set(&nodes, fbas);
+            debug!("Done.");
 
             let mut found_unexpanded_quorums_in_this_cluster = vec![];
 
             debug!("Collecting quorums...");
             minimal_quorums_finder_step(
-                &mut unprocessed.into(),
-                &mut selection,
-                &mut available,
+                &mut CandidateValuesMq::new(sorted_candidate_nodes),
                 &mut found_unexpanded_quorums_in_this_cluster,
-                fbas,
-                &symmetric_nodes,
+                &FbasValues::new(fbas, &symmetric_nodes),
                 true,
             );
             found_quorums
@@ -99,53 +94,210 @@ fn minimal_quorums_finder(consensus_clusters: Vec<NodeIdSet>, fbas: &Fbas) -> Ve
     found_quorums
 }
 fn minimal_quorums_finder_step(
-    unprocessed: &mut NodeIdDeque,
-    selection: &mut NodeIdSet,
-    available: &mut NodeIdSet,
+    candidates: &mut CandidateValuesMq,
     found_quorums: &mut Vec<NodeIdSet>,
-    fbas: &Fbas,
-    symmetric_nodes: &SymmetricNodesMap,
+    fbas_values: &FbasValues,
     selection_changed: bool,
 ) {
-    if selection_changed && fbas.is_quorum(selection) {
-        if is_minimal_for_quorum(selection, fbas) {
-            found_quorums.push(selection.clone());
+    if selection_changed && fbas_values.fbas.is_quorum(&candidates.selection) {
+        if is_minimal_for_quorum(&candidates.selection, fbas_values.fbas) {
+            found_quorums.push(candidates.selection.clone());
             if found_quorums.len() % 100_000 == 0 {
                 debug!("...{} quorums found", found_quorums.len());
             }
         }
-    } else if let Some(current_candidate) = unprocessed.pop_front() {
+    } else if let Some(current_candidate) = candidates.unprocessed.pop_front() {
         // We require that symmetric nodes are used in a fixed order; this way we can omit
         // redundant branches (we expand all combinations of symmetric nodes in the final result
         // sets).
-        if symmetric_nodes.is_non_redundant_next(current_candidate, selection) {
-            selection.insert(current_candidate);
-            minimal_quorums_finder_step(
-                unprocessed,
-                selection,
-                available,
-                found_quorums,
-                fbas,
-                symmetric_nodes,
-                true,
-            );
-            selection.remove(current_candidate);
+        if fbas_values
+            .symmetric_nodes
+            .is_non_redundant_next(current_candidate, &candidates.selection)
+        {
+            candidates.selection.insert(current_candidate);
+            minimal_quorums_finder_step(candidates, found_quorums, fbas_values, true);
+            candidates.selection.remove(current_candidate);
         }
-        available.remove(current_candidate);
+        candidates.available.remove(current_candidate);
 
-        if selection_satisfiable(selection, available, fbas) {
-            minimal_quorums_finder_step(
-                unprocessed,
-                selection,
-                available,
-                found_quorums,
-                fbas,
-                symmetric_nodes,
-                false,
-            );
+        if selection_satisfiable(
+            &candidates.selection,
+            &candidates.available,
+            fbas_values.fbas,
+        ) {
+            minimal_quorums_finder_step(candidates, found_quorums, fbas_values, false);
         }
-        unprocessed.push_front(current_candidate);
-        available.insert(current_candidate);
+        candidates.unprocessed.push_front(current_candidate);
+        candidates.available.insert(current_candidate);
+    }
+}
+
+fn nonintersecting_quorums_finder(
+    consensus_clusters: Vec<NodeIdSet>,
+    fbas: &Fbas,
+) -> Vec<NodeIdSet> {
+    if consensus_clusters.len() > 1 {
+        debug!("More than one consensus clusters - reducing to maximal quorums.");
+        consensus_clusters
+            .into_iter()
+            .map(|node_set| find_satisfiable_nodes(&node_set, fbas).0)
+            .collect()
+    } else {
+        warn!("There is only one consensus cluster - there might be no non-intersecting quorums and the subsequent search might be slow.");
+        let nodes = consensus_clusters.into_iter().next().unwrap_or_default();
+        nonintersecting_quorums_finder_using_cluster(&nodes, fbas)
+    }
+}
+fn nonintersecting_quorums_finder_using_cluster(cluster: &NodeIdSet, fbas: &Fbas) -> Vec<BitSet> {
+    if let Some(symmetric_cluster) =
+        is_symmetric_cluster(cluster, &fbas.with_standard_form_quorum_sets())
+    {
+        debug!("Cluster contains a symmetric quorum cluster! Extracting using that...");
+        if let Some((quorum1, quorum2)) = symmetric_cluster.has_nonintersecting_quorums() {
+            vec![quorum1, quorum2]
+        } else {
+            vec![]
+        }
+    } else {
+        debug!("Sorting nodes by rank...");
+        let sorted_nodes = sort_by_rank(cluster.iter().collect(), fbas);
+        debug!("Sorted.");
+
+        nonintersecting_quorums_finder_using_sorted_nodes(sorted_nodes, fbas)
+    }
+}
+// This function is used many times in a row in `find_minimal_splitting_sets`, hence we use logging
+// more sparingly.
+pub(crate) fn nonintersecting_quorums_finder_using_sorted_nodes(
+    sorted_nodes: Vec<usize>,
+    fbas: &Fbas,
+) -> Vec<BitSet> {
+    let mut candidates = CandidateValuesNi::new(sorted_nodes);
+    let symmetric_nodes = find_symmetric_nodes_in_node_set(&candidates.available, fbas);
+
+    // testing bigger quorums yields no benefit
+    let picks_left = candidates.unprocessed.len() / 2;
+
+    if let Some(intersecting_quorums) = nonintersecting_quorums_finder_step(
+        &mut candidates,
+        &FbasValues::new(fbas, &symmetric_nodes),
+        picks_left,
+        true,
+    ) {
+        assert!(intersecting_quorums.iter().all(|x| fbas.is_quorum(x)));
+        assert!(intersecting_quorums[0].is_disjoint(&intersecting_quorums[1]));
+        intersecting_quorums.to_vec()
+    } else {
+        assert!(fbas.is_quorum(&candidates.available));
+        vec![candidates.available.clone()]
+    }
+}
+fn nonintersecting_quorums_finder_step(
+    candidates: &mut CandidateValuesNi,
+    fbas_values: &FbasValues,
+    picks_left: usize,
+    selection_changed: bool,
+) -> Option<[NodeIdSet; 2]> {
+    debug_assert!(candidates.selection.is_disjoint(&candidates.antiselection));
+
+    if selection_changed && fbas_values.fbas.is_quorum(&candidates.selection) {
+        let (potential_complement, _) =
+            find_satisfiable_nodes(&candidates.antiselection, fbas_values.fbas);
+
+        if !potential_complement.is_empty() {
+            return Some([candidates.selection.clone(), potential_complement]);
+        }
+    } else if picks_left == 0 {
+        return None;
+    } else if let Some(current_candidate) = candidates.unprocessed.pop_front() {
+        // We require that symmetric nodes are used in a fixed order; this way we can omit
+        // redundant branches.
+        if fbas_values
+            .symmetric_nodes
+            .is_non_redundant_next(current_candidate, &candidates.selection)
+        {
+            candidates.selection.insert(current_candidate);
+            candidates.antiselection.remove(current_candidate);
+
+            if let Some(intersecting_quorums) =
+                nonintersecting_quorums_finder_step(candidates, fbas_values, picks_left - 1, true)
+            {
+                return Some(intersecting_quorums);
+            }
+            candidates.selection.remove(current_candidate);
+            candidates.antiselection.insert(current_candidate);
+        }
+        candidates.available.remove(current_candidate);
+
+        if selection_satisfiable(
+            &candidates.selection,
+            &candidates.available,
+            fbas_values.fbas,
+        ) {
+            if let Some(intersecting_quorums) =
+                nonintersecting_quorums_finder_step(candidates, fbas_values, picks_left, false)
+            {
+                return Some(intersecting_quorums);
+            }
+        }
+        candidates.unprocessed.push_front(current_candidate);
+        candidates.available.insert(current_candidate);
+    }
+    None
+}
+
+#[derive(Debug, Clone)]
+struct CandidateValuesMq {
+    selection: NodeIdSet,
+    unprocessed: NodeIdDeque,
+    available: NodeIdSet,
+}
+impl CandidateValuesMq {
+    fn new(sorted_nodes_to_process: Vec<NodeId>) -> Self {
+        let selection = bitset![];
+        let unprocessed: NodeIdDeque = sorted_nodes_to_process.into();
+        let available = unprocessed.iter().copied().collect();
+        Self {
+            selection,
+            unprocessed,
+            available,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CandidateValuesNi {
+    selection: NodeIdSet,
+    unprocessed: NodeIdDeque,
+    available: NodeIdSet,
+    antiselection: NodeIdSet,
+}
+impl CandidateValuesNi {
+    fn new(sorted_nodes_to_process: Vec<NodeId>) -> Self {
+        let selection = bitset![];
+        let unprocessed: NodeIdDeque = sorted_nodes_to_process.into();
+        let available: NodeIdSet = unprocessed.iter().copied().collect();
+        let antiselection = available.clone();
+        Self {
+            selection,
+            unprocessed,
+            available,
+            antiselection,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct FbasValues<'a> {
+    fbas: &'a Fbas,
+    symmetric_nodes: &'a SymmetricNodesMap,
+}
+impl<'a> FbasValues<'a> {
+    fn new(fbas: &'a Fbas, symmetric_nodes: &'a SymmetricNodesMap) -> Self {
+        Self {
+            fbas,
+            symmetric_nodes,
+        }
     }
 }
 
@@ -201,140 +353,6 @@ impl QuorumSet {
     }
 }
 
-fn nonintersecting_quorums_finder(
-    consensus_clusters: Vec<NodeIdSet>,
-    fbas: &Fbas,
-) -> Vec<NodeIdSet> {
-    if consensus_clusters.len() > 1 {
-        debug!("More than one consensus clusters - reducing to maximal quorums.");
-        consensus_clusters
-            .into_iter()
-            .map(|node_set| find_satisfiable_nodes(&node_set, fbas).0)
-            .collect()
-    } else {
-        warn!("There is only one consensus cluster - there might be no non-intersecting quorums and the subsequent search might be slow.");
-        let nodes = consensus_clusters.into_iter().next().unwrap_or_default();
-        nonintersecting_quorums_finder_using_cluster(&nodes, fbas)
-    }
-}
-fn nonintersecting_quorums_finder_using_cluster(cluster: &NodeIdSet, fbas: &Fbas) -> Vec<BitSet> {
-    if let Some(symmetric_cluster) =
-        is_symmetric_cluster(cluster, &fbas.with_standard_form_quorum_sets())
-    {
-        debug!("Cluster contains a symmetric quorum cluster! Extracting using that...");
-        if let Some((quorum1, quorum2)) = symmetric_cluster.has_nonintersecting_quorums() {
-            vec![quorum1, quorum2]
-        } else {
-            vec![]
-        }
-    } else {
-        debug!("Sorting nodes by rank...");
-        let sorted_nodes = sort_by_rank(cluster.iter().collect(), fbas);
-        debug!("Sorted.");
-
-        nonintersecting_quorums_finder_using_sorted_nodes(sorted_nodes, fbas)
-    }
-}
-pub(crate) fn nonintersecting_quorums_finder_using_sorted_nodes(
-    sorted_nodes: Vec<usize>,
-    fbas: &Fbas,
-) -> Vec<BitSet> {
-    let unprocessed = sorted_nodes;
-    let mut selection = NodeIdSet::with_capacity(fbas.nodes.len());
-    let mut available: NodeIdSet = unprocessed.iter().cloned().collect();
-    let mut antiselection = available.clone();
-    let picks_left = unprocessed.len() / 2;
-    // testing bigger quorums yields no benefit
-    let symmetric_nodes = find_symmetric_nodes_in_node_set(&available, fbas);
-    if let Some(intersecting_quorums) = nonintersecting_quorums_finder_step(
-        &mut unprocessed.into(),
-        &mut selection,
-        &mut available,
-        &mut antiselection,
-        &FbasValues {
-            fbas,
-            symmetric_nodes: &symmetric_nodes,
-        },
-        picks_left,
-        true,
-    ) {
-        assert!(intersecting_quorums.iter().all(|x| fbas.is_quorum(x)));
-        assert!(intersecting_quorums[0].is_disjoint(&intersecting_quorums[1]));
-        intersecting_quorums.to_vec()
-    } else {
-        assert!(fbas.is_quorum(&available));
-        vec![available.clone()]
-    }
-}
-fn nonintersecting_quorums_finder_step(
-    unprocessed: &mut NodeIdDeque,
-    selection: &mut NodeIdSet,
-    available: &mut NodeIdSet,
-    antiselection: &mut NodeIdSet,
-    fbas_values: &FbasValues,
-    picks_left: usize,
-    selection_changed: bool,
-) -> Option<[NodeIdSet; 2]> {
-    debug_assert!(selection.is_disjoint(antiselection));
-    if selection_changed && fbas_values.fbas.is_quorum(selection) {
-        let (potential_complement, _) = find_satisfiable_nodes(antiselection, fbas_values.fbas);
-
-        if !potential_complement.is_empty() {
-            return Some([selection.clone(), potential_complement]);
-        }
-    } else if picks_left == 0 {
-        return None;
-    } else if let Some(current_candidate) = unprocessed.pop_front() {
-        // We require that symmetric nodes are used in a fixed order; this way we can omit
-        // redundant branches.
-        if fbas_values
-            .symmetric_nodes
-            .is_non_redundant_next(current_candidate, selection)
-        {
-            selection.insert(current_candidate);
-            antiselection.remove(current_candidate);
-            if let Some(intersecting_quorums) = nonintersecting_quorums_finder_step(
-                unprocessed,
-                selection,
-                available,
-                antiselection,
-                fbas_values,
-                picks_left - 1,
-                true,
-            ) {
-                return Some(intersecting_quorums);
-            }
-            selection.remove(current_candidate);
-            antiselection.insert(current_candidate);
-        }
-        available.remove(current_candidate);
-
-        if selection_satisfiable(selection, available, fbas_values.fbas) {
-            if let Some(intersecting_quorums) = nonintersecting_quorums_finder_step(
-                unprocessed,
-                selection,
-                available,
-                antiselection,
-                fbas_values,
-                picks_left,
-                false,
-            ) {
-                return Some(intersecting_quorums);
-            }
-        }
-        unprocessed.push_front(current_candidate);
-        available.insert(current_candidate);
-    }
-    None
-}
-
-// This exists because clippy complained that we have too many arguments.
-#[derive(Debug, Clone)]
-struct FbasValues<'a> {
-    fbas: &'a Fbas,
-    symmetric_nodes: &'a SymmetricNodesMap,
-}
-
 fn selection_satisfiable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
     selection
         .iter()
@@ -378,7 +396,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn find_minimal_quorums_in_correct_trivial() {
+    fn minimal_quorums_in_correct_trivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
 
         let expected = vec![bitset![0, 1], bitset![0, 2], bitset![1, 2]];
@@ -388,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_quorums_in_broken_trivial() {
+    fn minimal_quorums_in_broken_trivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
 
         let expected = vec![bitset![0], bitset![1, 2]];
@@ -398,7 +416,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_quorums_in_broken_trivial_reversed_node_ids() {
+    fn minimal_quorums_in_broken_trivial_reversed_node_ids() {
         let mut fbas = Fbas::from_json_file(Path::new("test_data/broken_trivial.json"));
         fbas.nodes.reverse();
 
@@ -409,7 +427,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_quorums_when_naive_remove_non_minimal_optimization_doesnt_work() {
+    fn minimal_quorums_when_naive_remove_non_minimal_optimization_doesnt_work() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -436,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn find_nonintersecting_quorums_in_half_half() {
+    fn nonintersecting_quorums_in_half_half() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -465,7 +483,7 @@ mod tests {
     }
 
     #[test]
-    fn find_nonintersecting_quorums_in_broken() {
+    fn nonintersecting_quorums_in_broken() {
         let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
 
         let expected = Some(vec![bitset![3, 10], bitset![4, 6]]);

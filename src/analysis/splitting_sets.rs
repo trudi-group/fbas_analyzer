@@ -45,7 +45,7 @@ fn minimal_splitting_sets_finder(
         debug!("Finding minimal splitting sets...");
         let cluster_nodes = consensus_clusters.into_iter().next().unwrap();
 
-        debug!("Finding nodes that can cause quorums to shrink significantly by changing their quorum set.");
+        debug!("Finding quorum expanders...");
         let quorum_expanders = find_quorum_expanders(&fbas);
         debug!("Done.");
 
@@ -83,23 +83,18 @@ fn minimal_splitting_sets_finder(
             let sorted_nodes = sort_by_score(relevant_nodes, &combined_scores);
             debug!("Sorted.");
 
-            let mut selection = bitset![];
-            let mut found_splitting_sets = vec![];
-            let mut unprocessed = sorted_nodes.into_iter().collect();
-
+            debug!("Looking for symmetric nodes...");
             let symmetric_nodes = find_symmetric_nodes_in_node_set(&fbas.all_nodes(), &fbas);
+            debug!("Done.");
+
+            let mut found_splitting_sets = vec![];
 
             debug!("Collecting splitting sets...");
             splitting_sets_finder_step(
-                &mut selection,
+                &mut CandidateValues::new(sorted_nodes),
                 &mut found_splitting_sets,
-                &mut unprocessed,
                 FbasValues::new(fbas),
-                &PrecomputedValues {
-                    quorum_expanders,
-                    ranking_scores: combined_scores,
-                    symmetric_nodes: symmetric_nodes.clone(),
-                },
+                &PrecomputedValues::new(combined_scores, symmetric_nodes.clone()),
             );
             debug!(
                 "Found {} splitting sets. Reducing to minimal splitting sets...",
@@ -111,22 +106,19 @@ fn minimal_splitting_sets_finder(
     }
 }
 fn splitting_sets_finder_step(
-    selection: &mut NodeIdSet,
+    candidates: &mut CandidateValues,
     found_splitting_sets: &mut Vec<NodeIdSet>,
-    unprocessed: &mut NodeIdDequeSet,
     mut fbas: FbasValues,
     precomputed: &PrecomputedValues,
 ) {
-    if fbas.consensus_clusters.is_empty()
-        && unprocessed.set.is_disjoint(&precomputed.quorum_expanders)
-    {
+    if fbas.consensus_clusters.is_empty() && !has_potential(candidates, &fbas) {
         // return
     } else if fbas.consensus_clusters_changed && !fbas.has_quorum_intersection(precomputed) {
-        found_splitting_sets.push(selection.clone());
+        found_splitting_sets.push(candidates.selection.clone());
         if found_splitting_sets.len() % 100_000 == 0 {
             debug!("...{} splitting sets found", found_splitting_sets.len());
         }
-    } else if let Some(current_candidate) = unprocessed.pop_front() {
+    } else if let Some(current_candidate) = candidates.unprocessed.pop_front() {
         // Resetting this as we just checked for quorum intersection and the clusters didn't change
         // since then.
         fbas.consensus_clusters_changed = false;
@@ -136,72 +128,40 @@ fn splitting_sets_finder_step(
         // sets).
         if precomputed
             .symmetric_nodes
-            .is_non_redundant_next(current_candidate, selection)
+            .is_non_redundant_next(current_candidate, &candidates.selection)
         {
-            selection.insert(current_candidate);
+            candidates.selection.insert(current_candidate);
 
             let modified_fbas = fbas.clone_assuming_faulty(&bitset![current_candidate]);
 
             splitting_sets_finder_step(
-                selection,
+                candidates,
                 found_splitting_sets,
-                unprocessed,
                 modified_fbas,
                 precomputed,
             );
-            selection.remove(current_candidate);
+            candidates.selection.remove(current_candidate);
         }
-        if has_potential(unprocessed, &fbas) {
-            splitting_sets_finder_step(
-                selection,
-                found_splitting_sets,
-                unprocessed,
-                fbas,
-                precomputed,
-            );
+        if has_potential(candidates, &fbas) {
+            splitting_sets_finder_step(candidates, found_splitting_sets, fbas, precomputed);
         }
-        unprocessed.push_front(current_candidate);
+        candidates.unprocessed.push_front(current_candidate);
     }
 }
 
-#[derive(Debug, Default)]
-struct NodeIdDequeSet {
-    deque: NodeIdDeque,
-    set: NodeIdSet,
+#[derive(Debug, Clone)]
+struct CandidateValues {
+    selection: NodeIdSet,
+    unprocessed: NodeIdDequeSet,
 }
-impl NodeIdDequeSet {
-    pub fn new() -> Self {
-        Self::default()
-    }
-    fn pop_front(&mut self) -> Option<NodeId> {
-        if let Some(popped_value) = self.deque.pop_front() {
-            let existed = self.set.remove(popped_value);
-            debug_assert!(existed);
-            Some(popped_value)
-        } else {
-            None
+impl CandidateValues {
+    fn new(sorted_nodes_to_process: Vec<NodeId>) -> Self {
+        let selection = bitset![];
+        let unprocessed = sorted_nodes_to_process.into_iter().collect();
+        Self {
+            selection,
+            unprocessed,
         }
-    }
-    /// Notably, we don't avoid adding the same item twice here!
-    fn push_front(&mut self, node_id: NodeId) {
-        let is_new = self.set.insert(node_id);
-        debug_assert!(is_new);
-        self.deque.push_front(node_id);
-    }
-    /// Notably, we don't avoid adding the same item twice here!
-    fn push_back(&mut self, node_id: NodeId) {
-        let is_new = self.set.insert(node_id);
-        debug_assert!(is_new);
-        self.deque.push_back(node_id);
-    }
-}
-impl FromIterator<NodeId> for NodeIdDequeSet {
-    fn from_iter<T: IntoIterator<Item = NodeId>>(iter: T) -> Self {
-        let mut new = Self::new();
-        for node_id in iter.into_iter() {
-            new.push_back(node_id);
-        }
-        new
     }
 }
 
@@ -292,9 +252,57 @@ impl FbasValues {
 }
 
 struct PrecomputedValues {
-    quorum_expanders: NodeIdSet,
     ranking_scores: Vec<RankScore>,
     symmetric_nodes: SymmetricNodesMap, // maintained for relevance to splitting sets
+}
+impl PrecomputedValues {
+    fn new(ranking_scores: Vec<RankScore>, symmetric_nodes: SymmetricNodesMap) -> Self {
+        Self {
+            ranking_scores,
+            symmetric_nodes,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+struct NodeIdDequeSet {
+    deque: NodeIdDeque,
+    set: NodeIdSet,
+}
+impl NodeIdDequeSet {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    fn pop_front(&mut self) -> Option<NodeId> {
+        if let Some(popped_value) = self.deque.pop_front() {
+            let existed = self.set.remove(popped_value);
+            debug_assert!(existed);
+            Some(popped_value)
+        } else {
+            None
+        }
+    }
+    /// Notably, we don't avoid adding the same item twice here!
+    fn push_front(&mut self, node_id: NodeId) {
+        let is_new = self.set.insert(node_id);
+        debug_assert!(is_new);
+        self.deque.push_front(node_id);
+    }
+    /// Notably, we don't avoid adding the same item twice here!
+    fn push_back(&mut self, node_id: NodeId) {
+        let is_new = self.set.insert(node_id);
+        debug_assert!(is_new);
+        self.deque.push_back(node_id);
+    }
+}
+impl FromIterator<NodeId> for NodeIdDequeSet {
+    fn from_iter<T: IntoIterator<Item = NodeId>>(iter: T) -> Self {
+        let mut new = Self::new();
+        for node_id in iter.into_iter() {
+            new.push_back(node_id);
+        }
+        new
+    }
 }
 
 impl QuorumSet {
@@ -344,9 +352,9 @@ impl QuorumSet {
 }
 
 // A heuristic for pruning
-fn has_potential(unprocessed: &NodeIdDequeSet, fbas: &FbasValues) -> bool {
-    let remaining = &unprocessed.set;
-    debug_assert!(fbas.consensus_clusters.len() == 1);
+fn has_potential(candidates: &CandidateValues, fbas: &FbasValues) -> bool {
+    let remaining = &candidates.unprocessed.set;
+    debug_assert!(fbas.consensus_clusters.len() <= 1); // when we expect to call this
 
     // the remaining nodes can split off some of themselves
     remaining.iter().any(|node_id| fbas.fbas.nodes[node_id].is_quorum_slice(node_id, remaining))
@@ -362,7 +370,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn find_quorum_expanders_in_3_ring() {
+    fn quorum_expanders_in_3_ring() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -386,7 +394,31 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_in_correct() {
+    fn unsatisfiable_nodes_can_be_quorum_expanders() {
+        let fbas = Fbas::from_json_str(
+            r#"[
+            {
+                "publicKey": "n0",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+            },
+            {
+                "publicKey": "n1",
+                "quorumSet": { "threshold": 2, "validators": ["n0", "n1", "n2"] }
+            },
+            {
+                "publicKey": "n2",
+                "quorumSet": { "threshold": 4, "validators": ["n0", "n1", "n2"] }
+            }
+        ]"#,
+        );
+        let expected = bitset! {2};
+        let actual = find_quorum_expanders(&fbas);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn minimal_splitting_sets_in_correct() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct.json")).to_core();
 
         let expected = vec![bitset![0], bitset![1], bitset![2], bitset![3]]; // One of these is Eno!
@@ -396,7 +428,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_in_different_consensus_clusters() {
+    fn minimal_splitting_sets_in_different_consensus_clusters() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -429,7 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_if_one_quorum() {
+    fn minimal_splitting_sets_if_one_quorum() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -454,7 +486,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_if_one_quorum_and_symmetric() {
+    fn minimal_splitting_sets_if_one_quorum_and_symmetric() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -475,7 +507,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_if_two_quorums() {
+    fn minimal_splitting_sets_if_two_quorums() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -499,7 +531,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_if_no_quorum() {
+    fn minimal_splitting_sets_if_no_quorum() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -516,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_of_pyramid() {
+    fn minimal_splitting_sets_of_pyramid() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -551,7 +583,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_of_weird_fbas() {
+    fn minimal_splitting_sets_of_weird_fbas() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -596,7 +628,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_that_split_single_nodes_by_qset_lying() {
+    fn minimal_splitting_sets_that_split_single_nodes_by_qset_lying() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -619,7 +651,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_that_split_multiple_nodes_by_qset_lying() {
+    fn minimal_splitting_sets_that_split_multiple_nodes_by_qset_lying() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -653,7 +685,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_in_4_ring() {
+    fn minimal_splitting_sets_in_4_ring() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -680,7 +712,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_in_six_node_cigar() {
+    fn minimal_splitting_sets_in_six_node_cigar() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -715,7 +747,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_in_almost_line() {
+    fn minimal_splitting_sets_in_almost_line() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -746,7 +778,7 @@ mod tests {
     }
 
     #[test]
-    fn find_minimal_splitting_sets_outside_symmetric_cluster() {
+    fn minimal_splitting_sets_outside_symmetric_cluster() {
         let fbas = Fbas::from_json_str(
             r#"[
             {

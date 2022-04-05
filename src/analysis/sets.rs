@@ -14,6 +14,7 @@ pub fn all_intersect(node_sets: &[NodeIdSet]) -> bool {
     }
 }
 
+/// Returns the union of all sets in `node_sets`.
 pub fn involved_nodes(node_sets: &[NodeIdSet]) -> NodeIdSet {
     let mut all_nodes: NodeIdSet = bitset![];
     for node_set in node_sets {
@@ -98,6 +99,7 @@ pub fn remove_non_minimal_node_sets(mut node_sets: Vec<NodeIdSet>) -> Vec<NodeId
     remove_non_minimal_node_sets_from_buckets(buckets_by_len)
 }
 
+/// Removes non-minimal node sets based on a closure that determines minimality.
 pub(crate) fn remove_non_minimal_x<F>(
     node_sets: Vec<NodeIdSet>,
     is_minimal: F,

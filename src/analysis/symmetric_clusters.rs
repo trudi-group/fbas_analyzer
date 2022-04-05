@@ -128,7 +128,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn find_symmetric_cluster_in_correct_trivial() {
+    fn symmetric_cluster_in_correct_trivial() {
         let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
 
         let expected = vec![QuorumSet {
@@ -142,7 +142,7 @@ mod tests {
     }
 
     #[test]
-    fn find_symmetric_cluster_in_split_fbas() {
+    fn symmetric_cluster_in_split_fbas() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -183,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    fn find_symmetric_cluster_in_symmetric_cluster() {
+    fn symmetric_cluster_in_symmetric_cluster() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -207,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn find_symmetric_cluster_in_weird_cluster() {
+    fn symmetric_cluster_in_weird_cluster() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -227,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn find_symmetric_cluster_in_weird_cluster_made_standard() {
+    fn symmetric_cluster_in_weird_cluster_made_standard() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -251,7 +251,7 @@ mod tests {
         assert_eq!(expected, actual);
     }
     #[test]
-    fn find_symmetric_top_tier_in_symmetric_fbas() {
+    fn symmetric_top_tier_in_symmetric_fbas() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn find_symmetric_top_tier_in_mobilecoinish_fbas() {
+    fn symmetric_top_tier_in_mobilecoinish_fbas() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -299,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn find_symmetric_top_tier_in_broken_symmetric_fbas() {
+    fn symmetric_top_tier_in_broken_symmetric_fbas() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -325,7 +325,7 @@ mod tests {
     }
 
     #[test]
-    fn find_symmetric_top_tier_in_split_fbas() {
+    fn symmetric_top_tier_in_split_fbas() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
@@ -355,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn find_symmetric_top_tier_in_weird_split_fbas() {
+    fn symmetric_top_tier_in_weird_split_fbas() {
         let fbas = Fbas::from_json_str(
             r#"[
             {
