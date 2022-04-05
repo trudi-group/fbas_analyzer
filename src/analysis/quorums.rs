@@ -1,5 +1,4 @@
 use super::*;
-use itertools::Itertools;
 
 /// Find all minimal quorums in the FBAS.
 pub fn find_minimal_quorums(fbas: &Fbas) -> Vec<NodeIdSet> {
@@ -24,37 +23,6 @@ pub fn find_nonintersecting_quorums(fbas: &Fbas) -> Option<Vec<NodeIdSet>> {
             quorums.len()
         );
         Some(quorums)
-    }
-}
-
-/// A fast heuristic quorum intersection check via checking if there are any non-intersecting
-/// quorum *slices* in the FBAS core. If this function returns `true` it is certain that the FBAS
-/// enjoys quorum intersection. If this function returns `false` the FBAS still might enjoy quorum
-/// intersection but a slower check is necessary.
-pub fn has_quorum_intersection_via_heuristic_check(fbas: &Fbas) -> bool {
-    let core_nodes = fbas.core_nodes();
-    !core_nodes.is_empty() && have_quorum_intersection_via_fast_check(&core_nodes, fbas)
-}
-pub(crate) fn have_quorum_intersection_via_fast_check(nodes: &NodeIdSet, fbas: &Fbas) -> bool {
-    let n = nodes.len();
-
-    let quorum_sets: Vec<QuorumSet> = nodes
-        .iter()
-        .map(|node_id| fbas.nodes[node_id].quorum_set.to_standard_form(node_id))
-        .unique()
-        .collect();
-
-    if quorum_sets
-        .iter()
-        .all(|qset| qset.smallest_slice_len_lower_bound() > n / 2)
-    {
-        true
-    } else {
-        let slices = quorum_sets
-            .into_iter()
-            .flat_map(|qset| qset.to_quorum_slices())
-            .collect_vec();
-        !slices.is_empty() && all_intersect(&slices.into_iter().collect_vec())
     }
 }
 
@@ -325,32 +293,6 @@ impl QuorumSet {
             None
         }
     }
-    /// A lower bound for the length of the smallest slice that satisfied this quorum set. If there
-    /// are no duplicates and the node that this quorum set belongs to is explicitly included in
-    /// `self.validators`, this actually returns a precise result.
-    fn smallest_slice_len_lower_bound(&self) -> usize {
-        let with_duplicates = if self.threshold <= self.validators.len() {
-            self.threshold
-        } else {
-            self.validators.len()
-                + self
-                    .inner_quorum_sets
-                    .iter()
-                    .map(|qset| qset.smallest_slice_len_lower_bound())
-                    .sorted()
-                    .take(self.threshold - self.validators.len())
-                    .sum::<usize>()
-        };
-
-        let number_of_duplicates = self
-            .contained_nodes_with_duplicates()
-            .into_iter()
-            .duplicates()
-            .count();
-
-        // hence it's a lower bound
-        with_duplicates.saturating_sub(number_of_duplicates)
-    }
 }
 
 fn selection_satisfiable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fbas) -> bool {
@@ -489,72 +431,6 @@ mod tests {
         let expected = Some(vec![bitset![3, 10], bitset![4, 6]]);
         let actual = find_nonintersecting_quorums(&fbas);
 
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn has_quorum_intersection_via_fast_check_in_correct_trivial() {
-        let fbas = Fbas::from_json_file(Path::new("test_data/correct_trivial.json"));
-
-        let expected = true;
-        let actual = has_quorum_intersection_via_heuristic_check(&fbas);
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn has_quorum_intersection_via_fast_check_in_broken() {
-        let fbas = Fbas::from_json_file(Path::new("test_data/broken.json"));
-
-        let expected = false;
-        let actual = has_quorum_intersection_via_heuristic_check(&fbas);
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn smallest_slice_len_lower_bound_in_flat_quorum_set() {
-        let qset = QuorumSet::new(vec![0, 1, 2], vec![], 2);
-        let expected = 2;
-        let actual = qset.smallest_slice_len_lower_bound();
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn smallest_slice_len_lower_bound_in_flat_quorum_set_with_duplicates() {
-        let qset = QuorumSet::new(vec![0, 1, 2, 2], vec![], 2);
-        let expected = 1;
-        let actual = qset.smallest_slice_len_lower_bound();
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn smallest_slice_len_lower_bound_in_nested_quorum_set() {
-        let qset = QuorumSet::new(
-            vec![0, 1, 2],
-            vec![
-                QuorumSet::new(vec![3, 4, 5], vec![], 3),
-                QuorumSet::new(vec![6, 7, 8, 9], vec![], 2),
-            ],
-            4,
-        );
-        let expected = 5;
-        let actual = qset.smallest_slice_len_lower_bound();
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn smallest_slice_len_lower_bound_in_nested_quorum_set_with_duplicates() {
-        let qset = QuorumSet::new(
-            vec![0, 1, 2],
-            vec![
-                QuorumSet::new(vec![0, 1, 2, 3, 4, 5], vec![], 3),
-                QuorumSet::new(vec![0, 3, 4, 5, 6], vec![], 2),
-            ],
-            4,
-        );
-        let expected = 0; // the precise result would be 3 but calculating this is not so cheap
-        let actual = qset.smallest_slice_len_lower_bound();
         assert_eq!(expected, actual);
     }
 }

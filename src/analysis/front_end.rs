@@ -71,14 +71,9 @@ impl Analysis {
         self.make_unshrunken_set_result(self.fbas_original.unsatisfiable_nodes())
     }
     /// Regular quorum intersection check via finding all minimal quorums (algorithm inspired by
-    /// [Lachowski 2019](https://arxiv.org/abs/1902.06493)), with a heuristic fast check upfront
-    /// that helps us skip the slower check on some FBASs.
+    /// [Lachowski 2019](https://arxiv.org/abs/1902.06493)).
     pub fn has_quorum_intersection(&self) -> bool {
-        if has_quorum_intersection_via_heuristic_check(&self.fbas_shrunken.borrow()) {
-            true
-        } else {
-            self.has_quorum_intersection_from_shrunken()
-        }
+        self.has_quorum_intersection_from_shrunken()
     }
     /// Quorum intersection check that works without enumerating all minimal quorums.
     pub fn has_quorum_intersection_via_alternative_check(
