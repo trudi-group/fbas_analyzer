@@ -93,7 +93,7 @@ fn minimal_splitting_sets_finder(
             splitting_sets_finder_step(
                 &mut CandidateValues::new(sorted_nodes),
                 &mut found_splitting_sets,
-                FbasValues::new(fbas),
+                FbasValues::new(&fbas),
                 &PrecomputedValues::new(combined_scores, symmetric_nodes.clone()),
             );
             debug!(
@@ -166,24 +166,26 @@ impl CandidateValues {
 }
 
 #[derive(Debug, Clone)]
-struct FbasValues {
+struct FbasValues<'a> {
     fbas: Fbas,
+    fbas_orig: &'a Fbas,
     consensus_clusters_changed: bool,
     sccs: Vec<NodeIdSet>,
     consensus_clusters: Vec<NodeIdSet>,
     faulty_nodes: NodeIdSet,
 }
-impl FbasValues {
-    fn new(fbas: Fbas) -> Self {
-        let sccs = partition_into_strongly_connected_components(&fbas.satisfiable_nodes(), &fbas);
+impl<'a> FbasValues<'a> {
+    fn new(fbas: &'a Fbas) -> Self {
+        let sccs = partition_into_strongly_connected_components(&fbas.satisfiable_nodes(), fbas);
         let consensus_clusters = sccs
             .iter()
-            .filter(|scc| contains_quorum(scc, &fbas))
+            .filter(|scc| contains_quorum(scc, fbas))
             .take(2)
             .cloned()
             .collect();
         Self {
-            fbas,
+            fbas: fbas.clone(),
+            fbas_orig: fbas,
             consensus_clusters,
             sccs,
             consensus_clusters_changed: true,
@@ -243,6 +245,7 @@ impl FbasValues {
 
         Self {
             fbas,
+            fbas_orig: self.fbas_orig,
             consensus_clusters_changed,
             sccs,
             consensus_clusters,
@@ -356,8 +359,12 @@ fn has_potential(candidates: &CandidateValues, fbas: &FbasValues) -> bool {
     let remaining = &candidates.unprocessed.set;
     debug_assert!(fbas.consensus_clusters.len() <= 1); // when we expect to call this
 
-    // the remaining nodes can split off some of themselves
-    remaining.iter().any(|node_id| fbas.fbas.nodes[node_id].is_quorum_slice(node_id, remaining))
+    // the remaining nodes can split off some of themselves and couldn't do so without the faulty nodes
+    remaining.iter().any(|node_id|
+        fbas.fbas.nodes[node_id].is_quorum_slice(node_id, remaining)
+            &&
+        (fbas.faulty_nodes.is_empty() || !fbas.fbas_orig.nodes[node_id].is_quorum_slice(node_id, remaining))
+    )
         ||
     // the remaining nodes could split off some other nodes
     fbas.clone_assuming_faulty(remaining)
