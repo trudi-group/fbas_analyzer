@@ -56,7 +56,7 @@ fbas_analyzer = { version = "0.7", default-features = false }
 Or this, if you need simulation functionality:
 ```
 [dependencies]
-fbas_analyzer = { version = "0.7", default-features = false, features = ["qsc_simulation"] }
+fbas_analyzer = { version = "0.7", default-features = false, features = ["qsc-simulation"] }
 ```
 
 Check out the [API Reference](https://docs.rs/fbas_analyzer/)
