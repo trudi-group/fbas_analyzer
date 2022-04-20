@@ -156,16 +156,23 @@ pub fn rank_nodes(nodes: &[NodeId], fbas: &Fbas) -> Vec<RankScore> {
     scores
 }
 
-/// Rank nodes and sort them by "highest rank score first"
+/// Rank nodes and sort them by "highest rank score first". Nodes with equal score are sorted by
+/// node ID (lowest ID first).
 pub fn sort_by_rank(nodes: Vec<NodeId>, fbas: &Fbas) -> Vec<NodeId> {
     let scores = rank_nodes(&nodes, fbas);
 
     sort_by_score(nodes, &scores)
 }
 
-/// Sort highest scores first
+/// Sort nodes by "highest score" first. Nodes with equal score are sorted by node ID (lowest ID
+/// first).
 pub fn sort_by_score(mut nodes: Vec<NodeId>, scores: &[RankScore]) -> Vec<NodeId> {
-    nodes.sort_by(|x, y| scores[*y].partial_cmp(&scores[*x]).unwrap());
+    use std::cmp::Ordering::*;
+    nodes.sort_by(|x, y| match scores[*y].partial_cmp(&scores[*x]).unwrap() {
+        Less => Less,
+        Greater => Greater,
+        Equal => x.partial_cmp(y).unwrap(),
+    });
     nodes
 }
 
@@ -542,5 +549,16 @@ mod tests {
 
         assert!(unsatisfiable.contains(directly_unsatisfiable));
         assert!(unsatisfiable.contains(transitively_unsatisfiable));
+    }
+
+    #[test]
+    fn sort_by_score_sorts_equivalent_nodes_by_node_id() {
+        let nodes = vec![0, 5, 1, 2];
+        let scores = vec![2., 0., 0.5, 0.3, 0.3, 0.5];
+
+        let expected = vec![0, 2, 5, 1];
+        let actual = sort_by_score(nodes, &scores);
+
+        assert_eq!(expected, actual);
     }
 }
