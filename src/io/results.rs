@@ -192,6 +192,7 @@ impl NodeIdSetVecResult {
     }
 }
 
+/// Resolve the pretty names for a collection of node IDs.
 pub fn to_public_keys(nodes: impl IntoIterator<Item = NodeId>, fbas: &Fbas) -> Vec<PublicKey> {
     nodes
         .into_iter()
@@ -199,7 +200,10 @@ pub fn to_public_keys(nodes: impl IntoIterator<Item = NodeId>, fbas: &Fbas) -> V
         .cloned()
         .collect()
 }
-fn to_grouping_names(
+
+/// Resolve the grouping names for a collection of node IDs. Resolves to node names (public keys)
+/// if no matching grouping is found.
+pub fn to_grouping_names(
     nodes: impl IntoIterator<Item = NodeId>,
     fbas: &Fbas,
     groupings: &Groupings,

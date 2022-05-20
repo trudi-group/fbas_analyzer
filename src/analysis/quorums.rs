@@ -301,6 +301,7 @@ fn selection_satisfiable(selection: &NodeIdSet, available: &NodeIdSet, fbas: &Fb
         .all(|x| fbas.nodes[x].quorum_set.is_quorum_slice(available))
 }
 
+/// Returns `true` if any subset of `node_set` forms a quorum for `fbas`.
 pub fn contains_quorum(node_set: &NodeIdSet, fbas: &Fbas) -> bool {
     let mut satisfiable = node_set.clone();
 
