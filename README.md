@@ -5,8 +5,8 @@
 [![CI](https://github.com/wiberlin/fbas_analyzer/actions/workflows/test.yml/badge.svg)](https://github.com/wiberlin/fbas_analyzer/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/wiberlin/fbas_analyzer/branch/master/graph/badge.svg?token=SADRQEH8DT)](https://codecov.io/gh/wiberlin/fbas_analyzer)
 
-Library and tools for analyzing the quorum structure of Federated Byzantine Agreement Systems (FBASs) like [Stellar](https://www.stellar.org/).
-Related research paper [here](https://arxiv.org/abs/2002.08101).
+Library and tools for analyzing the quorum structure of Federated Byzantine Agreement Systems (FBASs) like [Stellar](https://www.stellar.org/) and [MobileCoin](https://mobilecoin.com/).
+Related research paper [here](https://link.springer.com/article/10.1007/s00446-022-00430-0).
 
 Among other things, the implementation here can:
 
@@ -17,7 +17,7 @@ Among other things, the implementation here can:
 - find all minimal splitting sets (minimal indispensable sets for safety)
 - simulate different quorum set configuration policies, yielding synthetic FBASs for further analysis
 
-Powers our [Stellar Network Analysis](https://trudi.weizenbaum-institut.de/stellar_analysis/).
+Powers our analysis websites for the [Stellar](https://trudi.weizenbaum-institut.de/stellar_analysis/) and [MobileCoin](https://trudi.weizenbaum-institut.de/mobilecoin_analysis/) networks.
 
 ## Usage as tools
 
