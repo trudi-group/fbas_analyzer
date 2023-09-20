@@ -8,9 +8,7 @@ pub(crate) struct RawFbas(pub(crate) Vec<RawNode>);
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RawNode {
     pub(crate) public_key: PublicKey,
-    // If no quorum set is given, we assume that the node is unsatisfiable, i.e., broken.
-    #[serde(default = "RawQuorumSet::new_unsatisfiable")]
-    pub(crate) quorum_set: RawQuorumSet,
+    pub(crate) quorum_set: Option<RawQuorumSet>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) isp: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -23,15 +21,6 @@ pub(crate) struct RawQuorumSet {
     pub(crate) validators: Vec<PublicKey>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) inner_quorum_sets: Vec<RawQuorumSet>,
-}
-impl RawQuorumSet {
-    fn new_unsatisfiable() -> Self {
-        Self {
-            threshold: 1,
-            validators: vec![],
-            inner_quorum_sets: vec![],
-        }
-    }
 }
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -104,13 +93,18 @@ impl Node {
     fn from_raw(raw_node: RawNode, pk_to_id: &HashMap<PublicKey, NodeId>) -> Self {
         Node {
             public_key: raw_node.public_key,
-            quorum_set: QuorumSet::from_raw(raw_node.quorum_set, pk_to_id),
+            // If no quorum set is given, we assume that the node is unsatisfiable, i.e., broken.
+            quorum_set: if let Some(raw_quorum_set) = raw_node.quorum_set {
+                QuorumSet::from_raw(raw_quorum_set, pk_to_id)
+            } else {
+                QuorumSet::new_unsatisfiable()
+            },
         }
     }
     fn to_raw(&self, fbas: &Fbas) -> RawNode {
         RawNode {
             public_key: self.public_key.clone(),
-            quorum_set: self.quorum_set.to_raw(fbas),
+            quorum_set: Some(self.quorum_set.to_raw(fbas)),
             isp: None,
             geo_data: None,
         }
@@ -210,16 +204,16 @@ mod tests {
         let expected_quorum_sets = vec![
             QuorumSet {
                 threshold: 1,
-                validators: vec![].into_iter().collect(),
+                validators: vec![],
                 inner_quorum_sets: vec![QuorumSet {
                     threshold: 2,
-                    validators: vec![0, 1, 2].into_iter().collect(),
+                    validators: vec![0, 1, 2],
                     inner_quorum_sets: vec![],
                 }],
             },
             QuorumSet {
                 threshold: 3,
-                validators: vec![0, 1, 2].into_iter().collect(),
+                validators: vec![0, 1, 2],
                 inner_quorum_sets: vec![],
             },
             QuorumSet::new_unsatisfiable(),
@@ -256,7 +250,7 @@ mod tests {
         let expected_quorum_sets = vec![
             QuorumSet {
                 threshold: 2,
-                validators: vec![0, 1].into_iter().collect(),
+                validators: vec![0, 1],
                 inner_quorum_sets: Default::default(),
             },
             QuorumSet::new(vec![], vec![], 1),
@@ -294,6 +288,23 @@ mod tests {
     }
 
     #[test]
+    fn from_json_parses_null_quorum_sets() {
+        let input = r#"[
+            {
+                "publicKey": "GCGB2",
+                "quorumSet": null
+            }]"#;
+
+        let expected_quorum_sets = vec![QuorumSet::new(vec![], vec![], 1)];
+
+        let fbas = Fbas::from_json_str(input);
+        let actual_quorum_sets: Vec<QuorumSet> =
+            fbas.nodes.into_iter().map(|x| x.quorum_set).collect();
+
+        assert_eq!(expected_quorum_sets, actual_quorum_sets);
+    }
+
+    #[test]
     fn to_json_and_back_results_in_identical_fbas() {
         let original = Fbas::new_generic_unconfigured(7);
         let json = original.to_json_string();
@@ -306,7 +317,7 @@ mod tests {
         let fbas = Fbas::new();
         let quorum_set = QuorumSet {
             threshold: 2,
-            validators: vec![0, 1].into_iter().collect(),
+            validators: vec![0, 1],
             inner_quorum_sets: Default::default(),
         };
         let expected = RawQuorumSet {
