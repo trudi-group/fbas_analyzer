@@ -463,7 +463,7 @@ fn extract_file_name(path: &Path) -> String {
         .unwrap()
 }
 fn extract_label(path: &Path, substring_to_ignore_for_label: &str) -> String {
-    let ignore_list = vec!["nodes", "organizations", substring_to_ignore_for_label];
+    let ignore_list = ["nodes", "organizations", substring_to_ignore_for_label];
     let label_parts: Vec<String> = extract_file_name(path)
         .replace(".json", "")
         .split_terminator('_')

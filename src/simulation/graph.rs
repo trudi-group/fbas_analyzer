@@ -3,8 +3,6 @@ use super::*;
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 
-pub type RankScore = f64;
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct Graph {
     // outgoing edges per node

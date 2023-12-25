@@ -103,7 +103,7 @@ impl RawGroupings {
             if let Some(name) = &raw_node.isp {
                 let mut isp = name.clone();
                 isp = remove_special_chars_from_grouping_name(isp);
-                if isp_to_validators.get(&isp) == None {
+                if isp_to_validators.get(&isp).is_none() {
                     isp_to_validators.insert(isp.clone(), Vec::new());
                 }
                 isp_to_validators
@@ -137,7 +137,7 @@ impl RawGroupings {
                 if let Some(name) = &geodata.country_name {
                     let mut country = name.clone();
                     country = remove_special_chars_from_grouping_name(country);
-                    if country_to_validators.get(&country.clone()) == None {
+                    if country_to_validators.get(&country.clone()).is_none() {
                         country_to_validators.insert(country.clone(), Vec::new());
                     }
                     country_to_validators
