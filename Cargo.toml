@@ -55,7 +55,7 @@ itertools = "0.10"
 quicli = { version = "0.4", optional = true }
 structopt = { version = "0.2", optional = true }
 rand = { version = "0.8", optional = true }
-bzip2 = { version = "0.3", optional = true }
+bzip2 = { version = "0.4.4", optional = true }
 csv = { version = "1.1", optional = true }
 par-map = { version = "0.1", optional = true }
 sha3 = { version = "0.9", optional = true }

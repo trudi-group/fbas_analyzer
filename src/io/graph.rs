@@ -47,7 +47,7 @@ impl Graph {
         head_comment: Option<&str>,
     ) -> std::io::Result<()> {
         let file = File::create(&path)?;
-        let mut compresser = write::BzEncoder::new(file, Compression::Default);
+        let mut compresser = write::BzEncoder::new(file, Compression::best());
         let graph_as_string = Self::to_as_rel_string(graph, head_comment).unwrap();
         compresser.write_all(graph_as_string.as_bytes()).unwrap();
         compresser.finish()?;
