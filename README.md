@@ -67,5 +67,6 @@ and how the API is used by the tools in `src/bin/` and the example in `examples`
 - The algorithms for determining quorum intersection and finding minimal quorums are inspired by [Lachowski 2019](https://arxiv.org/abs/1902.06493), respectively this [implementation](https://github.com/fixxxedpoint/quorum_intersection).
 - [Stellar Observatory](https://github.com/andrenarchy/stellar-observatory) - a different set of FBAS analyses.
 - [nodejs_fbas_analyzer](https://github.com/stellarbeat/nodejs_fbas_analyzer/)
+- [python-fbas](https://github.com/nano-o/python-fbas) uses SAT solvers
 
 ...and of course the awesome [stellarbeat.io](http://stellarbeat.io) :)
